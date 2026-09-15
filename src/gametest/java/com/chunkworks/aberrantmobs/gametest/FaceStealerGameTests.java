@@ -80,4 +80,23 @@ public final class FaceStealerGameTests {
             helper.succeed();
         });
     }
+
+    @GameTest(template = "arena", timeoutTicks = 80)
+    public void aScriptedWalkMovesItAlongTheGroundFacingItsWay(GameTestHelper helper) {
+        layFloor(helper);
+        Vec3 at = helper.absoluteVec(new Vec3(2.5, FLOOR, 7.5));
+        Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, 0.0f);
+        helper.assertTrue(a != null, "the creature is made");
+        helper.getLevel().addFreshEntity(a);
+        a.setScriptedWalk(new com.chunkworks.aberrantmobs.domain.Vec(0.3, 0.0, 0.0), 30);
+        helper.runAtTickTime(40, () -> {
+            double moved = a.getX() - at.x;
+            helper.assertTrue(moved > 7.0 && moved < 10.0, "thirty ticks at 0.3 east: " + moved);
+            helper.assertTrue(Math.abs(a.getY() - at.y) < 0.1, "on the floor: " + (a.getY() - at.y));
+            helper.assertTrue(Math.abs(net.minecraft.util.Mth.wrapDegrees(a.yBodyRot + 90.0f)) < 1.0f, "facing east: " + a.yBodyRot);
+            helper.assertTrue(a.distance() > 7.0, "the distance counted: " + a.distance());
+            helper.assertTrue(a.speed() < 0.01, "and it stopped when the walk ran out: " + a.speed());
+            helper.succeed();
+        });
+    }
 }

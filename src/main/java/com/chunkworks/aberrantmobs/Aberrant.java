@@ -19,6 +19,9 @@ package com.chunkworks.aberrantmobs;
 
 import com.chunkworks.aberrantmobs.api.AberrantMobs;
 import com.chunkworks.aberrantmobs.api.CreatureProfile;
+import com.chunkworks.aberrantmobs.domain.Trail;
+import com.chunkworks.aberrantmobs.domain.Undulation;
+import com.chunkworks.aberrantmobs.domain.Vec;
 import net.minecraft.core.Holder;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
@@ -26,6 +29,7 @@ import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.Pose;
@@ -41,12 +45,30 @@ import org.jetbrains.annotations.Nullable;
  * synced data, so a client that first sees it knows what it is; the
  * profile itself is looked up in the registry each time, never cached, so
  * a reload is honoured.
+ *
+ * <p>The body follows the head: each side keeps its own {@link Trail} of
+ * where the head's axis has been (nothing is synced for it: both sides
+ * have the head's positions already) and the writhe's {@link
+ * Undulation.Wave}, advanced once a tick by the ground speed. The trail
+ * is seeded straight behind the head the first time it is asked for, so
+ * a creature that just appeared has a whole body.
  */
 public class Aberrant extends Monster {
     private static final EntityDataAccessor<String> DATA_PROFILE = SynchedEntityData.defineId(Aberrant.class, EntityDataSerializers.STRING);
 
     /** How far beyond its box a creature is still drawn: a body eleven blocks long trails well past its head. */
     private static final double CULL_REACH = 12.0;
+    /** Trail samples kept: a body of eleven blocks at the slowest crawl, and then some. */
+    private static final int TRAIL_CAPACITY = 256;
+
+    @Nullable
+    private Trail trail;
+    private Undulation.Wave wave;
+    /** Blocks travelled along the ground, for the legs' phase, and last tick's ground speed. */
+    private double distance;
+    private double speed;
+    /** How high the head's axis runs over the feet, blocks, as the body says; NaN until a side that knows the rig tells it. */
+    private double axisHeight = Double.NaN;
 
     public Aberrant(EntityType<? extends Aberrant> type, Level level) {
         super(type, level);
@@ -138,10 +160,114 @@ public class Aberrant extends Monster {
         return id == null ? super.getName() : Component.translatable("creature." + id.getNamespace() + "." + id.getPath());
     }
 
+    // --- the body -------------------------------------------------------
+
+    /** effects: returns the unit direction the head faces along the ground, from the body's yaw */
+    public Vec facing() {
+        double yaw = Math.toRadians(yBodyRot);
+        return new Vec(-Math.sin(yaw), 0.0, Math.cos(yaw));
+    }
+
+    /** effects: returns the up of the surface the head clings to: the floor's, in this phase */
+    public Vec up() {
+        return Vec.Y;
+    }
+
+    /** effects: returns where the head's axis is now: over the feet by {@code axisHeight} along the up */
+    private Vec axis(double axisHeight) {
+        return new Vec(getX(), getY(), getZ()).plus(up().times(axisHeight));
+    }
+
+    /**
+     * effects: returns this side's trail of the head's axis, seeded straight
+     * behind the head over {@code bodyLength} blocks the first time; from then
+     * on {@code axisHeight} is remembered and the trail grows every tick
+     */
+    public Trail trail(double axisHeight, double bodyLength) {
+        if (trail == null) {
+            this.axisHeight = axisHeight;
+            trail = Trail.seeded(axis(axisHeight), facing(), up(), Math.max(1.0, bodyLength), TRAIL_CAPACITY);
+        }
+        return trail;
+    }
+
+    /** effects: returns the writhe's state on this side, at rest until the body has ticked */
+    public Undulation.Wave wave(Undulation undulation) {
+        if (wave == null) {
+            wave = undulation.rest();
+        }
+        return wave;
+    }
+
+    /** effects: returns how far the body has travelled along the ground, blocks */
+    public double distance() {
+        return distance;
+    }
+
+    /** effects: returns last tick's ground speed, blocks a tick */
+    public double speed() {
+        return speed;
+    }
+
+    /** A walk the server was told to make: a ground velocity, blocks a tick, for so many ticks. */
+    @Nullable
+    private Vec walk;
+    private int walkTicks;
+
+    /**
+     * effects: from now on, for {@code ticks} ticks, the server walks this
+     * creature at {@code velocity} (blocks a tick, along the ground) facing
+     * that way, gravity kept -- the booth's and the tests' way to move it
+     * until the crawl arrives
+     */
+    public void setScriptedWalk(Vec velocity, int ticks) {
+        walk = velocity;
+        walkTicks = ticks;
+    }
+
+    @Override
+    public void travel(net.minecraft.world.phys.Vec3 input) {
+        if (!level().isClientSide() && walk != null && walkTicks > 0) {
+            walkTicks--;
+            double vy = onGround() && getDeltaMovement().y <= 0 ? -0.04 : getDeltaMovement().y - 0.08;
+            setDeltaMovement(walk.x(), vy, walk.z());
+            move(net.minecraft.world.entity.MoverType.SELF, getDeltaMovement());
+            if (onGround() && getDeltaMovement().y < 0) {
+                setDeltaMovement(getDeltaMovement().x, 0.0, getDeltaMovement().z);
+            }
+            if (walk.x() != 0 || walk.z() != 0) {
+                float yaw = (float) Math.toDegrees(Math.atan2(-walk.x(), walk.z()));
+                setYRot(yaw);
+                yBodyRot = yaw;
+                yHeadRot = yaw;
+            }
+            return;
+        }
+        super.travel(input);
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+        double dx = getX() - xo, dz = getZ() - zo;
+        speed = Math.sqrt(dx * dx + dz * dz);
+        distance += speed;
+        CreatureProfile p = profile();
+        if (p != null) {
+            wave = p.rig().undulation().advance(wave(p.rig().undulation()), speed);
+        }
+        if (trail != null && !Double.isNaN(axisHeight)) {
+            trail.push(axis(axisHeight), up());
+        }
+    }
+
+    // --- saving ---------------------------------------------------------
+
     @Override
     public void addAdditionalSaveData(CompoundTag tag) {
         super.addAdditionalSaveData(tag);
         tag.putString("Profile", entityData.get(DATA_PROFILE));
+        tag.putDouble("Distance", distance);
     }
 
     @Override
@@ -151,5 +277,11 @@ public class Aberrant extends Monster {
             entityData.set(DATA_PROFILE, tag.getString("Profile"));
             refreshDimensions();
         }
+        distance = tag.getDouble("Distance");
+    }
+
+    /** effects: returns the yaw of the body between ticks, for the frame */
+    public float bodyYaw(float partialTick) {
+        return Mth.rotLerp(partialTick, yBodyRotO, yBodyRot);
     }
 }

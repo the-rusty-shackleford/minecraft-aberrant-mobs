@@ -77,6 +77,25 @@ final class QuatTest {
     }
 
     @Test
+    void lookAlongTakesForwardToForwardAndUpToUpRightHanded() {
+        Quat q = Quat.lookAlong(Vec.X, Vec.Y);
+        assertTrue(q.rotate(Vec.Z).near(Vec.X, EPS));
+        assertTrue(q.rotate(Vec.Y).near(Vec.Y, EPS));
+        assertTrue(q.rotate(Vec.X).near(new Vec(0, 0, -1), EPS), "the model's +X goes to up x forward");
+        // A slanted up is made perpendicular; a wall's up is honoured; parallel refused.
+        Quat slant = Quat.lookAlong(Vec.X, new Vec(1, 1, 0));
+        assertTrue(slant.rotate(Vec.Y).near(Vec.Y, EPS));
+        Quat wall = Quat.lookAlong(Vec.Y, new Vec(0, 0, -1));
+        assertTrue(wall.rotate(Vec.Z).near(Vec.Y, EPS) && wall.rotate(Vec.Y).near(new Vec(0, 0, -1), EPS));
+        assertThrows(IllegalArgumentException.class, () -> Quat.lookAlong(Vec.X, Vec.X));
+        // Every basis round-trips through fromBasis.
+        for (Quat r : new Quat[] {Quat.fromEulerXYZDegrees(30, 40, 50), Quat.fromEulerXYZDegrees(-170, 10, 95), Quat.fromEulerXYZDegrees(0, 180, 0)}) {
+            Quat back = Quat.fromBasis(r.rotate(Vec.X), r.rotate(Vec.Y), r.rotate(Vec.Z));
+            assertTrue(back.near(r, 1e-9), r + " vs " + back);
+        }
+    }
+
+    @Test
     void slerpHoldsItsEndpointsAndHalvesAQuarterTurn() {
         Quat a = Quat.IDENTITY;
         Quat b = Quat.fromAxisAngle(Vec.Y, Math.PI / 2);

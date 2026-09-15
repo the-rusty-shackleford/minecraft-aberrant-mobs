@@ -185,6 +185,41 @@ public final class PhotoBooth {
             shoot(mc, "booth-face");
             verdict("its face fills the frame up close", () -> drawn > 12000 ? null : "creature pixels " + drawn);
         }));
+        // The walk: back to the side view, the creature sent twenty blocks along +X under the game's own
+        // navigation, a frame every twenty ticks -- the chain along its trail, the writhe, the legs.
+        s.add(new Step(t += 2, () -> onServer(mc, sp -> {
+            double y = sp.serverLevel().getMinBuildHeight() + 4;
+            sp.teleportTo(sp.serverLevel(), X + 8.0, y + 5.0, Z - 18.0, 0.0f, 0.0f);
+            sp.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(X + 8.0, y + 1.0, Z));
+            for (var e : sp.serverLevel().getEntities().getAll()) {
+                if (e instanceof Aberrant a && a.getUUID().equals(creature)) {
+                    a.setScriptedWalk(new com.chunkworks.aberrantmobs.domain.Vec(0.3, 0.0, 0.0), 90);
+                }
+            }
+        })));
+        for (int i = 1; i <= 3; i++) {
+            final int n = i;
+            s.add(new Step(t += 20, () -> {
+                int drawn = count(mc, PhotoBooth::creature);
+                shoot(mc, "booth-walk-" + n);
+                if (n == 3) {
+                    Aberrant a = find(mc);
+                    verdict("it walked a good way", () -> a != null && a.getX() - X > 5.0 ? null : "x " + (a == null ? null : a.getX() - X));
+                    verdict("and is drawn walking", () -> drawn > 2500 ? null : "creature pixels " + drawn);
+                }
+            }));
+        }
+        // From straight above, walking: the writhe is a wave in the body seen from the top, the legs a
+        // wave of steps down each side.
+        s.add(new Step(t += 2, () -> onServer(mc, sp -> {
+            double y = sp.serverLevel().getMinBuildHeight() + 4;
+            for (var e : sp.serverLevel().getEntities().getAll()) {
+                if (e instanceof Aberrant a && a.getUUID().equals(creature)) {
+                    sp.teleportTo(sp.serverLevel(), a.getX() + 2.0, y + 14.0, Z + 0.01, 0.0f, 90.0f);
+                }
+            }
+        })));
+        s.add(new Step(t += 12, () -> shoot(mc, "booth-walk-top")));
         s.add(new Step(t += 20, () -> {
             LOG.info("booth: PASS all checks ran");
             phase = Phase.DONE;

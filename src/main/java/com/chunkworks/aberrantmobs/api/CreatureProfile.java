@@ -17,24 +17,29 @@
  */
 package com.chunkworks.aberrantmobs.api;
 
+import com.chunkworks.aberrantmobs.domain.LegGait;
+import com.chunkworks.aberrantmobs.domain.Undulation;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import java.util.List;
 import net.minecraft.resources.ResourceLocation;
 
 /**
  * What a creature is, as a datapack says it: the project that draws it and
- * the scale it is drawn at, the box the world collides with, and its stats.
- * The mind, the rig's names, the habitat and the loot join in later phases;
- * every field is checked in its compact constructor, so a bad file is
- * refused at load naming the field, never at first sight.
+ * the scale it is drawn at, the bones that make its body and how that body
+ * moves, the box the world collides with, and its stats. The mind, the
+ * habitat and the loot join in later phases; every field is checked in its
+ * compact constructor, so a bad file is refused at load naming the field,
+ * never at first sight.
  *
  * <p>Model units are Blockbench's; {@code scale} turns them into blocks
  * (a sixteenth for a model drawn at the game's pixel).
  */
-public record CreatureProfile(ResourceLocation model, double scale, Body body, Stats stats) {
+public record CreatureProfile(ResourceLocation model, double scale, RigSpec rig, Body body, Stats stats) {
     public static final Codec<CreatureProfile> CODEC = RecordCodecBuilder.create(i -> i.group(
             ResourceLocation.CODEC.fieldOf("model").forGetter(CreatureProfile::model),
             Codec.DOUBLE.optionalFieldOf("scale", 1.0 / 16.0).forGetter(CreatureProfile::scale),
+            RigSpec.CODEC.fieldOf("rig").forGetter(CreatureProfile::rig),
             Body.CODEC.fieldOf("body").forGetter(CreatureProfile::body),
             Stats.CODEC.optionalFieldOf("stats", Stats.DEFAULT).forGetter(CreatureProfile::stats)
     ).apply(i, CreatureProfile::new));
@@ -42,6 +47,49 @@ public record CreatureProfile(ResourceLocation model, double scale, Body body, S
     public CreatureProfile {
         if (!(scale > 0.0) || !Double.isFinite(scale)) {
             throw new IllegalArgumentException("scale must be positive: " + scale);
+        }
+    }
+
+    /**
+     * The bones of the body by name: the head, the chain of segments behind
+     * it tail-ward, the leg pairs by the prefix their left and right bones
+     * share, and the writhe and the gait the body moves with.
+     */
+    public record RigSpec(String head, List<String> chain, List<String> legs, String left, String right, Undulation undulation, LegGait gait) {
+        private static final Codec<Undulation> UNDULATION = RecordCodecBuilder.create(i -> i.group(
+                Codec.DOUBLE.optionalFieldOf("amplitude", Undulation.FACE_STEALER.amplitudeMoving()).forGetter(Undulation::amplitudeMoving),
+                Codec.DOUBLE.optionalFieldOf("idle_amplitude", Undulation.FACE_STEALER.amplitudeRest()).forGetter(Undulation::amplitudeRest),
+                Codec.DOUBLE.optionalFieldOf("wavelength", Undulation.FACE_STEALER.wavelength()).forGetter(Undulation::wavelength),
+                Codec.DOUBLE.optionalFieldOf("speed_ref", Undulation.FACE_STEALER.speedRef()).forGetter(Undulation::speedRef),
+                Codec.DOUBLE.optionalFieldOf("idle_speed", Undulation.FACE_STEALER.restSpeed()).forGetter(Undulation::restSpeed),
+                Codec.DOUBLE.optionalFieldOf("vertical", Undulation.FACE_STEALER.verticalRatio()).forGetter(Undulation::verticalRatio)
+        ).apply(i, Undulation::new));
+        private static final Codec<LegGait> GAIT = RecordCodecBuilder.create(i -> i.group(
+                Codec.DOUBLE.optionalFieldOf("stride_deg", LegGait.FACE_STEALER.strideDeg()).forGetter(LegGait::strideDeg),
+                Codec.DOUBLE.optionalFieldOf("lift_deg", LegGait.FACE_STEALER.liftDeg()).forGetter(LegGait::liftDeg),
+                Codec.DOUBLE.optionalFieldOf("cycle_blocks", LegGait.FACE_STEALER.cycleBlocks()).forGetter(LegGait::cycleBlocks),
+                Codec.DOUBLE.optionalFieldOf("wave", LegGait.FACE_STEALER.waveRad()).forGetter(LegGait::waveRad),
+                Codec.DOUBLE.optionalFieldOf("speed_ref", LegGait.FACE_STEALER.speedRef()).forGetter(LegGait::speedRef)
+        ).apply(i, LegGait::new));
+        public static final Codec<RigSpec> CODEC = RecordCodecBuilder.create(i -> i.group(
+                Codec.STRING.fieldOf("head").forGetter(RigSpec::head),
+                Codec.STRING.listOf().fieldOf("chain").forGetter(RigSpec::chain),
+                Codec.STRING.listOf().optionalFieldOf("legs", List.of()).forGetter(RigSpec::legs),
+                Codec.STRING.optionalFieldOf("left", "_l").forGetter(RigSpec::left),
+                Codec.STRING.optionalFieldOf("right", "_r").forGetter(RigSpec::right),
+                UNDULATION.optionalFieldOf("undulation", Undulation.FACE_STEALER).forGetter(RigSpec::undulation),
+                GAIT.optionalFieldOf("gait", LegGait.FACE_STEALER).forGetter(RigSpec::gait)
+        ).apply(i, RigSpec::new));
+
+        public RigSpec {
+            if (head == null || head.isEmpty()) {
+                throw new IllegalArgumentException("the rig names its head bone");
+            }
+            chain = List.copyOf(chain);
+            legs = List.copyOf(legs);
+            if (chain.isEmpty()) {
+                throw new IllegalArgumentException("the chain has at least one segment");
+            }
         }
     }
 

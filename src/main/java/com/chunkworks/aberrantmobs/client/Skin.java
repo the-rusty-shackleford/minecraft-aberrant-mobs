@@ -40,12 +40,16 @@ public final class Skin {
     public final BakedMesh[] bones;
     /** Model units to blocks. */
     public final double scale;
+    /** The rig read as a body by the profile's names, or null when a name is not in the rig (logged once). */
+    @org.jetbrains.annotations.Nullable
+    public final com.chunkworks.aberrantmobs.domain.Body body;
 
-    private Skin(Rig rig, ResourceLocation texture, BakedMesh[] bones, double scale) {
+    private Skin(Rig rig, ResourceLocation texture, BakedMesh[] bones, double scale, com.chunkworks.aberrantmobs.domain.Body body) {
         this.rig = rig;
         this.texture = texture;
         this.bones = bones;
         this.scale = scale;
+        this.body = body;
     }
 
     /** effects: returns the skin of {@code profile}, built on first use since the last reload */
@@ -65,6 +69,13 @@ public final class Skin {
         for (int i = 0; i < bones.length; i++) {
             bones[i] = BakedMesh.of(rig.mesh(i), p.scale());
         }
-        return new Skin(rig, texture, bones, p.scale());
+        com.chunkworks.aberrantmobs.domain.Body body = null;
+        try {
+            CreatureProfile.RigSpec r = p.rig();
+            body = com.chunkworks.aberrantmobs.domain.Body.of(rig, r.head(), r.chain(), r.legs(), r.left(), r.right(), p.scale());
+        } catch (IllegalArgumentException e) {
+            org.slf4j.LoggerFactory.getLogger("Aberrant Mobs").error("aberrantmobs: the profile's rig does not fit the model {}: {}; drawing it still", p.model(), e.getMessage());
+        }
+        return new Skin(rig, texture, bones, p.scale(), body);
     }
 }

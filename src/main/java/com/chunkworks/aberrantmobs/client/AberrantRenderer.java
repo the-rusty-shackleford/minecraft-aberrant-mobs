@@ -19,7 +19,13 @@ package com.chunkworks.aberrantmobs.client;
 
 import com.chunkworks.aberrantmobs.Aberrant;
 import com.chunkworks.aberrantmobs.api.CreatureProfile;
+import com.chunkworks.aberrantmobs.domain.Body;
+import com.chunkworks.aberrantmobs.domain.ChainPose;
+import com.chunkworks.aberrantmobs.domain.LegGait;
 import com.chunkworks.aberrantmobs.domain.Pose;
+import com.chunkworks.aberrantmobs.domain.Trail;
+import com.chunkworks.aberrantmobs.domain.Undulation;
+import com.chunkworks.aberrantmobs.domain.Vec;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
@@ -32,11 +38,15 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 
 /**
- * Draws a creature: its skin under its pose, turned to its yaw. The model
- * faces +Z at yaw 0 (Blockbench's south, the game's), so the body is turned
- * by the negative of the entity's yaw as the game's own models are. One
- * draw call a creature. Later phases hand a posed body in; this one draws
- * the rest pose.
+ * Draws a creature: its skin under the pose its body gives it this frame.
+ * The chain is laid along the head's trail from where the game
+ * interpolates the head between ticks (the lag between that point and the
+ * trail's newest sample carries every segment back by the same amount),
+ * set aside by the writhe, and the legs skitter by the gait; the head's
+ * children (pincers, antennae) and each segment's legs hang from their
+ * bones. A profile whose names do not fit its model is drawn at rest,
+ * turned to its yaw, so the mistake is visible and not fatal. One draw
+ * call a creature.
  */
 public final class AberrantRenderer extends EntityRenderer<Aberrant> {
     private static final ResourceLocation MISSING = ResourceLocation.withDefaultNamespace("textures/misc/unknown_server.png");
@@ -59,13 +69,35 @@ public final class AberrantRenderer extends EntityRenderer<Aberrant> {
             return;
         }
         Skin skin = Skin.of(creature.profileId(), p);
-        float yaw = Mth.rotLerp(partialTick, creature.yBodyRotO, creature.yBodyRot);
-        poseStack.pushPose();
-        poseStack.mulPose(Axis.YP.rotationDegrees(-yaw));
         int overlay = creature.hurtTime > 0 ? OverlayTexture.pack(0, true) : OverlayTexture.NO_OVERLAY;
         VertexConsumer out = buffers.getBuffer(RenderType.entityCutoutNoCull(skin.texture));
-        RigDrawer.draw(skin, Pose.REST, poseStack, out, packedLight, overlay, null, null);
+        poseStack.pushPose();
+        Body body = skin.body;
+        if (body == null) {
+            poseStack.mulPose(Axis.YP.rotationDegrees(-creature.bodyYaw(partialTick)));
+            RigDrawer.draw(skin, Pose.REST, poseStack, out, packedLight, overlay, null, null);
+        } else {
+            RigDrawer.draw(skin, posed(creature, p, body, partialTick), poseStack, out, packedLight, overlay, null, null);
+        }
         poseStack.popPose();
         super.render(creature, entityYaw, partialTick, poseStack, buffers, packedLight);
+    }
+
+    /** effects: returns the body's pose this frame, relative to the point the game draws the creature from */
+    private static Pose posed(Aberrant creature, CreatureProfile p, Body body, float partialTick) {
+        Trail trail = creature.trail(body.axisHeight(), body.length());
+        Undulation undulation = p.rig().undulation();
+        Undulation.Wave wave = creature.wave(undulation);
+        // The game draws from the head's interpolated position; the trail's newest sample is its position at the
+        // last tick, so the drawn head sits `lag` behind that sample along the path, and so does every segment.
+        double x = Mth.lerp(partialTick, creature.xo, creature.getX());
+        double y = Mth.lerp(partialTick, creature.yo, creature.getY());
+        double z = Mth.lerp(partialTick, creature.zo, creature.getZ());
+        Vec origin = new Vec(x, y, z);
+        Vec drawnAxis = origin.plus(creature.up().times(body.axisHeight()));
+        double lag = Math.min(drawnAxis.minus(trail.at(0).pos()).length(), 2.0);
+        ChainPose chain = ChainPose.of(trail, body.arcBack(), lag, undulation, wave);
+        LegGait.LegPose[] legs = p.rig().gait().poses(body.legPairs(), creature.distance() + creature.speed() * partialTick, creature.speed());
+        return body.pose(chain, legs, origin);
     }
 }
