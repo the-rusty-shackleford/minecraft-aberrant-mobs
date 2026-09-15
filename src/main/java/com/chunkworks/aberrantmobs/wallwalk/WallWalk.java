@@ -24,7 +24,6 @@ import com.chunkworks.aberrantmobs.domain.frame.Frame;
 import com.chunkworks.aberrantmobs.domain.frame.Transition;
 import java.util.Optional;
 import java.util.function.Predicate;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
@@ -37,13 +36,15 @@ import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 
 /**
  * The chitin's gift: a player wearing the full set walks on walls and
- * ceilings as if they were ground. The server decides every tick, after
- * the player moved, from its own copy of the pure {@link Transition}
- * rules; the client runs the same rule on its own player a tick ahead, so
- * the two agree within the game's tolerance and no packet is added: the
- * frame rides the player's synced data as one byte. A wearer's motion,
- * look and box are reckoned in the frame's local axes by the mixins on
- * the entity; here only which frame it is changes.
+ * ceilings as if they were ground. The client runs the pure
+ * {@link Transition} rules on its own player right after each move; the
+ * server runs the same rules right after its re-run of each move the
+ * client reports (the mixin on the packet listener), before it compares
+ * the two positions, and again after its tick for what no move decides
+ * -- the set coming off, water. So the two agree and no packet is added:
+ * the frame rides the player's synced data as one byte. A wearer's
+ * motion, look and box are reckoned in the frame's local axes by the
+ * mixins on the entity; here only which frame it is changes.
  *
  * <p>A wearer takes a wall it walks into hard enough, wraps over an edge
  * it walks off, and lets go -- to the world's own down, the least way out
@@ -141,15 +142,18 @@ public final class WallWalk {
         return box -> p.level().noCollision(p, aabb(box));
     }
 
-    /** effects: puts {@code p} in the stance: its frame, its feet, its yaw so the way it was going carries on; its local velocity kept, its fall forgotten */
+    /**
+     * effects: puts {@code p} in the stance: its frame, its feet, its yaw so
+     * the way it was going carries on; its local velocity kept, its fall
+     * forgotten. Never a teleport: on the server the rule runs inside the
+     * re-run of the client's own move, whose reported position is this
+     * stance's already, and a teleport would drop the client's next moves
+     * until it answered
+     */
     private static void take(Player p, FrameCarrier c, Transition.Stance s) {
         c.aberrantmobs$setFrame(s.frame());
         float yaw = Double.isNaN(s.yaw()) ? p.getYRot() : (float) s.yaw();
-        if (p instanceof ServerPlayer sp && sp.connection != null) {
-            sp.connection.teleport(s.feet().x(), s.feet().y(), s.feet().z(), yaw, p.getXRot());
-        } else {
-            p.setPos(s.feet().x(), s.feet().y(), s.feet().z());
-        }
+        p.setPos(s.feet().x(), s.feet().y(), s.feet().z());
         p.setYRot(yaw);
         p.setYHeadRot(yaw);
         p.yBodyRot = yaw;

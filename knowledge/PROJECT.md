@@ -181,13 +181,15 @@ accept a dark chimney by thick rock where it bores its pocket, the creative tab 
 mod and its egg or a summon puts the creature whole on the lit surface, killed it drops
 chitin and its plate and experience, a full set walked into a wall takes it and climbs and lets
 go without the helmet and lands, water lets go and the undressed stop at the wall),
-`runPhotoBooth` (41 checks: every sound event resolves, side,
+`runPhotoBooth` (44 checks: every sound event resolves, side,
 quarter, face, a walking strip, from above, each clip playing on the client at its key
 frames, drawn after the death, the stolen face known to the client, the client held at
 the maw, the client's parts numbered from the creature's id and standing on the body, its
 crosshair on the crack finding a part and a blow on it taking health, on the wall, dug
 in, past an oak and past a lone pillar upright, the client in
-the chitin set standing on a wall from its own eyes and from behind). The booth world is
+the chitin set, in survival, taking a wall and climbing it three blocks with the server
+agreeing on every tick and standing on the wall itself, from its own eyes and from
+behind). The booth world is
 normal difficulty with spawning off: a
 monster is discarded in peaceful.
 
@@ -285,8 +287,19 @@ the dragon does; the game does not do it for a mod's parts). No sword had ever l
 segment since 1.0.0. And Rusty's call that it be hard to kill, "at least five hearty hits even with a
 hard-hitting weapon": the profile's `stats.blows` (5) caps every blow at that share of the
 health, explosions included (`Carapace.blowCap`, D-0013); the loot gametest kills it with
-five blows of a million. Booth 40 checks. The 1.2.0 queue also holds (b) the item and
-armour art redrawn in vanilla's family and (c) scarier recordings, the breath's among them.
+five blows of a million. Rusty's third report: "the gravity system for the chitin armor is
+totally fucked." Reproduced by putting the booth's wall-walk player in survival: the
+client took the wall and climbed in its own frame, the server's re-run of the reported
+move had not taken it, the position differed by the take, the server said "moved
+wrongly" and teleported back, and from then on the client's frame stayed on the wall
+(the server's byte never changed, so nothing overwrote it) while the server re-ran every
+move on the ground -- half a block climbed in sixty ticks. Creative skips that check,
+which is why the booth had passed. D-0014: the server applies the frame rule inside its
+re-run of each reported move, before the comparison (`ServerGamePacketListenerImplMixin`),
+and a take no longer teleports; the booth's wall scene is in survival and counts the
+ticks the server disagrees with the client (44 checks). The 1.2.0 queue also holds (b)
+the item and armour art redrawn in vanilla's family and (c) scarier recordings, the
+breath's among them.
 
 ## Next
 

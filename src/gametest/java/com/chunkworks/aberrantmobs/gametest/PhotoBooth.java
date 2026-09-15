@@ -93,6 +93,9 @@ public final class PhotoBooth {
     private static double hillFace;
     private static double treeX;
     private static double pillarX;
+    /** The wall-walk's wall, and how many ticks of the walk the server's position was over half a block from the client's. */
+    private static double wallX;
+    private static int disagreements;
 
     @SubscribeEvent
     public static void onClientTick(ClientTickEvent.Post event) {
@@ -253,9 +256,10 @@ public final class PhotoBooth {
             shoot(mc, "booth-crack-aim");
             verdict("the client's cracked part stands on the body", () -> a != null && a.getParts()[a.weakSegment()].position().distanceTo(a.position()) < 12.0 ? null
                     : "the part is at " + (a == null ? null : a.getParts()[a.weakSegment()].position()) + ", the creature at " + (a == null ? null : a.position()));
-            // The parts' boxes overlap along the body, so the box the crosshair names may be a neighbour's: the server
-            // judges the segment from the attacker's look, and the blow's landing is the test of that.
-            verdict("aiming at the crack, the crosshair finds a part of the body", () -> mc.hitResult instanceof net.minecraft.world.phys.EntityHitResult e && e.getEntity() instanceof AberrantPart ? null
+            // The parts' boxes overlap along the body, and the head's own box the first of them, so the box the
+            // crosshair names may be a neighbour's or the creature's own: the server judges the segment from the
+            // attacker's look, and the blow's landing is the test of that.
+            verdict("aiming at the crack, the crosshair finds the body", () -> mc.hitResult instanceof net.minecraft.world.phys.EntityHitResult e && (e.getEntity() instanceof AberrantPart || e.getEntity() instanceof Aberrant) ? null
                     : "the crosshair is on " + (mc.hitResult instanceof net.minecraft.world.phys.EntityHitResult e ? e.getEntity() : mc.hitResult));
             verdict("the client's parts are numbered from the creature's id", () -> {
                 if (a == null) {
@@ -443,16 +447,32 @@ public final class PhotoBooth {
             sp.getAbilities().flying = false;
             sp.onUpdateAbilities();
             sp.teleportTo(sp.serverLevel(), px, y, Z, -90.0f, 0.0f);
+            // In survival, as Rusty plays: the server's check on every reported move ("moved wrongly", a teleport
+            // back) is skipped for a creative player, and it is that check the wall-walk has to pass.
+            sp.setGameMode(GameType.SURVIVAL);
+            wallX = wx;
         }))));
         s.add(new Step(t += 3, () -> verdict("the client was let go of the maw", () -> mc.player != null && !mc.player.isPassenger() ? null : "the client still rides " + (mc.player == null ? null : mc.player.getVehicle()))));
         // The client walks: its forward key held, it goes east into the wall and predicts the change of down itself,
-        // the server agreeing from the moves it reports.
+        // the server agreeing from the moves it reports. Every tick, the server's position against the client's.
         s.add(new Step(t += 4, () -> mc.options.keyUp.setDown(true)));
-        s.add(new Step(t += 50, () -> mc.options.keyUp.setDown(false)));
+        for (int i = 1; i <= 60; i++) {
+            s.add(new Step(t + i, () -> onServer(mc, sp -> {
+                if (mc.player != null && sp.position().distanceTo(mc.player.position()) > 0.5) {
+                    disagreements++;
+                }
+            })));
+        }
+        s.add(new Step(t += 60, () -> mc.options.keyUp.setDown(false)));
         s.add(new Step(t += 6, () -> {
             shoot(mc, "booth-wallwalk-eyes");
             verdict("the client stands on the wall", () -> mc.player != null && com.chunkworks.aberrantmobs.wallwalk.WallWalk.frameOf(mc.player).gravity() == com.chunkworks.aberrantmobs.domain.frame.Gravity.EAST
                     ? null : "the client's gravity is " + (mc.player == null ? null : com.chunkworks.aberrantmobs.wallwalk.WallWalk.frameOf(mc.player).gravity()));
+            double y = mc.level.getMinBuildHeight() + 4;
+            verdict("and has climbed it in survival", () -> mc.player != null && mc.player.getY() - y > 3.0 ? null : "the client is " + (mc.player == null ? null : mc.player.getY() - y) + " up");
+            verdict("the server agreed with every move", () -> disagreements == 0 ? null : disagreements + " ticks with the server over half a block from the client");
+            onServer(mc, sp -> verdict("and stands on the wall itself", () -> com.chunkworks.aberrantmobs.wallwalk.WallWalk.frameOf(sp).gravity() == com.chunkworks.aberrantmobs.domain.frame.Gravity.EAST && sp.getY() - y > 3.0
+                    ? null : "the server's gravity is " + com.chunkworks.aberrantmobs.wallwalk.WallWalk.frameOf(sp).gravity() + ", " + (sp.getY() - y) + " up"));
             // From the front: the camera backs off along the look, which on a wall is up it and into open air.
             mc.options.setCameraType(net.minecraft.client.CameraType.THIRD_PERSON_FRONT);
         }));

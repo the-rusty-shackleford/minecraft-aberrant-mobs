@@ -21,3 +21,4 @@ type: index
 | D-0011 | The creature's size is the profile's: every number tied to the body scales with it, in data or from the rules, never as a constant beside it |
 | D-0012 | The crawl follows the way's shape: it climbs only where the way rises, and lets go of a face it cannot follow the way from |
 | D-0013 | Hard to kill by count, not by health: the profile caps what one blow takes |
+| D-0014 | The server judges a wearer's frame inside its re-run of each reported move, never by teleport |

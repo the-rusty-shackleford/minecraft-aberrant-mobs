@@ -159,12 +159,19 @@ enough takes it (`Transition.intoWall`: the wall becomes the floor, the feet on 
 if the wearer's box fits there); walking off an edge wraps onto the ledge's face
 (`Transition.overEdge`); taking the set off, water, lava, flying, riding, gliding,
 sleeping or spectating lets go to the world's own down by the least way out that fits
-(`Transition.release`). A knockback or a push lands in the wearer's frame. The server
-decides every tick after the player moved
-(`wallwalk/WallWalk` on `PlayerTickEvent.Post`, the pure rules over
-`level.noCollision`); the client runs the same rule on its own player a tick ahead, so
-the two agree within the game's tolerance and no packet is added -- the frame rides the
-player's synced data as one byte (`mixin/PlayerMixin`). The server's fall check on a
+(`Transition.release`). A knockback or a push lands in the wearer's frame. The client
+runs the rule on its own player right after each move (`wallwalk/WallWalk`, the pure
+rules over `level.noCollision`); the server runs the same rule right after its re-run of
+each move the client reports, before it compares the two positions
+(`mixin/ServerGamePacketListenerImplMixin`), and again after its tick for what no move
+decides (the set coming off, water: `PlayerTickEvent.Post`); so the two agree and no
+packet is added -- the frame rides the player's synced data as one byte
+(`mixin/PlayerMixin`). Until 1.2.0 the server ran the rule only after its tick: a take
+moves the feet onto the wall's face, the client reported that position, the server's
+re-run had not taken the wall, and a survival player was "moved wrongly" and teleported
+back while its own frame stayed on the wall -- every move after that re-run on the ground.
+The booth's player was in creative, which skips that check, so the booth never saw it; its
+wall scene is in survival now and counts the ticks the server disagrees. The server's fall check on a
 reported move reads the fall along the wearer's down (`mixin/ServerPlayerMixin`). On the
 client the camera sits at the wearer's eyes (`mixin/CameraMixin`), its angles are the
 frame's rotation composed with the look and handed back as yaw, pitch and roll
