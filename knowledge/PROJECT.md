@@ -90,17 +90,36 @@ draws the skin's face and hat over the mask cube's front, `RigDrawer.drawQuad`).
 pounce verb plays the coil and leaps as it ends; the tree holds it with a `pouncing`
 timer. Verbs grab/release/bite do their work.
 
+Phase 6 (done): habitat, loot, sounds. `domain/Habitat` (`Rules(yMin, yMax, maxLight,
+exclusion, cap)`; `deepAndDark`; `siteInWall` crosses the cave's air then needs six of
+rock ending in a 3x3x3 pocket of rock). `SpawnRules` on `RegisterSpawnPlacementsEvent`
+(NO_RESTRICTIONS, REPLACE): natural spawns need a profile with a habitat fitting the
+site's depth and light, not deep dark, a wall thick enough, none within the exclusion,
+fewer than the cap; the biome modifier adds the type to `#is_overworld` (weight 2).
+`Aberrant.finalizeSpawn` picks the fitting profile by weight, bores the pocket
+(`DigWorld`, quiet) and moves there; persists on stalk/hunt; drops the profile's loot
+table (`data/aberrantmobs/loot_table/creature/face_stealer.json`: 12-18 chitin +
+looting, one cracked carapace) plus, 15 % of the time, the Stolen Face carrying the
+victim's profile (`StolenFaceItem`); 50 XP; the death clip runs its forty ticks before
+the body goes. Items chitin, cracked_carapace, stolen_face with icons drawn by
+`devtools/art/build.py`. Sounds cut from freesound CC0 recordings by the same script
+(`devtools/art/sounds/SOURCES.md`): skitter (two takes) every six ticks under way at 0.35
+quiet / 1.0 loud, breath when still, and on the cues click, hiss, screech, grab, bite,
+crack, dig loud/quiet; death as the death sound; the clang stays vanilla's anvil.
+
 ## How it is verified
 
-`./gradlew test` (90 JUnit tests, the reader proved against the saved file),
-`runGameTestServer` (15 gametests: the profile and the creature, the parts along the body
+`./gradlew test` (93 JUnit tests, the reader proved against the saved file),
+`runGameTestServer` (17 gametests: the profile and the creature, the parts along the body
 after a walk, only the crack takes a blow, most feet on the floor mid-walk, a clip's
 cues on their ticks, a scripted walk, floor-wall-ceiling, a coherent tunnel round
 bedrock to a target, a pounce landing where aimed, a distant step → prowl toward a vague
 bearing and a near noise exact, a block break heard through the world, a player seen
 underground → stalk out of view → eye contact → hunt, the grab holds at the maw and the
 bite devours and takes the face, a blessed player survives and is let go and it flees,
-hunting in sight it coils then pounces), `runPhotoBooth` (20 checks: side,
+hunting in sight it coils then pounces, the spawn rules refuse the lit surface and
+accept a dark chimney by thick rock where it bores its pocket, killed it drops chitin
+and its plate and experience), `runPhotoBooth` (32 checks: every sound event resolves, side,
 quarter, face, a walking strip, from above, each clip playing on the client at its key
 frames, drawn after the death, the stolen face known to the client, the client held at
 the maw, on the wall, dug in). The booth world is normal difficulty with spawning off: a
@@ -112,7 +131,8 @@ See `decisions/`.
 
 ## Next
 
-Phase 6, habitat, loot, sounds: spawn placement in the rock beside deep caves, the
-biome modifier, persistence once it knows you, the loot table (Chitin, Cracked Carapace,
-Stolen Face with the profile), sounds.json from freesound CC0 on the cues, a playtest
-through real caves.
+Phase 7, the chitin armour: gravity in six directions (`frame/*`: Gravity, Frame, Look,
+CameraAngles, Transition, Blend), the server's rule on `PlayerTickEvent.Post`, the
+client's blend, mixins on move/collide/box/eye/camera/model, recipes from chitin and the
+cracked carapace. Before it: a playtest through real caves for the dread (distance cues,
+the first sight, a chase), read from the log then the frames.

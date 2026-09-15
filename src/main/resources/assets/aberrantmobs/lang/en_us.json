@@ -1,5 +1,20 @@
 {
   "entity.aberrantmobs.aberrant": "Aberrant",
   "creature.aberrantmobs.face_stealer": "Face-Stealer",
-  "death.attack.devoured": "%1$s was devoured by the Face-Stealer"
+  "death.attack.devoured": "%1$s was devoured by the Face-Stealer",
+  "item.aberrantmobs.chitin": "Chitin",
+  "item.aberrantmobs.cracked_carapace": "Cracked Carapace",
+  "item.aberrantmobs.stolen_face": "Stolen Face",
+  "item.aberrantmobs.stolen_face.whose": "The face of %s",
+  "item.aberrantmobs.stolen_face.nobody": "Nobody's face, yet",
+  "subtitles.aberrantmobs.skitter": "Something skitters",
+  "subtitles.aberrantmobs.dig": "Rock scrapes",
+  "subtitles.aberrantmobs.click": "Pincers click",
+  "subtitles.aberrantmobs.hiss": "Face-Stealer hisses",
+  "subtitles.aberrantmobs.screech": "Face-Stealer screeches",
+  "subtitles.aberrantmobs.grab": "Pincers close",
+  "subtitles.aberrantmobs.bite": "Bones crunch",
+  "subtitles.aberrantmobs.crack": "Carapace cracks",
+  "subtitles.aberrantmobs.death": "Face-Stealer dies",
+  "subtitles.aberrantmobs.breath": "Something breathes"
 }

@@ -6,14 +6,15 @@ head, the mind that reads its senses through a decision tree, the crawling, digg
 stalking, grabbing and biting its verbs do, and what it drops. The first creature is the
 **Face-Stealer**, nfx's centipede: eleven blocks of it, a mask for a face.
 
-This is phase 5 of 7 (`~/.claude/plans/wiggly-cuddling-adleman.md` is the plan): the
+This is phase 6 of 7 (`~/.claude/plans/wiggly-cuddling-adleman.md` is the plan): the
 creature exists, is sized and named by its profile, its body follows its head along a
 trail and writhes, its feet stand on the world and step in a wave, its plating rings and
 its crack glows, its attack animations play on the server's say, it crawls over floors,
 walls and ceilings, digs its way to a point through rock, coils and pounces, thinks (a
 decision tree in its profile over what it senses and hears, driving verbs in Java),
-grabs, bites, and wears the face of its last victim. It does not yet spawn on its own,
-drop anything, or make a sound.
+grabs, bites, wears the face of its last victim, spawns in the rock beside deep dark
+caves, drops chitin and its cracked plate, and sounds like what it is. The armour its
+chitin makes is phase 7.
 
 ## A creature
 
@@ -88,6 +89,32 @@ player the creature wears their face: the mask cube's front (`rig.mask` in the
 profile) is drawn with the victim's skin, their face and hat layer, on every client and
 across saves, until the next victim. The pounce verb coils first (the charge, with its
 click and hiss) and leaps as the coil ends.
+
+## Where it lives, what it leaves, how it sounds
+
+A profile with a `habitat` spawns on its own (`{"y_min": -58, "y_max": 0, "max_light":
+0, "weight": 2, "exclusion": 128, "cap": 6}`): the biome modifier offers the entity type
+to every overworld biome, and `SpawnRules` takes a site only when it is deep and dark
+enough for some habitat, not in the deep dark, with a wall beside the cave thick enough
+to bore into (`domain/Habitat`: across the cave's air, then six of rock ending in a
+pocket of rock), no other creature within the exclusion and fewer than the cap in the
+level. The creature then takes the profile whose habitat fits (by weight), bores its
+pocket six blocks into that wall and starts there, so the first sign of it is digging.
+Once it stalks or hunts it persists; a lit base is safe, since it will not spawn in
+light. A command or an egg puts it anywhere.
+
+Killed, it drops its profile's loot table (`"loot"`): for the Face-Stealer twelve to
+eighteen **Chitin** (more with Looting), its **Cracked Carapace** (the weak plate, the
+armour's core in phase 7), and one time in seven the **Stolen Face** it wore, carrying
+the victim's profile so the trophy names them; and fifty experience. The icons are drawn
+by `devtools/art/build.py`.
+
+Its sounds are cut by the same script from CC0 recordings on freesound.org, credited in
+`devtools/art/sounds/SOURCES.md`, nothing added: a skitter every six ticks under way
+(quiet while it stalks or prowls, loud in the hunt), a breath when still, the click and
+the hiss of the coil, the screech of the pounce, the pincers meeting, the crunch of the
+bite, the crack of its plating giving, the scrape of the dig (quiet or loud), and its
+death. The plating's clang is the anvil.
 
 ## The ears
 
@@ -218,10 +245,12 @@ and crack it, play a clip through its cues, send it over a floor, up a wall and 
 ceiling, dig it a coherent tunnel round bedrock to a target, land its pounce, and, with
 its mind on, prowl toward a distant step, hear a block break through the world, stalk a
 player seen underground out of their view and hunt them on eye contact, hold a player at
-the maw and devour them, spare a blessed one and flee, coil and pounce. The booth (`Xephyr :7 -screen 1280x720
+the maw and devour them, spare a blessed one and flee, coil and pounce, refuse a lit
+surface and take a dark chimney by thick rock to bore its pocket, and drop its loot. The booth (`Xephyr :7 -screen 1280x720
 -ac -br -noreset`, then `DISPLAY=:7 __GLX_VENDOR_LIBRARY_NAME=mesa
 LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe MESA_GL_VERSION_OVERRIDE=4.6
-MESA_GLSL_VERSION_OVERRIDE=460 ./gradlew runPhotoBooth`) photographs the creature from
+MESA_GLSL_VERSION_OVERRIDE=460 ./gradlew runPhotoBooth`) checks every sound event
+resolves and photographs the creature from
 the side, the front quarter and up close, walking from the side and from above, each
 clip at its key frames, wearing the booth player's face, holding them at its maw (from
 their own eyes), climbing a wall and digging into a hill, silent from its first tick; its

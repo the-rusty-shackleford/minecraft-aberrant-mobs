@@ -48,7 +48,10 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  * dismount, pinches; the bite devours through the damage pipeline as
  * {@code aberrantmobs:devoured} and takes the face; a player blessed at
  * the miracle's door survives it, is let go, and the creature flees;
- * hunting a player in sight it coils, then pounces.
+ * hunting a player in sight it coils, then pounces. The spawn rules
+ * refuse the lit surface and accept a dark pocket by thick rock, where a
+ * creature spawned takes the fitting profile and bores its pocket into the
+ * wall; killed, it drops its chitin and its cracked plate and experience.
  *
  * <p>The arena template is 15 by 9 by 15, the tall one 15 by 16 by 15; a
  * floor of stone is laid on them.
@@ -463,6 +466,68 @@ public final class FaceStealerGameTests {
             helper.assertTrue(pounce > coil, "then pounced: " + clips);
             double d = a.axis().minus(new com.chunkworks.aberrantmobs.domain.Vec(p.getX(), p.getY() + 1, p.getZ())).length();
             helper.assertTrue(d < 3.5 || a.holding(), "and landed on them: " + d);
+        });
+    }
+
+    @GameTest(template = "tall", timeoutTicks = 40, batch = "spawn")
+    public void theSpawnRulesRefuseTheLitSurfaceAndAcceptADarkPocketByThickRock(GameTestHelper helper) {
+        layFloor(helper);
+        BlockPos lit = helper.absolutePos(new BlockPos(7, FLOOR, 7));
+        helper.assertTrue(!net.minecraft.world.entity.SpawnPlacements.checkSpawnRules(com.chunkworks.aberrantmobs.ModContent.ABERRANT.get(), helper.getLevel(), net.minecraft.world.entity.MobSpawnType.NATURAL, lit, helper.getLevel().getRandom()), "not on the lit surface");
+        fill(helper, 0, FLOOR, 0, 14, 15, 14, Blocks.STONE);   // the whole template rock
+        fill(helper, 7, 5, 7, 7, 7, 7, Blocks.AIR);            // a chimney of cave in the middle, dark, seven of rock each way
+        BlockPos pocket = helper.absolutePos(new BlockPos(7, 5, 7));
+        helper.runAtTickTime(20, () -> {   // the light engine settles
+            helper.assertTrue(helper.getLevel().getBrightness(net.minecraft.world.level.LightLayer.SKY, pocket) == 0, "dark: sky " + helper.getLevel().getBrightness(net.minecraft.world.level.LightLayer.SKY, pocket));
+            helper.assertTrue(com.chunkworks.aberrantmobs.SpawnRules.siteBeside(helper.getLevel(), pocket), "a wall six thick lies beside it");
+            helper.assertTrue(net.minecraft.world.entity.SpawnPlacements.checkSpawnRules(com.chunkworks.aberrantmobs.ModContent.ABERRANT.get(), helper.getLevel(), net.minecraft.world.entity.MobSpawnType.NATURAL, pocket, helper.getLevel().getRandom()), "a dark pocket by thick rock will do");
+            helper.assertTrue(net.minecraft.world.entity.SpawnPlacements.checkSpawnRules(com.chunkworks.aberrantmobs.ModContent.ABERRANT.get(), helper.getLevel(), net.minecraft.world.entity.MobSpawnType.COMMAND, lit, helper.getLevel().getRandom()), "a command puts it anywhere");
+            // Come into the world there: it takes the Face-Stealer's profile and bores its pocket six into the wall.
+            Aberrant a = com.chunkworks.aberrantmobs.ModContent.ABERRANT.get().create(helper.getLevel());
+            a.setPos(pocket.getX() + 0.5, pocket.getY(), pocket.getZ() + 0.5);
+            a.finalizeSpawn(helper.getLevel(), helper.getLevel().getCurrentDifficultyAt(pocket), net.minecraft.world.entity.MobSpawnType.NATURAL, null);
+            helper.getLevel().addFreshEntity(a);
+            helper.assertValueEqual(a.profileId(), FACE_STEALER, "the profile whose habitat fits");
+            helper.assertTrue(Math.abs(a.getX() - pocket.getX() - 0.5) > 5.5 || Math.abs(a.getZ() - pocket.getZ() - 0.5) > 5.5, "in the wall, six blocks off: " + (a.getX() - pocket.getX()) + ", " + (a.getZ() - pocket.getZ()));
+            BlockPos inside = BlockPos.containing(a.getX(), a.getY() + 1.0, a.getZ());
+            helper.assertTrue(helper.getLevel().getBlockState(inside).isAir(), "in a pocket it bored: " + inside);
+            helper.assertTrue(a.blocksDug() >= 20, "the pocket's rock cut: " + a.blocksDug());
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "arena", timeoutTicks = 100, batch = "loot")
+    public void killedItDropsItsChitinItsCrackedPlateAndSometimesTheFace(GameTestHelper helper) {
+        layFloor(helper);
+        Vec3 at = helper.absoluteVec(new Vec3(7.5, FLOOR, 7.5));
+        Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, -90.0f);
+        helper.assertTrue(a != null, "the creature is made");
+        helper.getLevel().addFreshEntity(a);
+        a.setNoAi(true);
+        helper.assertValueEqual(a.getDefaultLootTable().location(), AberrantMobs.id("creature/face_stealer"), "the profile's loot table");
+        net.minecraft.world.item.ItemStack trophy = com.chunkworks.aberrantmobs.StolenFaceItem.of(new com.mojang.authlib.GameProfile(java.util.UUID.randomUUID(), "nfx"));
+        helper.assertValueEqual(com.chunkworks.aberrantmobs.StolenFaceItem.whose(trophy), "nfx", "a stolen face names its owner");
+        net.minecraft.world.entity.player.Player killer = helper.makeMockPlayer(net.minecraft.world.level.GameType.SURVIVAL);
+        helper.runAtTickTime(2, () -> {
+            helper.assertTrue(a.getParts()[a.weakSegment()].hurt(helper.getLevel().damageSources().playerAttack(killer), 1.0e6f), "a player's killing blow on the crack");
+            helper.assertTrue(a.isDeadOrDying(), "dying");
+            helper.assertValueEqual(a.clipPlaying(), "death", "the death clip plays");
+        });
+        helper.runAtTickTime(60, () -> {
+            helper.assertTrue(a.isRemoved(), "taken away after its forty ticks");
+            int chitin = 0, plates = 0;
+            for (net.minecraft.world.entity.item.ItemEntity item : helper.getLevel().getEntities(net.minecraft.world.level.entity.EntityTypeTest.forClass(net.minecraft.world.entity.item.ItemEntity.class), helper.getBounds().inflate(4), e -> true)) {
+                if (item.getItem().is(com.chunkworks.aberrantmobs.ModContent.CHITIN.get())) {
+                    chitin += item.getItem().getCount();
+                }
+                if (item.getItem().is(com.chunkworks.aberrantmobs.ModContent.CRACKED_CARAPACE.get())) {
+                    plates += item.getItem().getCount();
+                }
+            }
+            helper.assertTrue(chitin >= 12 && chitin <= 18, "twelve to eighteen chitin: " + chitin);
+            helper.assertValueEqual(plates, 1, "and its cracked plate");
+            helper.assertTrue(!helper.getLevel().getEntities(net.minecraft.world.level.entity.EntityTypeTest.forClass(net.minecraft.world.entity.ExperienceOrb.class), helper.getBounds().inflate(4), e -> true).isEmpty(), "and experience");
+            helper.succeed();
         });
     }
 

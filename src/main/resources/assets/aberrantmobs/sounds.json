@@ -1,0 +1,13 @@
+{
+  "skitter": {"subtitle": "subtitles.aberrantmobs.skitter", "sounds": ["aberrantmobs:skitter1", "aberrantmobs:skitter2"]},
+  "dig_loud": {"subtitle": "subtitles.aberrantmobs.dig", "sounds": ["aberrantmobs:dig_loud"]},
+  "dig_quiet": {"subtitle": "subtitles.aberrantmobs.dig", "sounds": ["aberrantmobs:dig_quiet"]},
+  "click": {"subtitle": "subtitles.aberrantmobs.click", "sounds": ["aberrantmobs:click"]},
+  "hiss": {"subtitle": "subtitles.aberrantmobs.hiss", "sounds": ["aberrantmobs:hiss"]},
+  "screech": {"subtitle": "subtitles.aberrantmobs.screech", "sounds": ["aberrantmobs:screech"]},
+  "grab": {"subtitle": "subtitles.aberrantmobs.grab", "sounds": ["aberrantmobs:grab"]},
+  "bite": {"subtitle": "subtitles.aberrantmobs.bite", "sounds": ["aberrantmobs:bite"]},
+  "crack": {"subtitle": "subtitles.aberrantmobs.crack", "sounds": ["aberrantmobs:crack"]},
+  "death": {"subtitle": "subtitles.aberrantmobs.death", "sounds": ["aberrantmobs:death"]},
+  "breath": {"subtitle": "subtitles.aberrantmobs.breath", "sounds": ["aberrantmobs:breath"]}
+}

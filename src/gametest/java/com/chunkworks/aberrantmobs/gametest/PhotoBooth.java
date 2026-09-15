@@ -167,6 +167,9 @@ public final class PhotoBooth {
         List<Step> s = new ArrayList<>();
         int t = 0;
         s.add(new Step(t += SETTLE * 2, () -> {
+            for (String id : List.of("skitter", "dig_loud", "dig_quiet", "click", "hiss", "screech", "grab", "bite", "crack", "death", "breath")) {
+                verdict("the sound " + id + " resolves", () -> mc.getSoundManager().getSoundEvent(net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("aberrantmobs", id)) != null ? null : "no sound event " + id);
+            }
             int drawn = count(mc, PhotoBooth::creature);
             shoot(mc, "booth-side");
             verdict("the client has the creature", () -> find(mc) != null ? null : "no Aberrant among the entities for rendering");

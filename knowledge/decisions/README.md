@@ -15,3 +15,4 @@ type: index
 | D-0005 | Hearing is the game-event stream with an error that scales with distance, never a poll of players |
 | D-0006 | The bite passes through the damage pipeline, finite, so miracles and totems work |
 | D-0007 | The face is the last victim's profile, worn on the mask |
+| D-0008 | It spawns in the rock beside deep dark caves and persists once it knows you; sounds are CC0 recordings, nothing added |

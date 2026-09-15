@@ -20,6 +20,8 @@
     "health": 84,
     "speed": 0.45
   },
+  "habitat": {"y_min": -58, "y_max": 0, "max_light": 0, "weight": 2, "exclusion": 128, "cap": 6},
+  "loot": "aberrantmobs:creature/face_stealer",
   "mind": {
     "start": "roam",
     "tunables": {"sight": 40, "eye_cone_deg": 10, "face_cone_deg": 75, "memory": 600, "flinch_at": 10},

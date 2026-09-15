@@ -38,29 +38,62 @@ import net.minecraft.util.ExtraCodecs;
  * decision tree in JSON over the senses, read by the domain's
  * {@link TreeJson} with the verbs registered in {@link Verbs}, so a
  * condition naming no sense, a mode entered that is not there or a verb
- * nobody knows is refused at load, naming its path. The habitat and the
- * loot join in later phases; every field is checked in its compact
- * constructor, so a bad file is refused at load naming the field, never
- * at first sight. A creature without a mind stands, and is moved by the
- * booth and the tests.
+ * nobody knows is refused at load, naming its path -- its habitat (where
+ * it spawns on its own) and its loot table. Every field is checked in its
+ * compact constructor, so a bad file is refused at load naming the field,
+ * never at first sight. A creature without a mind stands, and is moved by
+ * the booth and the tests.
  *
  * <p>Model units are Blockbench's; {@code scale} turns them into blocks
  * (a sixteenth for a model drawn at the game's pixel).
  */
-public record CreatureProfile(ResourceLocation model, double scale, RigSpec rig, Body body, Stats stats, Optional<JsonElement> mindJson, Optional<Tree> mind) {
+public record CreatureProfile(ResourceLocation model, double scale, RigSpec rig, Body body, Stats stats, Optional<JsonElement> mindJson, Optional<Tree> mind,
+                              Optional<Habitat> habitat, Optional<ResourceLocation> loot) {
     public static final Codec<CreatureProfile> CODEC = RecordCodecBuilder.create(i -> i.group(
             ResourceLocation.CODEC.fieldOf("model").forGetter(CreatureProfile::model),
             Codec.DOUBLE.optionalFieldOf("scale", 1.0 / 16.0).forGetter(CreatureProfile::scale),
             RigSpec.CODEC.fieldOf("rig").forGetter(CreatureProfile::rig),
             Body.CODEC.fieldOf("body").forGetter(CreatureProfile::body),
             Stats.CODEC.optionalFieldOf("stats", Stats.DEFAULT).forGetter(CreatureProfile::stats),
-            ExtraCodecs.JSON.optionalFieldOf("mind").forGetter(CreatureProfile::mindJson)
+            ExtraCodecs.JSON.optionalFieldOf("mind").forGetter(CreatureProfile::mindJson),
+            Habitat.CODEC.optionalFieldOf("habitat").forGetter(CreatureProfile::habitat),
+            ResourceLocation.CODEC.optionalFieldOf("loot").forGetter(CreatureProfile::loot)
     ).apply(i, CreatureProfile::of));
 
     /** effects: returns the profile with its mind read from {@code mindJson}; throws as the class says for a bad mind */
-    public static CreatureProfile of(ResourceLocation model, double scale, RigSpec rig, Body body, Stats stats, Optional<JsonElement> mindJson) {
+    public static CreatureProfile of(ResourceLocation model, double scale, RigSpec rig, Body body, Stats stats, Optional<JsonElement> mindJson,
+                                     Optional<Habitat> habitat, Optional<ResourceLocation> loot) {
         Optional<Tree> mind = mindJson.map(json -> TreeJson.parse(JsonBridge.plain(json), Verbs.names()));
-        return new CreatureProfile(model, scale, rig, body, stats, mindJson, mind);
+        return new CreatureProfile(model, scale, rig, body, stats, mindJson, mind, habitat, loot);
+    }
+
+    /**
+     * Where the creature comes into the world on its own: the depths it
+     * keeps to, the most light it bears, its weight among the profiles
+     * that could spawn at a site, how far from its kind it stays, how many
+     * a level holds. A profile without one never spawns naturally.
+     */
+    public record Habitat(int yMin, int yMax, int maxLight, int weight, int exclusion, int cap) {
+        public static final Codec<Habitat> CODEC = RecordCodecBuilder.create(i -> i.group(
+                Codec.INT.optionalFieldOf("y_min", -58).forGetter(Habitat::yMin),
+                Codec.INT.optionalFieldOf("y_max", 0).forGetter(Habitat::yMax),
+                Codec.INT.optionalFieldOf("max_light", 0).forGetter(Habitat::maxLight),
+                Codec.INT.optionalFieldOf("weight", 2).forGetter(Habitat::weight),
+                Codec.INT.optionalFieldOf("exclusion", 128).forGetter(Habitat::exclusion),
+                Codec.INT.optionalFieldOf("cap", 6).forGetter(Habitat::cap)
+        ).apply(i, Habitat::new));
+
+        public Habitat {
+            rules();   // refused here if malformed
+            if (weight <= 0) {
+                throw new IllegalArgumentException("a habitat's weight is positive: " + weight);
+            }
+        }
+
+        /** effects: returns these as the domain's rules */
+        public com.chunkworks.aberrantmobs.domain.Habitat.Rules rules() {
+            return new com.chunkworks.aberrantmobs.domain.Habitat.Rules(yMin, yMax, maxLight, exclusion, cap);
+        }
     }
 
     public CreatureProfile {

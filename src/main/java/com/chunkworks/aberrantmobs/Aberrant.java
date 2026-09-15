@@ -28,6 +28,7 @@ import com.chunkworks.aberrantmobs.domain.ChainPose;
 import com.chunkworks.aberrantmobs.domain.Clip;
 import com.chunkworks.aberrantmobs.domain.Crawl;
 import com.chunkworks.aberrantmobs.domain.FaceStealerClips;
+import com.chunkworks.aberrantmobs.domain.Habitat;
 import com.chunkworks.aberrantmobs.domain.Hearing;
 import com.chunkworks.aberrantmobs.domain.Leap;
 import com.chunkworks.aberrantmobs.domain.Legs;
@@ -58,9 +59,16 @@ import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.DifficultyInstance;
+import net.minecraft.world.entity.MobSpawnType;
+import net.minecraft.world.entity.SpawnGroupData;
+import net.minecraft.world.level.ServerLevelAccessor;
+import net.minecraft.world.level.storage.loot.LootTable;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.damagesource.DamageSource;
@@ -128,6 +136,13 @@ import org.jetbrains.annotations.Nullable;
  * door still saves them, and a survivor is known to have survived; one
  * who dies is devoured, and if they were a player the creature wears
  * their face from then on (synced, saved) until its next victim.
+ *
+ * <p>It comes into the world on its own where {@link SpawnRules} allow,
+ * as the profile whose habitat fits the site, and bores itself a pocket
+ * in the wall beside the cave, so the first sign of it is digging; once
+ * it stalks it persists. It drops its profile's loot and, one time in
+ * seven, the face it wore. Its cues play its sounds; it skitters as it
+ * moves, quietly when stalking, and breathes when still.
  */
 public class Aberrant extends Monster {
     private static final EntityDataAccessor<String> DATA_PROFILE = SynchedEntityData.defineId(Aberrant.class, EntityDataSerializers.STRING);
@@ -178,6 +193,15 @@ public class Aberrant extends Monster {
     public static final float DEVOUR = 1.0e6f;
     /** Where the held one hangs: the maw's centre from the head's pivot, in the head's frame, blocks (the file's units over sixteen). */
     private static final Vec MAW = new Vec(0.0, -11.1 / 16.0, 22.8 / 16.0);
+    /** The chance the face it wore drops when it dies. */
+    public static final float FACE_DROP_CHANCE = 0.15f;
+    /** Experience for the kill. */
+    private static final int XP = 50;
+    /** The death clip's length: the body is taken away when it ends. */
+    private static final int DEATH_TICKS = 40;
+    /** A skitter every so many ticks under way; a breath every so many still. */
+    private static final int SKITTER_EVERY = 6;
+    private static final int BREATH_EVERY = 140;
 
     private final AberrantPart[] parts;
     @Nullable
@@ -248,6 +272,7 @@ public class Aberrant extends Monster {
         }
         setNoGravity(true);
         noPhysics = true;
+        xpReward = XP;
     }
 
     /**
@@ -476,8 +501,122 @@ public class Aberrant extends Monster {
             CreatureProfile p = profile();
             double flinchAt = p != null && p.mind().isPresent() ? p.mind().get().tunable("flinch_at", FLINCH_AT) : FLINCH_AT;
             hurtHard |= v.damage() >= flinchAt;
+            if (!level().isClientSide() && isAlive() && !animator.busy()) {
+                play(FaceStealerClips.FLINCH);
+            }
         }
         return landed;
+    }
+
+    @Override
+    @Nullable
+    protected SoundEvent getHurtSound(DamageSource source) {
+        return null;   // the plating clangs and the crack fires the flinch's own cue
+    }
+
+    @Override
+    @Nullable
+    protected SoundEvent getDeathSound() {
+        return ModContent.DEATH.get();
+    }
+
+    @Override
+    public void die(DamageSource source) {
+        super.die(source);
+        if (!level().isClientSide()) {
+            release();
+            play(FaceStealerClips.DEATH);
+        }
+    }
+
+    @Override
+    protected void tickDeath() {
+        // The body loosens over the death clip's forty ticks, not the game's twenty, before it is taken away.
+        deathTime++;
+        if (deathTime >= DEATH_TICKS && !level().isClientSide() && !isRemoved()) {
+            level().broadcastEntityEvent(this, (byte) 60);
+            remove(RemovalReason.KILLED);
+        }
+    }
+
+    // --- the world: spawning and loot ------------------------------------
+
+    @Override
+    @Nullable
+    public SpawnGroupData finalizeSpawn(ServerLevelAccessor level, DifficultyInstance difficulty, MobSpawnType reason, @Nullable SpawnGroupData data) {
+        ServerLevel server = level.getLevel();
+        if (profile() == null) {
+            ResourceLocation chosen = chooseProfile(server);
+            if (chosen == null) {
+                discard();
+                return data;
+            }
+            setProfileId(chosen);
+        }
+        if (reason == MobSpawnType.NATURAL || reason == MobSpawnType.CHUNK_GENERATION) {
+            LevelCells cells = new LevelCells(server);
+            Habitat.siteInWall(cells, Cell.containing(new Vec(getX(), getY(), getZ())), Habitat.SITE_DEPTH).ifPresent(site -> {
+                List<Cell> pocket = new java.util.ArrayList<>();
+                for (int dx = -1; dx <= 1; dx++) {
+                    for (int dy = -1; dy <= 1; dy++) {
+                        for (int dz = -1; dz <= 1; dz++) {
+                            pocket.add(site.plus(dx, dy, dz));
+                        }
+                    }
+                }
+                blocksDug += DigWorld.dig(server, this, pocket, false);
+                setPos(site.x() + 0.5, site.y() - 1.0 + 0.2, site.z() + 0.5);
+                resetCrawl();
+            });
+        }
+        return super.finalizeSpawn(level, difficulty, reason, data);
+    }
+
+    /** effects: returns a profile with a habitat fitting this spot, drawn by weight among those that do; null when none does */
+    @Nullable
+    private ResourceLocation chooseProfile(ServerLevel server) {
+        int sky = server.getBrightness(net.minecraft.world.level.LightLayer.SKY, blockPosition());
+        int block = server.getBrightness(net.minecraft.world.level.LightLayer.BLOCK, blockPosition());
+        List<Holder.Reference<CreatureProfile>> fitting = new java.util.ArrayList<>();
+        int total = 0;
+        for (Holder.Reference<CreatureProfile> p : server.registryAccess().registryOrThrow(AberrantMobs.CREATURES).holders().toList()) {
+            if (p.value().habitat().isPresent() && Habitat.deepAndDark(p.value().habitat().get().rules(), blockPosition().getY(), sky, block)) {
+                fitting.add(p);
+                total += p.value().habitat().get().weight();
+            }
+        }
+        if (fitting.isEmpty()) {
+            return null;
+        }
+        int roll = random.nextInt(total);
+        for (Holder.Reference<CreatureProfile> p : fitting) {
+            roll -= p.value().habitat().get().weight();
+            if (roll < 0) {
+                return p.key().location();
+            }
+        }
+        return fitting.get(fitting.size() - 1).key().location();
+    }
+
+    @Override
+    public ResourceKey<LootTable> getDefaultLootTable() {
+        CreatureProfile p = profile();
+        return p != null && p.loot().isPresent() ? ResourceKey.create(Registries.LOOT_TABLE, p.loot().get()) : super.getDefaultLootTable();
+    }
+
+    @Override
+    protected void dropCustomDeathLoot(ServerLevel level, DamageSource source, boolean recentlyHit) {
+        super.dropCustomDeathLoot(level, source, recentlyHit);
+        GameProfile face = face();
+        if (face != null && random.nextFloat() < FACE_DROP_CHANCE) {
+            spawnAtLocation(StolenFaceItem.of(face));
+        }
+    }
+
+    /** effects: plays {@code sound} from the head for everyone near, at {@code volume} and a pitch a little off one */
+    private void sound(SoundEvent sound, float volume) {
+        Vec at = axis();
+        level().playSound(null, at.x(), at.y(), at.z(), sound, SoundSource.HOSTILE, volume, 0.9f + random.nextFloat() * 0.2f);
     }
 
     @Override
@@ -826,6 +965,13 @@ public class Aberrant extends Monster {
         for (String cue : animator.advance()) {
             onCue(cue);
         }
+        if (!level().isClientSide() && isAlive()) {
+            if (speed > 0.05 && tickCount % SKITTER_EVERY == 0) {
+                sound(ModContent.SKITTER.get(), quiet ? 0.35f : 1.0f);
+            } else if (speed < 0.02 && tickCount % BREATH_EVERY == 0 && !animator.busy()) {
+                sound(ModContent.BREATH.get(), 0.4f);
+            }
+        }
     }
 
     // --- the mind -------------------------------------------------------
@@ -844,6 +990,9 @@ public class Aberrant extends Monster {
         memory = d.memory();
         if (!memory.mode().equals(entityData.get(DATA_MODE))) {
             entityData.set(DATA_MODE, memory.mode());
+            if (memory.mode().equals("stalk") || memory.mode().equals("hunt")) {
+                setPersistenceRequired();   // it knows you: it does not despawn
+            }
         }
         Intent next = d.intent();
         if (!next.verb().equals(intent.verb())) {
@@ -1156,6 +1305,16 @@ public class Aberrant extends Monster {
         lastCueTick = tickCount;
         if (level().isClientSide()) {
             return;
+        }
+        switch (cue) {
+            case FaceStealerClips.CUE_CLICK -> sound(ModContent.CLICK.get(), 0.8f);
+            case FaceStealerClips.CUE_HISS -> sound(ModContent.HISS.get(), 0.9f);
+            case FaceStealerClips.CUE_SCREECH -> sound(ModContent.SCREECH.get(), 1.2f);
+            case FaceStealerClips.CUE_GRAB -> sound(ModContent.GRAB.get(), 1.0f);
+            case FaceStealerClips.CUE_BITE -> sound(ModContent.BITE.get(), 1.0f);
+            case FaceStealerClips.CUE_CRACK -> sound(ModContent.CRACK.get(), 1.0f);
+            case FaceStealerClips.CUE_STRIKE -> sound(quiet ? ModContent.DIG_QUIET.get() : ModContent.DIG_LOUD.get(), quiet ? 0.3f : 1.0f);
+            default -> { }
         }
         if (FaceStealerClips.CUE_GRAB.equals(cue)) {
             pinch();

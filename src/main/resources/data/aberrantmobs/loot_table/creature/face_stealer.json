@@ -1,0 +1,22 @@
+{
+  "type": "minecraft:entity",
+  "pools": [
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "aberrantmobs:chitin",
+          "functions": [
+            {"function": "minecraft:set_count", "count": {"type": "minecraft:uniform", "min": 12, "max": 18}},
+            {"function": "minecraft:enchanted_count_increase", "enchantment": "minecraft:looting", "count": {"type": "minecraft:uniform", "min": 0, "max": 2}}
+          ]
+        }
+      ]
+    },
+    {
+      "rolls": 1,
+      "entries": [{"type": "minecraft:item", "name": "aberrantmobs:cracked_carapace"}]
+    }
+  ]
+}
