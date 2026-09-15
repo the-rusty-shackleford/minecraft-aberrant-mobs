@@ -57,7 +57,14 @@ fluid); `Burrow` (A* over cells, air 1, unsupported air 4, rock 5 hunting or 14
 stalking, hard and fluid and rock beside them never, a 4000-expansion budget); `Leap`
 (a launch velocity landing exactly under the game's integration); `Burrow.planNearest`
 gives the way to the nearest reachable cell when the target is cut off, and the entity
-never falls back to a straight line (the playtest found it held on a pool for good). In
+never falls back to a straight line (the playtest found it held on a pool for good). The
+entity cuts rock only while the way itself runs through rock within a strike's reach, so
+a way that climbs a wall does not dig its foot (the booth found it cutting the foot of a
+hill its way went over, then standing blocked for good with no wall left to take) while
+in its own bore, whose next cells a strike has already cut, it keeps cutting the bends
+wide (the tunnel test's "wide" check caught the stricter "next cell is rock"), and a
+refused crawl brings the
+next plan forward to within five ticks, never to the next tick. In
 main: the entity
 runs on the crawl with no gravity, no physics, no pushing, its box centred on the axis,
 its face synced as its up; the scripted walk crawls on along whatever face after a
@@ -150,11 +157,11 @@ hunted.
 
 ## How it is verified
 
-`./gradlew test` (101 JUnit tests, the reader proved against the saved file),
-`runGameTestServer` (19 gametests: the profile and the creature, the parts along the body
+`./gradlew test` (103 JUnit tests, the reader proved against the saved file),
+`runGameTestServer` (20 gametests: the profile and the creature, the parts along the body
 after a walk, only the crack takes a blow, most feet on the floor mid-walk, a clip's
 cues on their ticks, a scripted walk, floor-wall-ceiling, a coherent tunnel round
-bedrock to a target, a pounce landing where aimed, a distant step → prowl toward a vague
+bedrock to a target, over a thick wall without cutting it, a pounce landing where aimed, a distant step → prowl toward a vague
 bearing and a near noise exact, a block break heard through the world, a player seen
 underground → stalk out of view → eye contact → hunt, the grab holds at the maw and the
 bite devours and takes the face, a blessed player survives and is let go and it flees,
@@ -181,3 +188,21 @@ explosions into the frame, and the third-person back camera: on a wall it backs 
 down into the ground and the game's clip parks it on the surface, so the booth uses the
 front camera); the wall-walk under Iris in the booth from a second client; whatever the
 playtest's frames say about the dread.
+
+`Burrow.BUDGET` (4000 expansions) is too small: a hunt to a point ten blocks into rock
+with open air about finds no way in budget (measured on the booth's hill: 8000 in the
+open, 16000 under a three-high ceiling or in a chamber), so what the creature follows
+is `planNearest`'s partial way to the nearest cell seen, replanned from inside as it
+goes. Before 2026-09-15 the booth's dig passed on the straight-line fallback that the
+playtest fixes removed, never on the planner; the booth's hill is now shaped so that
+boring in through its face is the cheapest way (twelve high, seventeen wide: over the
+top or in from a side would cost more at hunting costs). To decide: raise the budget or
+search smarter. The cost in the game, from the DEBUG line `planned a way of N cells in
+M us` (in `debug.log`): a budget-exhausted plan in the booth's open world takes 7-44 ms
+at 4000 expansions (each expansion reads its six neighbours, and each rock neighbour
+its twenty-seven about it, straight from the level); the gametests' plans, in closed
+structures, average 2.7 ms with a worst of 30. So a 16000 budget would cost ~80 ms a
+plan as the search stands: it needs a per-plan memo of cells read, or a search that
+expands less open air (the heuristic is taxicab times the air cost, weak against rock
+at five), before the budget can rise. A replan every 20 ticks at 20 ms is already a
+millisecond a tick per hunting creature in the open.

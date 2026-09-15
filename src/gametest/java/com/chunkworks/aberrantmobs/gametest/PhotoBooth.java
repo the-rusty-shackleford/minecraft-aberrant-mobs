@@ -307,12 +307,14 @@ public final class PhotoBooth {
         }));
         s.add(new Step(t += 24, () -> shoot(mc, "booth-climb-3")));
         s.add(new Step(t += 20, () -> shoot(mc, "booth-climb-4")));
-        // The dig: set down on the ground before a hill of stone, sent to a point inside it, digging.
+        // The dig: set down on the ground before a hill of stone, sent to a point inside it, digging. The hill is
+        // twelve high and seventeen wide so that boring in through its face is the cheapest way to the point: over
+        // the top or in from a side, at hunting costs, would be dearer, and the creature takes the cheapest way.
         s.add(new Step(t += 2, () -> onServer(mc, sp -> onCreature(sp, a -> {
             double y = sp.serverLevel().getMinBuildHeight() + 4;
             double px = Math.floor(a.getX()) + 12.0;
             int hx = (int) px + 6;
-            fill(sp, hx, (int) y, (int) Z - 6, hx + 14, (int) y + 5, (int) Z + 6, Blocks.STONE);
+            fill(sp, hx, (int) y, (int) Z - 8, hx + 14, (int) y + 11, (int) Z + 8, Blocks.STONE);
             a.moveTo(px, y, Z, -90.0f, 0.0f);
             a.resetCrawl();
             a.setCrawlTarget(new Vec(hx + 10.5, y + 23.3 / 16.0, Z), true, 0.45);

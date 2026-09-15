@@ -87,6 +87,8 @@ import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.entity.PartEntity;
 import net.neoforged.neoforge.fluids.FluidType;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A creature: the one entity type of the protocol, sized, skinned and, in
@@ -146,6 +148,7 @@ import org.jetbrains.annotations.Nullable;
  * moves, quietly when stalking, and breathes when still.
  */
 public class Aberrant extends Monster {
+    private static final Logger LOG = LoggerFactory.getLogger("Aberrant Mobs");
     private static final EntityDataAccessor<String> DATA_PROFILE = SynchedEntityData.defineId(Aberrant.class, EntityDataSerializers.STRING);
     /** The cracked segment's index in the chain, -1 for none yet. */
     private static final EntityDataAccessor<Integer> DATA_WEAK = SynchedEntityData.defineId(Aberrant.class, EntityDataSerializers.INT);
@@ -176,6 +179,8 @@ public class Aberrant extends Monster {
     private static final int MAX_FLIGHT = Leap.MAX_TICKS;
     /** A burrow's way is planned again this often, ticks, and when it is lost. */
     private static final int REPLAN = 20;
+    /** A refused crawl brings the next plan forward to within this many ticks -- not to now: a search a tick is more than a server can spare, and the same cell plans the same way. */
+    private static final int BLOCKED_REPLAN = 5;
     /** A waypoint this near is passed; a target this near is reached. */
     private static final double WAYPOINT_REACH = 1.2;
     private static final double TARGET_REACH = 1.5;
@@ -823,7 +828,8 @@ public class Aberrant extends Monster {
             fly(cells, rules);
         } else {
             Vec wish = wish(cells);
-            Crawl.Step step = Crawl.step(cells, crawl, wish, wish.equals(Vec.ZERO) ? 0.0 : crawlSpeed, rules, mayDig);
+            boolean dig = mayDig && wayThroughRock(cells, Crawl.DIG_AHEAD + rules.bore());
+            Crawl.Step step = Crawl.step(cells, crawl, wish, wish.equals(Vec.ZERO) ? 0.0 : crawlSpeed, rules, dig);
             crawl = step.pose();
             lastBlocked = step.blocked();
             if (step.digNeeded()) {
@@ -836,6 +842,32 @@ public class Aberrant extends Monster {
             }
         }
         place();
+    }
+
+    /**
+     * effects: returns whether the way ahead, from its next waypoint to the
+     * first beyond {@code reach} of the head, passes through rock: the crawl
+     * cuts only then, so a way that climbs a wall does not dig its foot (the
+     * booth found it cutting the foot of a hill its way went over, then
+     * standing blocked with no wall left to take), while in its own bore,
+     * whose next cells a strike has already cut, it keeps cutting the bends
+     * wide; false for a scripted walk or with no way
+     */
+    private boolean wayThroughRock(LevelCells cells, double reach) {
+        if (path == null || crawl == null) {
+            return false;
+        }
+        Vec centre = crawl.centre();
+        for (int i = pathAt; i < path.size(); i++) {
+            Cell c = path.get(i);
+            if (c.centre().minus(centre).length() > reach) {
+                return false;
+            }
+            if (cells.at(c) == com.chunkworks.aberrantmobs.domain.Cells.Kind.ROCK) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** effects: returns this tick's wish: the scripted walk's direction while it lies in the face and its heading after, the way toward the target, or nothing */
@@ -861,11 +893,18 @@ public class Aberrant extends Monster {
             path = null;
             return Vec.ZERO;
         }
-        if (path == null || --replanIn <= 0 || lastBlocked) {
+        if (lastBlocked && replanIn > BLOCKED_REPLAN) {
+            replanIn = BLOCKED_REPLAN;
+        }
+        if (path == null || --replanIn <= 0) {
             // The way, or the nearest it can get when the target is cut off; never the straight line, which a wall or a pool would hold it on forever.
+            long began = System.nanoTime();
             path = Burrow.planNearest(cells, Cell.containing(centre), Cell.containing(target), Burrow.HUNT, Burrow.BUDGET).orElse(null);
             pathAt = 0;
             replanIn = REPLAN;
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("{} planned a way of {} cells in {} us", getId(), path == null ? 0 : path.size(), (System.nanoTime() - began) / 1000);
+            }
         }
         if (path == null) {
             return Vec.ZERO;

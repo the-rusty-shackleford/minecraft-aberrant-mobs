@@ -39,7 +39,8 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  * most of them at any moment, while it walks; a clip played on the server
  * fires its cues on their ticks and ends; it crawls the floor, climbs the
  * wall and crosses the ceiling; it digs a coherent tunnel to a target
- * through rock and leaves bedrock alone; a pounce lands where it aimed.
+ * through rock and leaves bedrock alone; sent over a thick wall it climbs
+ * it rather than cutting it; a pounce lands where it aimed.
  * With its mind on: a distant step turns roaming into prowling toward a
  * vague bearing, a near noise is placed exactly, a block broken in the
  * world reaches its ears through the game's events, a player seen
@@ -276,6 +277,39 @@ public final class FaceStealerGameTests {
                 helper.assertTrue(helper.getLevel().getBlockState(head.north()).isAir() && helper.getLevel().getBlockState(head.south()).isAir(), "and wide: " + head);
             }
             helper.assertTrue(a.crawlPose() != null && !a.crawlPose().airborne(), "still on a face");
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "tall", timeoutTicks = 260)
+    public void sentOverAThickWallItClimbsItRatherThanCuttingIt(GameTestHelper helper) {
+        layFloor(helper);
+        // A wall across its way, seven thick and seven high: at hunting costs the way over it is cheaper than
+        // the way through it, so the way climbs. Digging is allowed, and must not be used on the wall the way
+        // climbs -- the booth found the creature cutting the foot of a hill its way went over, then standing
+        // blocked for good with no wall left to take.
+        fill(helper, 6, FLOOR, 0, 12, FLOOR + 6, 14, Blocks.STONE);
+        Vec3 at = helper.absoluteVec(new Vec3(2.5, FLOOR, 7.5));
+        Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, -90.0f);
+        helper.assertTrue(a != null, "the creature is made");
+        helper.getLevel().addFreshEntity(a);
+        a.setNoAi(true);   // moved by the test, not by its mind
+        Vec3 goal = helper.absoluteVec(new Vec3(13.5, FLOOR + 23.3 / 16.0, 7.5));
+        a.setCrawlTarget(new com.chunkworks.aberrantmobs.domain.Vec(goal.x, goal.y, goal.z), true, 0.45);
+        double[] highest = {0.0};
+        for (int t = 2; t < 240; t += 2) {
+            helper.runAtTickTime(t, () -> {
+                if (a.crawlPose() != null) {
+                    highest[0] = Math.max(highest[0], a.crawlPose().centre().y() - at.y);
+                }
+            });
+        }
+        helper.runAtTickTime(240, () -> {
+            helper.assertTrue(a.blocksDug() == 0, "the wall it climbs is not cut: " + a.blocksDug() + " blocks dug");
+            helper.assertBlockPresent(Blocks.STONE, new BlockPos(6, FLOOR + 1, 7));
+            helper.assertTrue(highest[0] > 7.5, "its head went over the top: highest " + highest[0]);
+            helper.assertTrue(!a.crawling(), "and it arrived: at x " + (a.getX() - at.x) + ", " + (a.crawling() ? "still under way" : "done"));
+            helper.assertTrue(a.getX() - at.x > 10.0, "beyond the wall: " + (a.getX() - at.x));
             helper.succeed();
         });
     }

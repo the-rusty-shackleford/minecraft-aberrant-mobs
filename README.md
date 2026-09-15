@@ -237,8 +237,12 @@ A way to a point is planned by `domain/Burrow`: A* over cells, six-connected, ai
 face cheap, air with none dearer, rock at the cost of digging it (cheap hunting, dear
 stalking), hard and fluid never, bounded by a budget; cut off by water or bedrock, it
 takes the way to the nearest reachable cell instead, never a straight line a pool would
-hold it on. The entity follows it waypoint by waypoint and plans again every twenty
-ticks, or at once when its crawl was refused. A pounce (`domain/Leap`) is a launch
+hold it on. The entity follows it waypoint by waypoint, cutting rock only while the way
+itself runs through rock within a strike's reach -- a way that climbs a wall does not dig
+its foot, while in its own bore it keeps cutting the bends wide -- and plans again every
+twenty ticks, or within five of a refusal (a search a tick is more than a server can
+spare, and the same cell plans the same way; each plan's size and time is logged at
+DEBUG). A pounce (`domain/Leap`) is a launch
 velocity that lands the head exactly on a spot under the game's own integration, within
 a top speed; in flight the head lands on the first face it flies into. The blocks are
 read through `domain/Cells` (`LevelCells`: a fluid is fluid, no collision is air,
