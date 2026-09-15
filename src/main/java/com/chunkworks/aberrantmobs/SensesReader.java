@@ -82,6 +82,15 @@ public final class SensesReader {
             s.flag("target.eye_contact", a.gazeNoting(eyes));   // a stare, not a glance: eight of the last ten ticks
             s.flag("target.underground", !level.canSeeSky(target.blockPosition()));
             memory = memory.withPoint("target.last_pos", pos).withTimer("seen", (int) tree.tunable("memory", KNOWN_TICKS));
+            a.noteTarget(target.getUUID());
+        } else if (a.targetId() != null) {
+            // Out of sight: the ears follow the prey it knew. Its last sound, if fresh enough to be within the
+            // memory, is where it is now taken to be, exact within twenty-four blocks and erred beyond.
+            int keep = (int) tree.tunable("memory", KNOWN_TICKS);
+            Optional<Hearing.Estimate> heard = a.hearing().estimateFrom(a.targetId().toString(), head, a.tickCount);
+            if (heard.isPresent() && heard.get().age() < keep && keep - heard.get().age() > memory.timer("seen")) {
+                memory = memory.withPoint("target.last_pos", heard.get().bearing()).withTimer("seen", keep - heard.get().age());
+            }
         }
         Vec last = memory.point("target.last_pos");
         boolean known = seen || memory.timer("seen") > 0 && last != null;

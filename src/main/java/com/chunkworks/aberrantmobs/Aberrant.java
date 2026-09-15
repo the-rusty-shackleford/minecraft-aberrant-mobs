@@ -205,9 +205,10 @@ public class Aberrant extends Monster {
     private static final int XP = 50;
     /** The death clip's length: the body is taken away when it ends. */
     private static final int DEATH_TICKS = 40;
-    /** A skitter every so many ticks under way; a breath every so many still. */
+    /** A skitter every so many ticks under way; a breath every so many still; while stalking or hunting, a click or a hiss about this often, so the prey hears it is there. */
     private static final int SKITTER_EVERY = 6;
-    private static final int BREATH_EVERY = 140;
+    private static final int BREATH_EVERY = 90;
+    private static final int DREAD_EVERY = 70;
 
     private final AberrantPart[] parts;
     @Nullable
@@ -259,6 +260,9 @@ public class Aberrant extends Monster {
     // The mind, on the server.
     @Nullable
     private Memory memory;
+    /** The prey the senses last held, for the ears to follow when sight is lost; not saved. */
+    @Nullable
+    private UUID targetId;
     private Hearing hearing = Hearing.SILENT;
     private Senses senses = Senses.NONE;
     @Nullable
@@ -344,13 +348,31 @@ public class Aberrant extends Monster {
     /** effects: makes this a creature of profile {@code id}: its size and health from the profile, its name, its crack */
     public void setProfileId(ResourceLocation id) {
         entityData.set(DATA_PROFILE, id.toString());
+        takeProfile();
+    }
+
+    /**
+     * effects: on the server, gives this creature what its profile says --
+     * its health and speed, at full health, and a crack -- unless it has
+     * them already: a saved creature comes back with its attributes and
+     * its crack and keeps its health, while one that was only given a
+     * profile (summoned with {@code {Profile:...}}, or from an egg, whose
+     * data lands after the spawn is finalized) takes the profile's; then
+     * its size, on both sides
+     */
+    private void takeProfile() {
         CreatureProfile p = profile();
-        if (p != null) {
-            getAttribute(Attributes.MAX_HEALTH).setBaseValue(p.stats().health());
-            getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(p.stats().speed());
-            setHealth((float) p.stats().health());
-            if (!level().isClientSide() && entityData.get(DATA_WEAK) < 0) {
-                crack(random.nextLong());
+        if (p != null && !level().isClientSide()) {
+            boolean has = getAttribute(Attributes.MAX_HEALTH).getBaseValue() == p.stats().health()
+                    && getAttribute(Attributes.MOVEMENT_SPEED).getBaseValue() == p.stats().speed()
+                    && entityData.get(DATA_WEAK) >= 0;
+            if (!has) {
+                getAttribute(Attributes.MAX_HEALTH).setBaseValue(p.stats().health());
+                getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(p.stats().speed());
+                setHealth((float) p.stats().health());
+                if (entityData.get(DATA_WEAK) < 0) {
+                    crack(random.nextLong());
+                }
             }
         }
         refreshDimensions();
@@ -361,8 +383,7 @@ public class Aberrant extends Monster {
     public void onSyncedDataUpdated(EntityDataAccessor<?> key) {
         super.onSyncedDataUpdated(key);
         if (DATA_PROFILE.equals(key)) {
-            refreshDimensions();
-            sizeParts();
+            takeProfile();
         }
         if (DATA_CLIP_SERIAL.equals(key) && level().isClientSide()) {
             Clip clip = FaceStealerClips.ALL.get(entityData.get(DATA_CLIP));
@@ -552,15 +573,22 @@ public class Aberrant extends Monster {
     @Nullable
     public SpawnGroupData finalizeSpawn(ServerLevelAccessor level, DifficultyInstance difficulty, MobSpawnType reason, @Nullable SpawnGroupData data) {
         ServerLevel server = level.getLevel();
+        boolean wild = reason == MobSpawnType.NATURAL || reason == MobSpawnType.CHUNK_GENERATION;
         if (profile() == null) {
+            // The world's own spawns need a creature whose habitat fits the spot; a command, an egg or a spawner
+            // means "put one here", and takes whatever fits, else the first creature known. An egg's own data
+            // (its profile) lands after this and is taken then.
             ResourceLocation chosen = chooseProfile(server);
+            if (chosen == null && !wild) {
+                chosen = server.registryAccess().registryOrThrow(AberrantMobs.CREATURES).holders().findFirst().map(h -> h.key().location()).orElse(null);
+            }
             if (chosen == null) {
                 discard();
                 return data;
             }
             setProfileId(chosen);
         }
-        if (reason == MobSpawnType.NATURAL || reason == MobSpawnType.CHUNK_GENERATION) {
+        if (wild) {
             LevelCells cells = new LevelCells(server);
             Habitat.siteInWall(cells, Cell.containing(new Vec(getX(), getY(), getZ())), Habitat.SITE_DEPTH).ifPresent(site -> {
                 List<Cell> pocket = new java.util.ArrayList<>();
@@ -622,8 +650,13 @@ public class Aberrant extends Monster {
 
     /** effects: plays {@code sound} from the head for everyone near, at {@code volume} and a pitch a little off one */
     private void sound(SoundEvent sound, float volume) {
+        sound(sound, volume, 0.9f, 1.1f);
+    }
+
+    /** effects: plays {@code sound} from the head at {@code volume} (over one, it carries farther) and a pitch drawn between {@code low} and {@code high} */
+    private void sound(SoundEvent sound, float volume, float low, float high) {
         Vec at = axis();
-        level().playSound(null, at.x(), at.y(), at.z(), sound, SoundSource.HOSTILE, volume, 0.9f + random.nextFloat() * 0.2f);
+        level().playSound(null, at.x(), at.y(), at.z(), sound, SoundSource.HOSTILE, volume, low + random.nextFloat() * (high - low));
     }
 
     @Override
@@ -1034,12 +1067,35 @@ public class Aberrant extends Monster {
             onCue(cue);
         }
         if (!level().isClientSide() && isAlive()) {
+            String mode = mode();
+            boolean after = mode.equals("stalk") || mode.equals("hunt");
             if (speed > 0.05 && tickCount % SKITTER_EVERY == 0) {
-                sound(ModContent.SKITTER.get(), quiet ? 0.35f : 1.0f);
+                sound(ModContent.SKITTER.get(), quiet ? 0.5f : after ? 1.3f : 1.0f, 0.85f, 1.05f);
             } else if (speed < 0.02 && tickCount % BREATH_EVERY == 0 && !animator.busy()) {
-                sound(ModContent.BREATH.get(), 0.4f);
+                sound(ModContent.BREATH.get(), after ? 0.7f : 0.5f, 0.75f, 0.95f);
+            }
+            if (after && !animator.busy() && random.nextInt(DREAD_EVERY) == 0) {
+                // Something near you clicks its pincers, or hisses, low.
+                sound(random.nextBoolean() ? ModContent.CLICK.get() : ModContent.HISS.get(), 0.7f, 0.7f, 0.9f);
             }
         }
+    }
+
+    /** effects: returns where the crawl is bound, or null when it is not under way toward a point */
+    @Nullable
+    public Vec crawlTarget() {
+        return target;
+    }
+
+    /** effects: notes the player the senses hold as prey, whose sounds the ears may follow when sight is lost; null for none */
+    public void noteTarget(@Nullable UUID id) {
+        targetId = id;
+    }
+
+    /** effects: returns the prey last noted, or null */
+    @Nullable
+    public UUID targetId() {
+        return targetId;
     }
 
     // --- the mind -------------------------------------------------------
@@ -1057,9 +1113,15 @@ public class Aberrant extends Monster {
         Mind.Decision d = Mind.tick(tree, senses, memory);
         memory = d.memory();
         if (!memory.mode().equals(entityData.get(DATA_MODE))) {
+            String was = entityData.get(DATA_MODE);
             entityData.set(DATA_MODE, memory.mode());
             if (memory.mode().equals("stalk") || memory.mode().equals("hunt")) {
                 setPersistenceRequired();   // it knows you: it does not despawn
+            }
+            if (memory.mode().equals("hunt") && !was.isEmpty()) {
+                sound(ModContent.SCREECH.get(), 1.6f, 0.8f, 1.0f);   // the hunt is on, and everyone within twenty-five blocks knows
+            } else if (memory.mode().equals("stalk") && !was.isEmpty()) {
+                sound(ModContent.HISS.get(), 0.8f, 0.7f, 0.9f);      // something has noticed you
             }
         }
         Intent next = d.intent();
@@ -1465,15 +1527,16 @@ public class Aberrant extends Monster {
     @Override
     public void readAdditionalSaveData(CompoundTag tag) {
         super.readAdditionalSaveData(tag);
-        if (tag.contains("Profile")) {
-            entityData.set(DATA_PROFILE, tag.getString("Profile"));
-            refreshDimensions();
-            sizeParts();
-        }
-        distance = tag.getDouble("Distance");
+        // The crack before the profile: a saved creature's profile finds its attributes (read above) and its crack in
+        // place and leaves its health alone, where one given only a profile takes the profile's (takeProfile).
         if (tag.contains("Weak")) {
             entityData.set(DATA_WEAK, tag.getInt("Weak"));
         }
+        if (tag.contains("Profile")) {
+            entityData.set(DATA_PROFILE, tag.getString("Profile"));
+            takeProfile();
+        }
+        distance = tag.getDouble("Distance");
         if (tag.contains("Normal") && tag.contains("HeadingX")) {
             Crawl.Normal[] all = Crawl.Normal.values();
             int i = tag.getByte("Normal");

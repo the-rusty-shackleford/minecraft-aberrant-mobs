@@ -24,11 +24,11 @@
   "loot": "aberrantmobs:creature/face_stealer",
   "mind": {
     "start": "roam",
-    "tunables": {"sight": 40, "eye_cone_deg": 10, "face_cone_deg": 75, "memory": 600, "flinch_at": 10},
+    "tunables": {"sight": 64, "eye_cone_deg": 10, "face_cone_deg": 75, "memory": 2400, "flinch_at": 10},
     "modes": {
       "roam": {"select": [
         {"when": "hurt", "then": {"enter": "hunt"}},
-        {"when": "target.seen && target.distance < 40 && target.underground", "then": {"enter": "stalk"}},
+        {"when": "target.seen && target.distance < 64 && target.underground", "then": {"enter": "stalk"}},
         {"when": "heard.any", "then": {"enter": "prowl"}},
         {"act": "wander", "dig": true}]},
       "prowl": {"select": [

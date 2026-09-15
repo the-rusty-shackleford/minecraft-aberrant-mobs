@@ -18,9 +18,12 @@
 package com.chunkworks.aberrantmobs;
 
 import com.chunkworks.aberrantmobs.api.AberrantMobs;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.core.registries.Registries;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
+import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.EntityType;
@@ -28,8 +31,10 @@ import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.item.ArmorItem;
 import net.minecraft.world.item.ArmorMaterial;
+import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Rarity;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.neoforged.bus.api.IEventBus;
@@ -41,9 +46,10 @@ import net.neoforged.neoforge.registries.DeferredItem;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
 /**
- * The game objects this mod registers: one entity type for every creature,
- * the loot the first one drops (chitin, its cracked plate, a stolen face),
- * and the sounds its cues play.
+ * The game objects this mod registers: one entity type for every creature
+ * and its spawn egg, the loot the first one drops (chitin, its cracked
+ * plate, a stolen face), the chitin armour, the sounds its cues play, and
+ * the creative tab that shows them all with an egg per creature.
  */
 public final class ModContent {
     private ModContent() {}
@@ -52,6 +58,7 @@ public final class ModContent {
     private static final DeferredRegister.Items ITEMS = DeferredRegister.createItems(AberrantMobs.NAMESPACE);
     private static final DeferredRegister<SoundEvent> SOUNDS = DeferredRegister.create(Registries.SOUND_EVENT, AberrantMobs.NAMESPACE);
     private static final DeferredRegister<ArmorMaterial> ARMOR = DeferredRegister.create(Registries.ARMOR_MATERIAL, AberrantMobs.NAMESPACE);
+    private static final DeferredRegister<CreativeModeTab> TABS = DeferredRegister.create(Registries.CREATIVE_MODE_TAB, AberrantMobs.NAMESPACE);
 
     /**
      * Every creature is this one entity type, sized and skinned by its
@@ -78,6 +85,29 @@ public final class ModContent {
         return ITEMS.registerItem(name, p -> new ArmorItem(CHITIN_MATERIAL, type, p), new Item.Properties().rarity(Rarity.RARE).durability(type.getDurability(37)));
     }
 
+    /** One egg for the one entity type; which creature it spawns is the profile in its data ({@link AberrantEggItem#of}). */
+    public static final DeferredItem<AberrantEggItem> ABERRANT_SPAWN_EGG = ITEMS.registerItem("aberrant_spawn_egg", AberrantEggItem::new);
+
+    /** The mod's own page in the creative inventory: the drops, the armour, then an egg per creature profile loaded. */
+    public static final DeferredHolder<CreativeModeTab, CreativeModeTab> TAB = TABS.register("aberrant_mobs", () -> CreativeModeTab.builder()
+            .title(Component.translatable("itemGroup." + AberrantMobs.NAMESPACE))
+            .icon(() -> new ItemStack(STOLEN_FACE.get()))
+            .displayItems((parameters, output) -> {
+                items().forEach(output::accept);
+                eggs(parameters.holders(), output::accept);
+            })
+            .build());
+
+    /** effects: returns what the tab shows before the eggs, in order: the drops, then the armour head to foot */
+    public static List<Item> items() {
+        return List.of(CHITIN.get(), CRACKED_CARAPACE.get(), STOLEN_FACE.get(), CHITIN_HELMET.get(), CHITIN_CHESTPLATE.get(), CHITIN_LEGGINGS.get(), CHITIN_BOOTS.get());
+    }
+
+    /** effects: hands {@code out} one egg per creature profile in {@code registries}, in the registry's order */
+    public static void eggs(HolderLookup.Provider registries, Consumer<ItemStack> out) {
+        registries.lookupOrThrow(AberrantMobs.CREATURES).listElements().forEach(p -> out.accept(AberrantEggItem.of(ABERRANT_SPAWN_EGG.get(), p.key().location())));
+    }
+
     public static final DeferredHolder<SoundEvent, SoundEvent> SKITTER = sound("skitter");
     public static final DeferredHolder<SoundEvent, SoundEvent> DIG_LOUD = sound("dig_loud");
     public static final DeferredHolder<SoundEvent, SoundEvent> DIG_QUIET = sound("dig_quiet");
@@ -99,8 +129,10 @@ public final class ModContent {
         ARMOR.register(modBus);
         ITEMS.register(modBus);
         SOUNDS.register(modBus);
+        TABS.register(modBus);
         modBus.addListener((EntityAttributeCreationEvent event) -> event.put(ABERRANT.get(), Monster.createMonsterAttributes().build()));
         modBus.addListener(SpawnRules::register);
+        // The vanilla pages too, where a player would look for them.
         modBus.addListener((BuildCreativeModeTabContentsEvent event) -> {
             if (event.getTabKey().equals(CreativeModeTabs.INGREDIENTS)) {
                 event.accept(CHITIN);
@@ -112,6 +144,9 @@ public final class ModContent {
                 event.accept(CHITIN_CHESTPLATE);
                 event.accept(CHITIN_LEGGINGS);
                 event.accept(CHITIN_BOOTS);
+            }
+            if (event.getTabKey().equals(CreativeModeTabs.SPAWN_EGGS)) {
+                eggs(event.getParameters().holders(), event::accept);
             }
         });
     }

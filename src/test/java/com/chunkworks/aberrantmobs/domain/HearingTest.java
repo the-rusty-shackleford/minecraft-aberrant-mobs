@@ -89,4 +89,24 @@ final class HearingTest {
         Optional<Hearing.Estimate> none = Hearing.seeded(1).estimate(EARS, 0);
         assertTrue(none.isEmpty());
     }
+
+    @Test
+    void oneSourceCanBeFollowedOnItsOwn() {
+        // Two players: a near one stepping, a far one mining. The ears as a whole go by the loudest for its distance;
+        // asked after the far one alone, they place it as its own sound says, erred for its range.
+        Hearing h = Hearing.seeded(3)
+                .heard(new Hearing.Sound(new Vec(10, 0, 0), 1, 40, "near"), EARS)
+                .heard(new Hearing.Sound(new Vec(100, 0, 0), 6, 30, "far"), EARS);
+        assertEquals(10.0, h.estimate(EARS, 40).orElseThrow().distance(), 1e-9, "the whole: the near step");
+        Hearing.Estimate far = h.estimateFrom("far", EARS, 40).orElseThrow();
+        assertEquals(100.0, far.distance(), 1e-9);
+        assertEquals(10, far.age());
+        assertEquals(100 * Hearing.ERROR_PER_BLOCK / 6, far.error(), 1e-9, "erred for its range and loudness");
+        assertEquals(far.error(), far.bearing().minus(new Vec(100, 0, 0)).length(), 1e-9, "the bearing off by that much");
+        assertTrue(far.loud(), "a block broken ten ticks ago is loud");
+        assertEquals(0.0, h.estimateFrom("near", EARS, 40).orElseThrow().error(), 1e-9, "exact within twenty-four");
+        assertTrue(h.estimateFrom("nobody", EARS, 40).isEmpty(), "never heard");
+        assertTrue(h.estimateFrom("far", EARS, 30 + Hearing.DECAY + 1).isEmpty(), "too old");
+        assertEquals(h.estimate(EARS, 40).orElseThrow().bearing(), h.estimateFrom("near", EARS, 40).orElseThrow().bearing(), "the same reckoning either way");
+    }
 }

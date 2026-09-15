@@ -167,7 +167,7 @@ hunted.
 ## How it is verified
 
 `./gradlew test` (103 JUnit tests, the reader proved against the saved file),
-`runGameTestServer` (20 gametests: the profile and the creature, the parts along the body
+`runGameTestServer` (21 gametests: the profile and the creature, the parts along the body
 after a walk, only the crack takes a blow, most feet on the floor mid-walk, a clip's
 cues on their ticks, a scripted walk, floor-wall-ceiling, a coherent tunnel round
 bedrock to a target, over a thick wall without cutting it, a pounce landing where aimed, a distant step → prowl toward a vague
@@ -175,8 +175,9 @@ bearing and a near noise exact, a block break heard through the world, a player 
 underground → stalk out of view → eye contact → hunt, the grab holds at the maw and the
 bite devours and takes the face, a blessed player survives and is let go and it flees,
 hunting in sight it coils then pounces, the spawn rules refuse the lit surface and
-accept a dark chimney by thick rock where it bores its pocket, killed it drops chitin
-and its plate and experience, a full set walked into a wall takes it and climbs and lets
+accept a dark chimney by thick rock where it bores its pocket, the creative tab shows the
+mod and its egg or a summon puts the creature whole on the lit surface, killed it drops
+chitin and its plate and experience, a full set walked into a wall takes it and climbs and lets
 go without the helmet and lands, water lets go and the undressed stop at the wall),
 `runPhotoBooth` (33 checks: every sound event resolves, side,
 quarter, face, a walking strip, from above, each clip playing on the client at its key
@@ -195,6 +196,40 @@ See `decisions/`.
 phases, into pack 1.33.0 on the Mod Hub; the repo public at
 `github.com/the-rusty-shackleford/minecraft-aberrant-mobs` from that day. Rusty's own
 vetting of the creature in play is still to come; what it finds is the next version.
+
+1.1.0 (2026-09-15, pack 1.34.0): Rusty asked for a page in the creative inventory. The
+`aberrant_mobs` tab (icon: the Stolen Face) shows the drops, the armour, then one
+`aberrant_spawn_egg` per creature profile loaded, named after its creature
+(`AberrantEggItem`: the profile rides the egg's entity data); the same items join the
+vanilla Ingredients, Combat and Spawn Eggs pages. Two things the egg exposed and fixed:
+an egg's entity data lands *after* `finalizeSpawn`, and on a lit surface no habitat fits,
+so the creature was discarded before its profile arrived -- a non-wild spawn (egg,
+command, spawner) now takes what fits, else the first profile known, and never discards;
+and a creature given only a profile (the documented `/summon ... {Profile:...}`, or an
+egg) kept the default 20 health, since only `Aberrant.create` applied the stats --
+`takeProfile` now applies them whenever a profile arrives on a creature that lacks them,
+while a saved creature (its attributes and crack read first) keeps its health. Gametest:
+the tab's contents and names, the egg on the surface at 84 health, the summon likewise.
+Also in 1.1.0, from Rusty's first evening with 1.0.0 on the server: (a) the game's "Press
+Shift to dismount" hint no longer shows or is narrated when the vehicle is a creature
+(`ClientPacketListenerMixin`, two redirects in the passengers packet handler) -- the grip
+refuses the dismount, so the hint was a lie; (b) it went in circles, walking back over
+itself: a target inside its turning circle (speed over turn rate, about a block) was
+orbited forever -- the crawl now scales the step by the cosine of what is left of the
+turn, so a wish beside or behind it is pivoted to (`aWishBesideOrBehindItIsPivotedToNotOrbited`);
+(c) it was too easy to lose: sight 40 -> 64, memory 600 -> 2400 ticks, and the ears now
+follow the prey it knew when sight is lost (`Hearing.estimateFrom` by the player's UUID,
+`Aberrant.noteTarget`; the last sound within the memory becomes `target.last_pos`, exact
+within 24 blocks, erred beyond) -- before, within sight it knew you exactly whether or not
+it could see you, and beyond sight it forgot you in thirty seconds; (d) more and lower
+sounds: a screech when the hunt begins (1.6, heard ~25 blocks), a hiss when it starts to
+stalk, a click or hiss about every three and a half seconds while stalking or hunting,
+the skitter louder hunting (1.3) and less quiet stalking (0.5), breath every 90 ticks,
+lower pitches for the dread cues. New recordings (a chitter, a low rumble) are the next
+step if Rusty wants scarier still; every sound stays a CC0 recording. The prowl gametest
+asserted the way's first-leg heading and flaked under the new planner's tie-breaking; it
+now asserts where the crawl is bound. Rusty also wants the creature 1.5x bigger: that is
+1.2.0, on its own, since it touches every body-tied number and needs the booth looked at.
 
 ## Next
 

@@ -131,6 +131,25 @@ public final class Hearing {
         if (best == null) {
             return Optional.empty();
         }
+        return Optional.of(estimate(best, listener, tick, loud));
+    }
+
+    /**
+     * effects: returns the estimate at {@code tick} for a listener at
+     * {@code listener} of the last sound from {@code source} alone, erred
+     * as the class says, its {@code loud} whether that sound was loud and
+     * recent; nothing when none from that source is remembered -- how a
+     * creature that has lost sight of its prey follows its footsteps
+     */
+    public Optional<Estimate> estimateFrom(String source, Vec listener, int tick) {
+        Sound s = sounds.get(source);
+        if (s == null || tick - s.tick() > DECAY) {
+            return Optional.empty();
+        }
+        return Optional.of(estimate(s, listener, tick, s.loudness() >= LOUD && tick - s.tick() <= LOUD_TICKS));
+    }
+
+    private Estimate estimate(Sound best, Vec listener, int tick, boolean loud) {
         Vec d = best.pos().minus(listener);
         double distance = d.length();
         double error = distance <= SURE_RANGE ? 0.0 : Math.min(distance, distance * ERROR_PER_BLOCK / best.loudness());
@@ -138,7 +157,7 @@ public final class Hearing {
         if (error > 0 && distance > 1e-9) {
             bearing = best.pos().plus(sideways(d.times(1.0 / distance), tick / RE_ROLL).times(error));
         }
-        return Optional.of(new Estimate(bearing, error, tick - best.tick(), loud, distance));
+        return new Estimate(bearing, error, tick - best.tick(), loud, distance);
     }
 
     /** effects: returns a unit vector perpendicular to {@code dir}, turned about it by an angle drawn from the seed and {@code epoch} */

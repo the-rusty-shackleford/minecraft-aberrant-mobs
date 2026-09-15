@@ -86,6 +86,36 @@ final class CrawlTest {
     }
 
     @Test
+    void aWishBesideOrBehindItIsPivotedToNotOrbited() {
+        // A wish straight back: the head turns in place this tick, moving nowhere.
+        Crawl.Step back = Crawl.step(FLOOR, onFloor(3.0), Vec.X.times(-1), 0.45, R, false);
+        assertTrue(back.pose().centre().near(onFloor(3.0).centre(), 1e-9), "pivoting, not moving: " + back.pose().centre());
+        // A wish beside it, three quarters of a block off -- inside the circle its speed and turn rate would sweep --
+        // is reached: it turns toward the point and walks up to it instead of circling it forever.
+        Vec point = onFloor(3.0).centre().plus(new Vec(0, 0, 0.75));
+        Crawl.Pose p = onFloor(3.0);
+        double nearest = Double.MAX_VALUE;
+        for (int i = 0; i < 20; i++) {
+            Vec wish = point.minus(p.centre());
+            if (wish.length() < 0.3) {
+                break;
+            }
+            p = Crawl.step(FLOOR, p, wish, 0.45, R, false).pose();
+            nearest = Math.min(nearest, point.minus(p.centre()).length());
+        }
+        assertTrue(nearest < 0.3, "it comes to the point: nearest " + nearest + ", at " + p.centre());
+        // Slowing into a turn: after this tick's twenty-five degrees, the step is the speed times the cosine of what
+        // is left. A wish a right angle off (sixty-five left) moves it under half; sixty off (thirty-five left) most
+        // of it; twenty off, turned in the tick, all of it.
+        double ninety = Crawl.step(FLOOR, onFloor(3.0), Vec.Z, 0.45, R, false).pose().centre().minus(onFloor(3.0).centre()).length();
+        double sixty = Crawl.step(FLOOR, onFloor(3.0), new Vec(Math.cos(Math.toRadians(60)), 0, Math.sin(Math.toRadians(60))), 0.45, R, false).pose().centre().minus(onFloor(3.0).centre()).length();
+        double twenty = Crawl.step(FLOOR, onFloor(3.0), new Vec(Math.cos(Math.toRadians(20)), 0, Math.sin(Math.toRadians(20))), 0.45, R, false).pose().centre().minus(onFloor(3.0).centre()).length();
+        assertEquals(0.45 * Math.cos(Math.toRadians(65)), ninety, 1e-6, "under half: " + ninety);
+        assertEquals(0.45 * Math.cos(Math.toRadians(35)), sixty, 1e-6, "most of it: " + sixty);
+        assertEquals(0.45, twenty, 1e-9, "all of it: the turn is done in the tick");
+    }
+
+    @Test
     void aWallAheadIsClimbedOrDug() {
         Cells wall = (x, y, z) -> y <= -1 || x >= 8 ? Cells.Kind.ROCK : Cells.Kind.AIR;
         Crawl.Pose p = onFloor(5.0);

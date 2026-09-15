@@ -52,7 +52,10 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  * hunting a player in sight it coils, then pounces. The spawn rules
  * refuse the lit surface and accept a dark pocket by thick rock, where a
  * creature spawned takes the fitting profile and bores its pocket into the
- * wall; killed, it drops its chitin and its cracked plate and experience.
+ * wall; the creative tab shows the drops, the armour and an egg per
+ * creature, and the egg -- or a command with only a profile -- puts the
+ * creature whole on the lit surface; killed, it drops its chitin and its
+ * cracked plate and experience.
  *
  * <p>The arena template is 15 by 9 by 15, the tall one 15 by 16 by 15; a
  * floor of stone is laid on them.
@@ -371,7 +374,10 @@ public final class FaceStealerGameTests {
             helper.assertValueEqual(a.verb(), "approach", "toward it");
             com.chunkworks.aberrantmobs.domain.Hearing.Estimate e = a.hearing().estimate(a.axis(), a.tickCount).orElseThrow();
             helper.assertTrue(e.error() >= 100.0, "only a vague bearing at that range: " + e.error());
-            helper.assertTrue(a.crawlPose() != null && a.crawlPose().heading().x() > 0.5, "heading that way: " + a.crawlPose().heading());
+            // Bound for the bearing: two hundred and more east of it. (Its heading this tick is the way's first leg,
+            // which in a walled arena may well run sideways first; it is not the measure.)
+            helper.assertTrue(a.crawlTarget() != null && a.crawlTarget().x() - a.axis().x() > 200.0, "bound that way: " + a.crawlTarget());
+            helper.assertTrue(a.crawlPose() != null && a.crawlPose().heading().x() > -0.5, "and not turned from it: " + a.crawlPose().heading());
             a.hear(new com.chunkworks.aberrantmobs.domain.Hearing.Sound(a.axis().plus(new com.chunkworks.aberrantmobs.domain.Vec(20, 0, 0)), 1.0, a.tickCount, "someone"));
         });
         helper.runAtTickTime(24, () -> {
@@ -539,6 +545,48 @@ public final class FaceStealerGameTests {
             helper.assertTrue(helper.getLevel().getBlockState(inside).isAir(), "in a pocket it bored: " + inside);
             helper.assertTrue(a.blocksDug() >= 20, "the pocket's rock cut: " + a.blocksDug());
         }).thenSucceed();
+    }
+
+    @GameTest(template = "arena", timeoutTicks = 60, batch = "creative")
+    public void theCreativeTabShowsTheModAndItsEggSpawnsTheCreatureWhole(GameTestHelper helper) {
+        layFloor(helper);
+        // The tab, built as the game builds it: the drops, the armour, then one egg per creature profile, named after it.
+        net.minecraft.world.item.CreativeModeTabs.tryRebuildTabContents(helper.getLevel().enabledFeatures(), true, helper.getLevel().registryAccess());
+        net.minecraft.world.item.CreativeModeTab tab = com.chunkworks.aberrantmobs.ModContent.TAB.get();
+        java.util.List<net.minecraft.world.item.ItemStack> shown = new java.util.ArrayList<>(tab.getDisplayItems());
+        for (net.minecraft.world.item.Item item : com.chunkworks.aberrantmobs.ModContent.items()) {
+            helper.assertTrue(shown.stream().anyMatch(s -> s.is(item)), "the tab shows " + item);
+        }
+        java.util.List<net.minecraft.world.item.ItemStack> eggs = shown.stream().filter(s -> s.is(com.chunkworks.aberrantmobs.ModContent.ABERRANT_SPAWN_EGG.get())).toList();
+        int profiles = (int) helper.getLevel().registryAccess().registryOrThrow(AberrantMobs.CREATURES).holders().count();
+        helper.assertValueEqual(eggs.size(), profiles, "an egg per creature profile");
+        net.minecraft.world.item.ItemStack egg = eggs.stream().filter(s -> FACE_STEALER.equals(com.chunkworks.aberrantmobs.AberrantEggItem.profileOf(s))).findFirst().orElse(null);
+        helper.assertTrue(egg != null, "one of them the Face-Stealer's");
+        helper.assertValueEqual(egg.getHoverName().getString(), "Face-Stealer Spawn Egg", "named after its creature");
+        // Used on the lit surface, where no habitat fits: the creature still comes, whole -- the profile the egg names,
+        // at the profile's health -- since an egg or a command means "put one here".
+        BlockPos at = helper.absolutePos(new BlockPos(7, FLOOR, 7));
+        Aberrant spawned = (Aberrant) com.chunkworks.aberrantmobs.ModContent.ABERRANT.get().spawn(helper.getLevel(), egg, null, at, net.minecraft.world.entity.MobSpawnType.SPAWN_EGG, false, false);
+        helper.assertTrue(spawned != null && !spawned.isRemoved(), "the egg spawns it on the surface");
+        helper.assertValueEqual(spawned.profileId(), FACE_STEALER, "the egg's profile");
+        helper.assertTrue(Math.abs(spawned.getMaxHealth() - 84.0) < 1e-6 && Math.abs(spawned.getHealth() - 84.0) < 1e-6, "the profile's health, full: " + spawned.getMaxHealth() + " / " + spawned.getHealth());
+        helper.assertTrue(spawned.getBbWidth() > 2.0, "the profile's size: " + spawned.getBbWidth());
+        // And /summon with only a profile, the documented way, is the same creature whole.
+        net.minecraft.nbt.CompoundTag tag = new net.minecraft.nbt.CompoundTag();
+        tag.putString("id", AberrantMobs.id("aberrant").toString());
+        tag.putString("Profile", FACE_STEALER.toString());
+        BlockPos there = helper.absolutePos(new BlockPos(3, FLOOR, 3));
+        net.minecraft.world.entity.Entity loaded = net.minecraft.world.entity.EntityType.loadEntityRecursive(tag, helper.getLevel(), e -> {
+            e.moveTo(there.getX() + 0.5, there.getY(), there.getZ() + 0.5, 0.0f, 0.0f);
+            return e;
+        });
+        helper.assertTrue(loaded instanceof Aberrant, "summoned");
+        Aberrant summoned = (Aberrant) loaded;
+        summoned.finalizeSpawn(helper.getLevel(), helper.getLevel().getCurrentDifficultyAt(there), net.minecraft.world.entity.MobSpawnType.COMMAND, null);
+        helper.getLevel().addFreshEntity(summoned);
+        helper.assertTrue(!summoned.isRemoved(), "a command puts it on the surface too");
+        helper.assertTrue(Math.abs(summoned.getMaxHealth() - 84.0) < 1e-6, "at the profile's health: " + summoned.getMaxHealth());
+        helper.succeed();
     }
 
     @GameTest(template = "arena", timeoutTicks = 100, batch = "loot")

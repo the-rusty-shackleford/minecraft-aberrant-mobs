@@ -154,9 +154,12 @@ public final class Crawl {
      *     holds for the dig (blocked if the section is not diggable); else
      *     climbs -- the wall ahead becomes its face, its heading the old up
      *     -- or is blocked when rock is above too; else moves {@code speed}
-     *     and settles: snapped to its clearance; over an edge, wrapped onto
-     *     the ledge's face heading down it; with nothing under it, attached
-     *     to any face in reach, or airborne.
+     *     scaled by how far round it has come (the cosine of what is left
+     *     of the turn, none for a wish beside or behind it: it pivots, and
+     *     never orbits a point inside its turning circle) and settles:
+     *     snapped to its clearance; over an edge, wrapped onto the ledge's
+     *     face heading down it; with nothing under it, attached to any face
+     *     in reach, or airborne.
      * </ul>
      */
     public static Step step(Cells cells, Pose pose, Vec desired, double speed, Rules rules, boolean mayDig) {
@@ -201,7 +204,8 @@ public final class Crawl {
             Pose climbed = snap(cells, new Pose(pose.centre(), n, Normal.nearest(h2.times(-1))), rules);
             return climbed == null ? new Step(turned, false, true, false) : new Step(climbed, false, false, true);
         }
-        return settle(cells, new Pose(pose.centre().plus(h2.times(speed)), h2, pose.normal()), rules, false);
+        double along = Math.max(0.0, h2.dot(inFace.normalized()));
+        return settle(cells, new Pose(pose.centre().plus(h2.times(speed * along)), h2, pose.normal()), rules, false);
     }
 
     /**

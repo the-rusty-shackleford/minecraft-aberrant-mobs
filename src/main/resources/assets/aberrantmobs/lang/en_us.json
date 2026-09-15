@@ -20,5 +20,8 @@
   "item.aberrantmobs.chitin_helmet": "Chitin Helmet",
   "item.aberrantmobs.chitin_chestplate": "Chitin Chestplate",
   "item.aberrantmobs.chitin_leggings": "Chitin Leggings",
-  "item.aberrantmobs.chitin_boots": "Chitin Boots"
+  "item.aberrantmobs.chitin_boots": "Chitin Boots",
+  "item.aberrantmobs.aberrant_spawn_egg": "Aberrant Spawn Egg",
+  "item.aberrantmobs.aberrant_spawn_egg.of": "%s Spawn Egg",
+  "itemGroup.aberrantmobs": "Aberrant Mobs"
 }

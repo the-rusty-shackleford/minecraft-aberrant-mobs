@@ -19,6 +19,20 @@ the plan left for the armour's phase C (block placement facing on a wall, the sh
 nameplate, explosions into the wearer's frame, the third-person back camera on a wall)
 is listed under Next in `knowledge/PROJECT.md`.
 
+## In creative
+
+The creative inventory has an **Aberrant Mobs** page (the Stolen Face is its icon): chitin,
+the cracked carapace, the stolen face, the four chitin pieces, and then one spawn egg per
+creature profile loaded, each named after its creature ("Face-Stealer Spawn Egg"). The
+same items sit on the vanilla pages too: the drops under Ingredients, the armour under
+Combat, the eggs under Spawn Eggs. There is one egg item, `aberrantmobs:aberrant_spawn_egg`;
+which creature it spawns is the profile in its entity data, so a datapack that adds a
+creature gets its egg for free. An egg, a command or a spawner puts a creature down
+wherever it is used, at its profile's health, taking the creature whose habitat fits the
+spot when the egg names none, else the first known; only the world's own spawns insist on
+a fitting habitat. A creature in creative is a spectacle, not a hunt: it hears every
+player, but only a survival or adventure player is prey.
+
 ## A creature
 
 `data/<ns>/aberrantmobs/creature/<name>.json`:
@@ -167,6 +181,26 @@ loudness, exact within 24 blocks: the bearing it heads for is the true point mov
 sideways by that error along a direction drawn from its seed and re-drawn every 600
 ticks, so a guess drifts rather than jitters, and at three hundred blocks a step is no
 more than a direction. A sound older than 2400 ticks is forgotten.
+
+Keeping you: a player in survival or adventure within 64 blocks is its target and its
+position is known exactly, seen or not; out of that range, or out of range and sight, it
+is known for 2400 ticks (two minutes) from the last time, at its last position -- and the
+ears keep that position fresh: the last sound from that very player (by their id), if
+newer, is where they are now taken to be, exact within 24 blocks and erred beyond
+(`SensesReader`, `Hearing.estimateFrom`). Running is heard; sneaking away is not.
+
+## What you hear
+
+It skitters every six ticks under way (1.3 when hunting, 1.0 otherwise, 0.5 stalking,
+where a sound over one carries past sixteen blocks) and breathes every ninety ticks
+when still. Its cues play the click, hiss and screech of the coil and pounce, the grab,
+the bite, the crack of its plate and the scrape of its digging (loud or quiet). When it
+begins to stalk you it hisses once; when the hunt begins it screeches (1.6: twenty-five
+blocks); while it stalks or hunts, about every three and a half seconds, it clicks its
+pincers or hisses, low. Every recording is CC0 from freesound.org, cut by
+`devtools/art/build.py` (`devtools/art/sounds/SOURCES.md`). The game's "Press Shift to
+dismount" hint is not shown or narrated when what you ride is a creature: the grip
+refuses the dismount, so the hint would be a lie (`ClientPacketListenerMixin`).
 
 ## The rig
 

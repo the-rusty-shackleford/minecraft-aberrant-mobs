@@ -11,6 +11,7 @@
     "ServerPlayerMixin"
   ],
   "client": [
+    "ClientPacketListenerMixin",
     "LocalPlayerMixin",
     "CameraAccessor",
     "CameraMixin",
