@@ -37,9 +37,12 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  * as the profile says; its parts lie along its body and follow its walk;
  * only the cracked segment takes a blow; its feet stand on the floor,
  * most of them at any moment, while it walks; a clip played on the server
- * fires its cues on their ticks and ends.
+ * fires its cues on their ticks and ends; it crawls the floor, climbs the
+ * wall and crosses the ceiling; it digs a coherent tunnel to a target
+ * through rock and leaves bedrock alone; a pounce lands where it aimed.
  *
- * <p>The arena template is 15 by 15; a floor of stone is laid on it.
+ * <p>The arena template is 15 by 9 by 15, the tall one 15 by 16 by 15; a
+ * floor of stone is laid on them.
  */
 @GameTestHolder(com.chunkworks.aberrantmobs.AberrantMobsMod.MOD_ID)
 @PrefixGameTestTemplate(false)
@@ -184,6 +187,101 @@ public final class FaceStealerGameTests {
         });
     }
 
+    private static void fill(GameTestHelper helper, int x0, int y0, int z0, int x1, int y1, int z1, net.minecraft.world.level.block.Block block) {
+        for (int x = x0; x <= x1; x++) {
+            for (int y = y0; y <= y1; y++) {
+                for (int z = z0; z <= z1; z++) {
+                    helper.setBlock(new BlockPos(x, y, z), block);
+                }
+            }
+        }
+    }
+
+    @GameTest(template = "tall", timeoutTicks = 200)
+    public void itCrawlsTheFloorClimbsTheWallAndCrossesTheCeiling(GameTestHelper helper) {
+        layFloor(helper);
+        fill(helper, 12, FLOOR, 0, 14, 12, 14, Blocks.STONE);   // a wall across the east end
+        fill(helper, 0, 13, 0, 14, 15, 14, Blocks.STONE);       // a ceiling over it all
+        Vec3 at = helper.absoluteVec(new Vec3(2.5, FLOOR, 7.5));
+        Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, -90.0f);
+        helper.assertTrue(a != null, "the creature is made");
+        helper.getLevel().addFreshEntity(a);
+        a.setScriptedWalk(new com.chunkworks.aberrantmobs.domain.Vec(0.3, 0.0, 0.0), 180);
+        java.util.Set<com.chunkworks.aberrantmobs.domain.Crawl.Normal> seen = new java.util.HashSet<>();
+        for (int t = 2; t < 180; t += 2) {
+            helper.runAtTickTime(t, () -> {
+                if (a.crawlPose() != null) {
+                    seen.add(a.crawlPose().normal());
+                }
+            });
+        }
+        helper.runAtTickTime(40, () -> {
+            helper.assertTrue(a.crawlPose() != null && a.crawlPose().normal() == com.chunkworks.aberrantmobs.domain.Crawl.Normal.WEST, "on the wall, whose face looks west: " + a.crawlPose());
+            helper.assertTrue(a.getY() - at.y > 2.0, "and up it: " + (a.getY() - at.y));
+            helper.assertTrue(Math.abs(a.getX() - (at.x + 12.0 - 2.5 - 23.3 / 16.0)) < 0.3, "its clearance off the wall: " + (a.getX() - at.x));
+        });
+        helper.runAtTickTime(65, () -> {
+            helper.assertTrue(a.crawlPose() != null && a.crawlPose().normal() == com.chunkworks.aberrantmobs.domain.Crawl.Normal.DOWN, "under the ceiling, whose face looks down: " + a.crawlPose());
+            helper.assertTrue(a.getY() - at.y > 6.0, "hanging high: " + (a.getY() - at.y));
+            helper.assertTrue(a.crawlPose().heading().x() < -0.9, "heading back west along it: " + a.crawlPose().heading());
+        });
+        helper.runAtTickTime(180, () -> {
+            helper.assertTrue(seen.contains(com.chunkworks.aberrantmobs.domain.Crawl.Normal.UP) && seen.contains(com.chunkworks.aberrantmobs.domain.Crawl.Normal.WEST)
+                    && seen.contains(com.chunkworks.aberrantmobs.domain.Crawl.Normal.DOWN), "floor, wall and ceiling seen: " + seen);
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "tall", timeoutTicks = 260)
+    public void itDigsACoherentTunnelToItsTargetAndLeavesBedrockAlone(GameTestHelper helper) {
+        layFloor(helper);
+        fill(helper, 6, FLOOR, 0, 14, 15, 14, Blocks.STONE);   // a hill filling the east end to the top
+        fill(helper, 9, FLOOR, 7, 9, FLOOR + 2, 7, Blocks.BEDROCK);   // three of bedrock in its straight way
+        Vec3 at = helper.absoluteVec(new Vec3(2.5, FLOOR, 7.5));
+        Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, -90.0f);
+        helper.assertTrue(a != null, "the creature is made");
+        helper.getLevel().addFreshEntity(a);
+        Vec3 goal = helper.absoluteVec(new Vec3(13.5, FLOOR + 23.3 / 16.0, 7.5));
+        a.setCrawlTarget(new com.chunkworks.aberrantmobs.domain.Vec(goal.x, goal.y, goal.z), true, 0.45);
+        helper.runAtTickTime(240, () -> {
+            helper.assertTrue(a.getX() - at.x > 9.0, "it went in nine blocks and more: " + (a.getX() - at.x));
+            helper.assertTrue(a.blocksDug() > 20, "cutting its way: " + a.blocksDug());
+            for (int y = FLOOR; y <= FLOOR + 2; y++) {
+                helper.assertBlockPresent(Blocks.BEDROCK, new BlockPos(9, y, 7));
+            }
+            com.chunkworks.aberrantmobs.domain.Trail trail = a.trail(1.0);
+            for (double d = 0.0; d <= Math.min(9.0, a.distance()); d += 0.5) {
+                com.chunkworks.aberrantmobs.domain.Vec p = trail.at(d).pos();
+                BlockPos head = BlockPos.containing(p.x(), p.y(), p.z());
+                helper.assertTrue(helper.getLevel().getBlockState(head).isAir(), "the way behind the head is open at " + d + ": " + head);
+                helper.assertTrue(helper.getLevel().getBlockState(head.north()).isAir() && helper.getLevel().getBlockState(head.south()).isAir(), "and wide: " + head);
+            }
+            helper.assertTrue(a.crawlPose() != null && !a.crawlPose().airborne(), "still on a face");
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "arena", timeoutTicks = 80)
+    public void aPounceLandsWhereItAimed(GameTestHelper helper) {
+        layFloor(helper);
+        Vec3 at = helper.absoluteVec(new Vec3(2.5, FLOOR, 7.5));
+        Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, -90.0f);
+        helper.assertTrue(a != null, "the creature is made");
+        helper.getLevel().addFreshEntity(a);
+        Vec3 spot = helper.absoluteVec(new Vec3(9.5, FLOOR, 7.5));
+        helper.runAtTickTime(5, () -> {
+            helper.assertTrue(a.pounce(new com.chunkworks.aberrantmobs.domain.Vec(spot.x, spot.y, spot.z)), "it leaps");
+            helper.assertValueEqual(a.clipPlaying(), "pounce", "with its clip");
+        });
+        helper.runAtTickTime(8, () -> helper.assertTrue(a.crawlPose() != null && a.crawlPose().airborne() && a.getY() - at.y > 0.5, "in the air: " + a.crawlPose()));
+        helper.runAtTickTime(60, () -> {
+            helper.assertTrue(a.crawlPose() != null && a.crawlPose().normal() == com.chunkworks.aberrantmobs.domain.Crawl.Normal.UP, "landed on the floor: " + a.crawlPose());
+            helper.assertTrue(Math.abs(a.getX() - spot.x) < 1.5 && Math.abs(a.getZ() - spot.z) < 1.0, "where it aimed: " + (a.getX() - spot.x) + ", " + (a.getZ() - spot.z));
+            helper.assertTrue(!a.crawling(), "and is still");
+            helper.succeed();
+        });
+    }
+
     @GameTest(template = "arena", timeoutTicks = 80)
     public void aScriptedWalkMovesItAlongTheGroundFacingItsWay(GameTestHelper helper) {
         layFloor(helper);
@@ -195,7 +293,8 @@ public final class FaceStealerGameTests {
         helper.runAtTickTime(40, () -> {
             double moved = a.getX() - at.x;
             helper.assertTrue(moved > 7.0 && moved < 10.0, "thirty ticks at 0.3 east: " + moved);
-            helper.assertTrue(Math.abs(a.getY() - at.y) < 0.1, "on the floor: " + (a.getY() - at.y));
+            helper.assertTrue(a.getY() - at.y > -0.05 && a.getY() - at.y < 0.5, "on the floor, its box centred on its axis: " + (a.getY() - at.y));
+            helper.assertTrue(a.crawlPose() != null && a.crawlPose().normal() == com.chunkworks.aberrantmobs.domain.Crawl.Normal.UP, "clinging to the floor");
             helper.assertTrue(Math.abs(net.minecraft.util.Mth.wrapDegrees(a.yBodyRot + 90.0f)) < 1.0f, "facing east: " + a.yBodyRot);
             helper.assertTrue(a.distance() > 7.0, "the distance counted: " + a.distance());
             helper.assertTrue(a.speed() < 0.01, "and it stopped when the walk ran out: " + a.speed());

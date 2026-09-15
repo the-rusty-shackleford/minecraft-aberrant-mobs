@@ -6,11 +6,12 @@ head, the mind that reads its senses through a decision tree, the crawling, digg
 stalking, grabbing and biting its verbs do, and what it drops. The first creature is the
 **Face-Stealer**, nfx's centipede: eleven blocks of it, a mask for a face.
 
-This is phase 2 of 7 (`~/.claude/plans/wiggly-cuddling-adleman.md` is the plan): the
+This is phase 3 of 7 (`~/.claude/plans/wiggly-cuddling-adleman.md` is the plan): the
 creature exists, is sized and named by its profile, its body follows its head along a
 trail and writhes, its feet stand on the world and step in a wave, its plating rings and
-its crack glows, and its attack animations play on the server's say. It does not yet
-crawl on its own, think, dig, or bite.
+its crack glows, its attack animations play on the server's say, and it crawls over
+floors, walls and ceilings, digs its way to a point through rock, and pounces. It does
+not yet think, stalk, or bite.
 
 ## A creature
 
@@ -73,6 +74,35 @@ rule runs under JUnit on synthetic rock. Both sides step their own feet each tic
 nothing is synced. The renderer aims each leg bone at its foot as a lever: the lift in
 the leg's own plane, then the swing about the segment's up.
 
+## The crawl
+
+The creature is not moved by the game's physics: no gravity, no block collision, no
+pushing. Its head is a point (`domain/Crawl`) held a fixed clearance off the axis face
+it clings to -- floor, wall or ceiling, one of six -- and each server tick it turns
+within that face toward what it wants (25 degrees a tick at most), moves, and settles:
+snapped to its clearance; over an edge, wrapped onto the ledge's face heading down it;
+with nothing under it, attached to any face in reach, else falling. Rock ahead is
+climbed (the wall becomes its face, the old up its heading) or, when it may dig, bored:
+the head holds, the strike clip plays, and on the strike's cue the section ahead
+(`domain/Tunnel`: the cells within the bore's radius of the head's run, three by three
+on an axis, the floor it rides on kept) is cut to air (`DigWorld`; loud with particles
+and a game event, or quiet). Rock is only ever cut when nothing hard or wet is beside
+it, so a tunnel never breaches water, lava, bedrock or a chest. A wish to go through
+its face bores when it may dig and is refused otherwise; a wish away from it is
+refused. Axis faces only: exact, six cases, enumerable; a slope reads as corners, as it
+does to a centipede. The face it clings to rides synced data as its up, and its box is
+centred on its axis, so a client draws it on the wall it is on.
+
+A way to a point is planned by `domain/Burrow`: A* over cells, six-connected, air by a
+face cheap, air with none dearer, rock at the cost of digging it (cheap hunting, dear
+stalking), hard and fluid never, bounded by a budget; the entity follows it waypoint by
+waypoint and plans again every twenty ticks. A pounce (`domain/Leap`) is a launch
+velocity that lands the head exactly on a spot under the game's own integration, within
+a top speed; in flight the head lands on the first face it flies into. The blocks are
+read through `domain/Cells` (`LevelCells`: a fluid is fluid, no collision is air,
+bedrock, obsidian, block entities, `#aberrantmobs:undiggable` and the wither-immune are
+hard, the rest rock).
+
 ## The clips
 
 The attacks and reactions are authored in code (`domain/FaceStealerClips`): **coil**
@@ -104,7 +134,7 @@ tests until the crawl arrives.
 
 ```
 export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 PATH="$JAVA_HOME/bin:$PATH"
-./gradlew test                   # JUnit on the pure layer: the rig, the body, the feet, the clips
+./gradlew test                   # JUnit on the pure layer: the rig, the body, the feet, the clips, the crawl
 ./gradlew check                  # plus the gametests and the photo booth (needs a display; -PskipBooth, -PskipGameTests)
 ```
 
@@ -112,13 +142,14 @@ The domain layer is compiled against the JDK alone; `net.minecraft` there is a c
 error. Its tests are partitioned by each class's spec and named in the class docs. The
 gametests, on a headless server, register the profile and make a creature from it, walk
 it and find its parts along its body and most of its feet on the floor, ring its plating
-and crack it, and play a clip through its cues. The booth (`Xephyr :7 -screen 1280x720
+and crack it, play a clip through its cues, send it over a floor, up a wall and across a
+ceiling, dig it a coherent tunnel round bedrock to a target, and land its pounce. The booth (`Xephyr :7 -screen 1280x720
 -ac -br -noreset`, then `DISPLAY=:7 __GLX_VENDOR_LIBRARY_NAME=mesa
 LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe MESA_GL_VERSION_OVERRIDE=4.6
 MESA_GLSL_VERSION_OVERRIDE=460 ./gradlew runPhotoBooth`) photographs the creature from
-the side, the front quarter and up close, walking from the side and from above, and each
-clip at its key frames, silent from its first tick; its `booth: PASS/FAIL` lines are the
-assertion, and the frames are looked at.
+the side, the front quarter and up close, walking from the side and from above, each
+clip at its key frames, climbing a wall and digging into a hill, silent from its first
+tick; its `booth: PASS/FAIL` lines are the assertion, and the frames are looked at.
 
 ## Licence
 

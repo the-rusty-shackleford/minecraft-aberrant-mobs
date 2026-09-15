@@ -21,17 +21,23 @@ import com.chunkworks.aberrantmobs.api.AberrantMobs;
 import com.chunkworks.aberrantmobs.api.CreatureProfile;
 import com.chunkworks.aberrantmobs.domain.Animator;
 import com.chunkworks.aberrantmobs.domain.Body;
+import com.chunkworks.aberrantmobs.domain.Burrow;
 import com.chunkworks.aberrantmobs.domain.Carapace;
+import com.chunkworks.aberrantmobs.domain.Cell;
 import com.chunkworks.aberrantmobs.domain.ChainPose;
 import com.chunkworks.aberrantmobs.domain.Clip;
+import com.chunkworks.aberrantmobs.domain.Crawl;
 import com.chunkworks.aberrantmobs.domain.FaceStealerClips;
+import com.chunkworks.aberrantmobs.domain.Leap;
 import com.chunkworks.aberrantmobs.domain.Legs;
 import com.chunkworks.aberrantmobs.domain.Pose;
 import com.chunkworks.aberrantmobs.domain.Rig;
 import com.chunkworks.aberrantmobs.domain.Trail;
+import com.chunkworks.aberrantmobs.domain.Tunnel;
 import com.chunkworks.aberrantmobs.domain.Undulation;
 import com.chunkworks.aberrantmobs.domain.Vec;
 import java.util.List;
+import java.util.Optional;
 import net.minecraft.core.Holder;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
@@ -39,6 +45,7 @@ import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.DamageTypeTags;
@@ -51,7 +58,9 @@ import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.entity.PartEntity;
+import net.neoforged.neoforge.fluids.FluidType;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -61,17 +70,27 @@ import org.jetbrains.annotations.Nullable;
  * profile itself is looked up in the registry each time, never cached, so
  * a reload is honoured.
  *
+ * <p>It keeps itself out of rock by the {@link Crawl}, not by the game's
+ * physics: no gravity, no block collision, no pushing; each server tick
+ * the head's axis point is stepped along the face it clings to (floor,
+ * wall or ceiling) toward what it wants, climbing, wrapping over edges,
+ * boring when it may dig -- the section ahead is cut on the strike clip's
+ * cue, so digging is visibly the pincers' work -- and a pounce flies by
+ * the {@link Leap} until it lands on whatever it hits. The face it clings
+ * to rides synced data as its up. Its box is centred on the axis.
+ *
  * <p>The body follows the head: each side keeps its own {@link Trail} of
  * where the head's axis has been (nothing is synced for it: both sides
  * have the head's positions already) and the writhe's {@link
  * Undulation.Wave}, advanced once a tick by the ground speed. The trail is
- * seeded straight behind the head when the body is first known, so a
- * creature that just appeared has a whole body. Each side also keeps the
- * feet: every leg's foot planted on the world, stepped by {@link Legs}
- * from the level's own blocks, so the legs stand where there is something
- * to stand on. The server lays an {@link AberrantPart} on every chain
- * segment each tick, where the world meets and hits it; the carapace says
- * what a hit comes to.
+ * seeded straight behind the head when the body is first known, and again
+ * after a jump too long to have been walked, so a creature that just
+ * appeared or was moved has a whole body. Each side also keeps the feet:
+ * every leg's foot planted on the world, stepped by {@link Legs} from the
+ * level's own blocks, so the legs stand where there is something to stand
+ * on. The server lays an {@link AberrantPart} on every chain segment each
+ * tick, where the world meets and hits it; the carapace says what a hit
+ * comes to.
  *
  * <p>An authored {@link Clip} plays on the server's say: its name and a
  * serial ride synced data, so every client starts the same clip within a
@@ -85,13 +104,28 @@ public class Aberrant extends Monster {
     /** The clip last started, by name ("" for none), and a count of starts so a repeat is noticed. */
     private static final EntityDataAccessor<String> DATA_CLIP = SynchedEntityData.defineId(Aberrant.class, EntityDataSerializers.STRING);
     private static final EntityDataAccessor<Integer> DATA_CLIP_SERIAL = SynchedEntityData.defineId(Aberrant.class, EntityDataSerializers.INT);
+    /** The face the head clings to, a {@link Crawl.Normal} ordinal. */
+    private static final EntityDataAccessor<Byte> DATA_NORMAL = SynchedEntityData.defineId(Aberrant.class, EntityDataSerializers.BYTE);
 
     /** How far beyond its box a creature is still drawn: a body eleven blocks long trails well past its head. */
     private static final double CULL_REACH = 12.0;
     /** Trail samples kept: a body of eleven blocks at the slowest crawl, and then some. */
     private static final int TRAIL_CAPACITY = 256;
+    /** A head that moved further than this in a tick was moved, not walked: the body is laid afresh behind it. */
+    private static final double TELEPORT = 4.0;
     /** Parts a creature is born with; a chain longer than this has no boxes past it. */
     public static final int MAX_PARTS = 16;
+    /** A pounce leaves at this speed, blocks a tick. */
+    public static final double POUNCE_SPEED = 1.2;
+    /** A flight this long lands wherever it is. */
+    private static final int MAX_FLIGHT = Leap.MAX_TICKS;
+    /** A burrow's way is planned again this often, ticks, and when it is lost. */
+    private static final int REPLAN = 20;
+    /** A waypoint this near is passed; a target this near is reached. */
+    private static final double WAYPOINT_REACH = 1.2;
+    private static final double TARGET_REACH = 1.5;
+    /** A strike cuts at most this many blocks. */
+    private static final int STRIKE_BUDGET = 32;
 
     private final AberrantPart[] parts;
     @Nullable
@@ -116,12 +150,37 @@ public class Aberrant extends Monster {
     private String lastCue;
     private int lastCueTick = -1;
 
+    // The crawl, on the server.
+    @Nullable
+    private Crawl.Pose crawl;
+    /** The face last clung to, for the up while airborne. */
+    private Vec lastUp = Vec.Y;
+    @Nullable
+    private Vec flight;
+    private int flightTicks;
+    private Vec desired = Vec.ZERO;
+    private double crawlSpeed;
+    private int crawlTicks;
+    private boolean mayDig;
+    @Nullable
+    private Vec target;
+    @Nullable
+    private List<Cell> path;
+    private int pathAt;
+    private int replanIn;
+    @Nullable
+    private List<Cell> pendingDig;
+    private boolean quiet;
+    private int blocksDug;
+
     public Aberrant(EntityType<? extends Aberrant> type, Level level) {
         super(type, level);
         parts = new AberrantPart[MAX_PARTS];
         for (int i = 0; i < MAX_PARTS; i++) {
             parts[i] = new AberrantPart(this, i);
         }
+        setNoGravity(true);
+        noPhysics = true;
     }
 
     /**
@@ -151,6 +210,7 @@ public class Aberrant extends Monster {
         builder.define(DATA_WEAK, -1);
         builder.define(DATA_CLIP, "");
         builder.define(DATA_CLIP_SERIAL, 0);
+        builder.define(DATA_NORMAL, (byte) Crawl.Normal.UP.ordinal());
     }
 
     /** effects: returns this creature's profile, or null before one is set or when the packs lost it */
@@ -205,6 +265,12 @@ public class Aberrant extends Monster {
             Clip clip = FaceStealerClips.ALL.get(entityData.get(DATA_CLIP));
             if (clip != null) {
                 animator.play(clip);
+            }
+        }
+        if (DATA_NORMAL.equals(key)) {
+            Crawl.Normal n = syncedNormal();
+            if (n != Crawl.Normal.NONE) {
+                lastUp = n.dir;
             }
         }
     }
@@ -263,7 +329,7 @@ public class Aberrant extends Monster {
         int segments = Math.min(MAX_PARTS, chain.size());
         for (int k = 0; k < segments; k++) {
             AberrantPart part = parts[k];
-            Vec at = chain.position(k).minus(up().times(part.getBbHeight() / 2.0));
+            Vec at = chain.position(k).minus(new Vec(0, part.getBbHeight() / 2.0, 0));
             part.setPos(at.x(), at.y(), at.z());
             part.xo = part.getX();
             part.yo = part.getY();
@@ -347,6 +413,21 @@ public class Aberrant extends Monster {
         return false;
     }
 
+    @Override
+    public boolean isPushable() {
+        return false;
+    }
+
+    @Override
+    public boolean canDrownInFluidType(FluidType type) {
+        return false;
+    }
+
+    @Override
+    public void travel(Vec3 input) {
+        // The crawl moves it; the game's physics never do.
+    }
+
     // --- the body -------------------------------------------------------
 
     /** effects: returns the unit direction the head faces along the ground, from the body's yaw */
@@ -355,14 +436,22 @@ public class Aberrant extends Monster {
         return new Vec(-Math.sin(yaw), 0.0, Math.cos(yaw));
     }
 
-    /** effects: returns the up of the surface the head clings to: the floor's, in this phase */
-    public Vec up() {
-        return Vec.Y;
+    /** effects: returns the face the head clings to as synced, NONE while airborne */
+    public Crawl.Normal syncedNormal() {
+        int i = entityData.get(DATA_NORMAL);
+        Crawl.Normal[] all = Crawl.Normal.values();
+        return i >= 0 && i < all.length ? all[i] : Crawl.Normal.UP;
     }
 
-    /** effects: returns where the head's axis is now: over the feet by {@code axisHeight} along the up */
-    private Vec axis(double axisHeight) {
-        return new Vec(getX(), getY(), getZ()).plus(up().times(axisHeight));
+    /** effects: returns the outward normal of the face the head clings to; the last one while airborne */
+    public Vec up() {
+        Crawl.Normal n = syncedNormal();
+        return n == Crawl.Normal.NONE ? lastUp : n.dir;
+    }
+
+    /** effects: returns where the head's axis is now: the centre of the box */
+    public Vec axis() {
+        return new Vec(getX(), getY() + getBbHeight() / 2.0, getZ());
     }
 
     /**
@@ -370,9 +459,9 @@ public class Aberrant extends Monster {
      * behind the head over {@code bodyLength} blocks the first time it is
      * asked for
      */
-    public Trail trail(double axisHeight, double bodyLength) {
+    public Trail trail(double bodyLength) {
         if (trail == null) {
-            trail = Trail.seeded(axis(axisHeight), facing(), up(), Math.max(1.0, bodyLength), TRAIL_CAPACITY);
+            trail = Trail.seeded(axis(), facing(), up(), Math.max(1.0, bodyLength), TRAIL_CAPACITY);
         }
         return trail;
     }
@@ -395,57 +484,246 @@ public class Aberrant extends Monster {
         return speed;
     }
 
-    /** A walk the server was told to make: a ground velocity, blocks a tick, for so many ticks. */
-    @Nullable
-    private Vec walk;
-    private int walkTicks;
+    // --- the crawl ------------------------------------------------------
 
-    /**
-     * effects: from now on, for {@code ticks} ticks, the server walks this
-     * creature at {@code velocity} (blocks a tick, along the ground) facing
-     * that way, gravity kept -- the booth's and the tests' way to move it
-     * until the crawl arrives
-     */
-    public void setScriptedWalk(Vec velocity, int ticks) {
-        walk = velocity;
-        walkTicks = ticks;
+    /** effects: returns the crawl's measures for this body: the axis height as its clearance, the bore and the lookahead from its width */
+    private Crawl.Rules rules(Body body, CreatureProfile p) {
+        return new Crawl.Rules(body.axisHeight(), p.body().width() * 0.6, p.body().width() * 0.64);
     }
 
-    @Override
-    public void travel(net.minecraft.world.phys.Vec3 input) {
-        if (!level().isClientSide() && walk != null && walkTicks > 0) {
-            walkTicks--;
-            double vy = onGround() && getDeltaMovement().y <= 0 ? -0.04 : getDeltaMovement().y - 0.08;
-            setDeltaMovement(walk.x(), vy, walk.z());
-            move(net.minecraft.world.entity.MoverType.SELF, getDeltaMovement());
-            if (onGround() && getDeltaMovement().y < 0) {
-                setDeltaMovement(getDeltaMovement().x, 0.0, getDeltaMovement().z);
-            }
-            if (walk.x() != 0 || walk.z() != 0) {
-                float yaw = (float) Math.toDegrees(Math.atan2(-walk.x(), walk.z()));
-                setYRot(yaw);
-                yBodyRot = yaw;
-                yHeadRot = yaw;
-            }
-            return;
+    private LevelCells cells() {
+        if (cells == null) {
+            cells = new LevelCells(level());
         }
-        super.travel(input);
+        return cells;
+    }
+
+    /**
+     * effects: from now on, for {@code ticks} ticks, the server crawls this
+     * creature at {@code velocity}'s speed (blocks a tick), first toward
+     * its direction and then, once that direction leaves the face it is on
+     * (a corner turned), straight on along whatever face it clings to; no
+     * digging -- the booth's and the tests' way to move it
+     */
+    public void setScriptedWalk(Vec velocity, int ticks) {
+        desired = velocity.length() > 1e-9 ? velocity.normalized() : Vec.ZERO;
+        crawlSpeed = velocity.length();
+        crawlTicks = ticks;
+        mayDig = false;
+        target = null;
+        path = null;
+    }
+
+    /**
+     * effects: from now on the server burrows this creature toward
+     * {@code point} at {@code speed} blocks a tick along a way planned
+     * through the blocks, digging through rock when {@code dig}, until it
+     * is within reach of it
+     */
+    public void setCrawlTarget(Vec point, boolean dig, double speed) {
+        target = point;
+        mayDig = dig;
+        crawlSpeed = speed;
+        crawlTicks = 0;
+        path = null;
+        replanIn = 0;
+    }
+
+    /** effects: whether the server's digs are quiet (no particles, no game event) */
+    public void setQuiet(boolean quiet) {
+        this.quiet = quiet;
+    }
+
+    /**
+     * effects: launches the head in a leap that lands its axis over
+     * {@code point} (a spot on a surface) if a flight within its speed
+     * exists, playing the pounce; returns whether it left
+     */
+    public boolean pounce(Vec point) {
+        Body body = body();
+        CreatureProfile p = profile();
+        if (crawl == null || body == null || p == null || crawl.airborne()) {
+            return false;
+        }
+        Vec aim = point.plus(up().times(rules(body, p).clearance()));
+        Optional<Vec> v = Leap.velocity(crawl.centre(), aim, Vec.ZERO, POUNCE_SPEED, Leap.GRAVITY);
+        if (v.isEmpty()) {
+            return false;
+        }
+        flight = v.get();
+        flightTicks = 0;
+        crawl = new Crawl.Pose(crawl.centre(), crawl.heading(), Crawl.Normal.NONE);
+        play(FaceStealerClips.POUNCE);
+        return true;
+    }
+
+    /** effects: forgets where the head clung and the way behind it, so the next tick attaches it afresh where it now is with a straight body: after a teleport */
+    public void resetCrawl() {
+        crawl = null;
+        flight = null;
+        path = null;
+        trail = null;
+    }
+
+    /** effects: returns the head's crawl pose on the server, null before its first tick or on a client */
+    @Nullable
+    public Crawl.Pose crawlPose() {
+        return crawl;
+    }
+
+    /** effects: returns how many blocks this creature has dug */
+    public int blocksDug() {
+        return blocksDug;
+    }
+
+    /** effects: returns whether it is still under way toward a target, through a scripted walk, or in the air */
+    public boolean crawling() {
+        return target != null || crawlTicks > 0 || flight != null;
+    }
+
+    /** effects: one server tick of the crawl: the head stepped by its wish, flown by its leap, its dig readied; the entity placed on the head */
+    private void crawlTick(Body body, CreatureProfile p) {
+        Crawl.Rules rules = rules(body, p);
+        LevelCells cells = cells();
+        if (crawl == null) {
+            Crawl.Pose start = Crawl.attach(cells, axis(), facing(), rules, 3.0);
+            crawl = start != null ? start : new Crawl.Pose(axis(), facing(), Crawl.Normal.NONE);
+        }
+        if (flight != null) {
+            fly(cells, rules);
+        } else {
+            Vec wish = wish(cells);
+            Crawl.Step step = Crawl.step(cells, crawl, wish, wish.equals(Vec.ZERO) ? 0.0 : crawlSpeed, rules, mayDig);
+            crawl = step.pose();
+            if (step.digNeeded()) {
+                pendingDig = Crawl.section(crawl, rules);
+                if (!animator.busy()) {
+                    play(FaceStealerClips.STRIKE);
+                }
+            } else {
+                pendingDig = null;
+            }
+        }
+        place();
+    }
+
+    /** effects: returns this tick's wish: the scripted walk's direction while it lies in the face and its heading after, the way toward the target, or nothing */
+    private Vec wish(LevelCells cells) {
+        if (crawlTicks > 0) {
+            crawlTicks--;
+            if (!desired.equals(Vec.ZERO)) {
+                Vec n = crawl.normal().dir;
+                Vec inFace = desired.minus(n.times(desired.dot(n)));
+                if (crawl.airborne() || inFace.length() >= 0.25) {
+                    return desired;
+                }
+                desired = Vec.ZERO;
+            }
+            return crawl.heading();
+        }
+        if (target == null) {
+            return Vec.ZERO;
+        }
+        Vec centre = crawl.centre();
+        if (target.minus(centre).length() < TARGET_REACH) {
+            target = null;
+            path = null;
+            return Vec.ZERO;
+        }
+        if (path == null || --replanIn <= 0) {
+            path = Burrow.plan(cells, Cell.containing(centre), Cell.containing(target), Burrow.HUNT, Burrow.BUDGET).orElse(null);
+            pathAt = 0;
+            replanIn = REPLAN;
+        }
+        if (path == null) {
+            return target.minus(centre);
+        }
+        while (pathAt < path.size() - 1 && path.get(pathAt).centre().minus(centre).length() < WAYPOINT_REACH) {
+            pathAt++;
+        }
+        return path.get(pathAt).centre().minus(centre);
+    }
+
+    /** effects: one tick of a leap: moved by the flight, the flight bent by gravity; landed on the first face it flies into, or when the flight has gone on too long */
+    private void fly(LevelCells cells, Crawl.Rules rules) {
+        Vec centre = crawl.centre().plus(flight);
+        Vec heading = crawl.heading();
+        Vec level = new Vec(flight.x(), 0, flight.z());
+        if (level.length() > 1e-6) {
+            heading = level.normalized();
+        }
+        flightTicks++;
+        Crawl.Pose landed = null;
+        if (flightTicks >= 2) {
+            double best = Double.MAX_VALUE;
+            for (Crawl.Normal n : Crawl.Normal.values()) {
+                if (n == Crawl.Normal.NONE || flight.dot(n.dir) >= -1e-6) {
+                    continue;
+                }
+                Vec face = cells.face(centre, n.dir.times(-1), flight.length() + 0.3);
+                if (face != null && face.minus(centre).length() < best) {
+                    best = face.minus(centre).length();
+                    Vec h = heading.minus(n.dir.times(heading.dot(n.dir)));
+                    landed = new Crawl.Pose(face.plus(n.dir.times(rules.clearance())), h.length() > 1e-6 ? h.normalized() : (Math.abs(n.dir.x()) < 0.5 ? Vec.X : Vec.Z), n);
+                }
+            }
+        }
+        if (landed != null) {
+            crawl = landed;
+            flight = null;
+        } else if (flightTicks >= MAX_FLIGHT) {
+            crawl = new Crawl.Pose(centre, heading, Crawl.Normal.NONE);
+            flight = null;
+        } else {
+            crawl = new Crawl.Pose(centre, heading, Crawl.Normal.NONE);
+            flight = Leap.fallen(flight, Leap.GRAVITY);
+        }
+    }
+
+    /** effects: puts the entity where the head is: its box centred on the axis, its up synced, its yaw along the heading */
+    private void place() {
+        Vec c = crawl.centre();
+        setPos(c.x(), c.y() - getBbHeight() / 2.0, c.z());
+        byte n = (byte) crawl.normal().ordinal();
+        if (entityData.get(DATA_NORMAL) != n) {
+            entityData.set(DATA_NORMAL, n);
+        }
+        if (crawl.normal() != Crawl.Normal.NONE) {
+            lastUp = crawl.normal().dir;
+        }
+        Vec h = crawl.heading();
+        if (h.x() * h.x() + h.z() * h.z() > 0.01) {
+            float yaw = (float) Math.toDegrees(Math.atan2(-h.x(), h.z()));
+            setYRot(yaw);
+            yBodyRot = yaw;
+            yHeadRot = yaw;
+        }
     }
 
     @Override
     public void tick() {
         super.tick();
-        double dx = getX() - xo, dz = getZ() - zo;
-        speed = Math.sqrt(dx * dx + dz * dz);
-        distance += speed;
         CreatureProfile p = profile();
         Body body = body();
+        if (!level().isClientSide() && body != null && p != null) {
+            crawlTick(body, p);
+        }
+        double dx = getX() - xo, dy = getY() - yo, dz = getZ() - zo;
+        speed = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        distance += speed;
         if (p != null) {
             wave = p.rig().undulation().advance(wave(p.rig().undulation()), speed);
         }
         if (body != null && p != null) {
-            Trail t = trail(body.axisHeight(), body.length());
-            t.push(axis(body.axisHeight()), up());
+            Trail t = trail(body.length());
+            if (t.at(0).pos().minus(axis()).length() > TELEPORT) {
+                // Moved, not walked: lay the body straight behind the head again and let the feet find the ground.
+                trail = null;
+                feet = null;
+                legs = null;
+                t = trail(body.length());
+            }
+            t.push(axis(), up());
             ChainPose chain = ChainPose.of(t, body.arcBack(), p.rig().undulation(), wave);
             stepFeet(body, p, chain);
             if (!level().isClientSide()) {
@@ -459,17 +737,15 @@ public class Aberrant extends Monster {
 
     // --- the feet -------------------------------------------------------
 
-    /** effects: steps every foot one tick on {@code chain} over the level's blocks, the body's travel along its facing */
+    /** effects: steps every foot one tick on {@code chain} over the level's blocks, the body's travel along its heading */
     private void stepFeet(Body body, CreatureProfile p, ChainPose chain) {
         if (legs == null || legsOf != body) {
             legs = body.legs();
             legsOf = body;
             feet = Legs.hanging(legs.length);
         }
-        if (cells == null) {
-            cells = new LevelCells(level());
-        }
-        feet = Legs.step(cells, chain, legs, feet, p.rig().gait(), distance, speed, facing());
+        Vec travel = crawl != null ? crawl.heading() : facing();
+        feet = Legs.step(cells(), chain, legs, feet, p.rig().gait(), distance, speed, travel);
     }
 
     /** effects: returns every leg's foot as it stands now, pair by pair, left then right; hanging before the body is known; a fresh copy */
@@ -516,10 +792,15 @@ public class Aberrant extends Monster {
         return lastCueTick;
     }
 
-    /** effects: acts on a clip's cue: remembered now; the sounds and the dig's blocks hang on it in later phases */
+    /** effects: acts on a clip's cue: the strike cuts the section the crawl readied; every cue is remembered; the sounds hang on them in a later phase */
     private void onCue(String cue) {
         lastCue = cue;
         lastCueTick = tickCount;
+        if (FaceStealerClips.CUE_STRIKE.equals(cue) && pendingDig != null && level() instanceof ServerLevel server) {
+            List<Cell> rock = Tunnel.rock(cells(), pendingDig);
+            blocksDug += DigWorld.dig(server, rock.size() > STRIKE_BUDGET ? rock.subList(0, STRIKE_BUDGET) : rock, !quiet);
+            pendingDig = null;
+        }
     }
 
     // --- saving ---------------------------------------------------------
@@ -530,6 +811,12 @@ public class Aberrant extends Monster {
         tag.putString("Profile", entityData.get(DATA_PROFILE));
         tag.putDouble("Distance", distance);
         tag.putInt("Weak", entityData.get(DATA_WEAK));
+        if (crawl != null) {
+            tag.putByte("Normal", (byte) crawl.normal().ordinal());
+            tag.putDouble("HeadingX", crawl.heading().x());
+            tag.putDouble("HeadingY", crawl.heading().y());
+            tag.putDouble("HeadingZ", crawl.heading().z());
+        }
     }
 
     @Override
@@ -543,6 +830,16 @@ public class Aberrant extends Monster {
         distance = tag.getDouble("Distance");
         if (tag.contains("Weak")) {
             entityData.set(DATA_WEAK, tag.getInt("Weak"));
+        }
+        if (tag.contains("Normal") && tag.contains("HeadingX")) {
+            Crawl.Normal[] all = Crawl.Normal.values();
+            int i = tag.getByte("Normal");
+            Crawl.Normal n = i >= 0 && i < all.length ? all[i] : Crawl.Normal.UP;
+            Vec h = new Vec(tag.getDouble("HeadingX"), tag.getDouble("HeadingY"), tag.getDouble("HeadingZ"));
+            if (h.length() > 1e-6 && (n == Crawl.Normal.NONE || Math.abs(h.normalized().dot(n.dir)) < 1e-6)) {
+                crawl = new Crawl.Pose(axis(), h.normalized(), n);
+                entityData.set(DATA_NORMAL, (byte) n.ordinal());
+            }
         }
     }
 

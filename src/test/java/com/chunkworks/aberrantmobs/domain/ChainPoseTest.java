@@ -120,4 +120,17 @@ final class ChainPoseTest {
         assertThrows(IllegalArgumentException.class, () -> ChainPose.of(t, new double[] {1.0, 2.0}, NONE, NONE.rest()));
         assertThrows(IllegalArgumentException.class, () -> ChainPose.of(t, new double[] {0.0, 2.0, 1.0}, NONE, NONE.rest()));
     }
+
+    @Test
+    void aCornerSampleWhoseUpLiesAlongTheForwardStillPoses() {
+        // A head that walked +X on a floor, then straight up a wall: the corner sample's up (the floor's) lies along the climb.
+        Trail t = Trail.seeded(new Vec(0, 1.5, 0), Vec.X, Vec.Y, 4.0, 64);
+        t.push(new Vec(0, 2.5, 0), new Vec(-1, 0, 0));
+        t.push(new Vec(0, 3.5, 0), new Vec(-1, 0, 0));
+        Undulation none = new Undulation(0, 0, 5.5, 0.35, 0.02, 0);
+        ChainPose c = ChainPose.of(t, new double[] {0.0, 1.0, 2.0, 3.0}, none, none.rest());
+        assertEquals(4, c.size());
+        assertTrue(c.orientation(1).rotate(Vec.Z).near(Vec.Y, 1e-6), "the segment on the wall faces up");
+        assertTrue(c.orientation(2).rotate(Vec.Y).length() > 0.99, "the corner segment has an up");
+    }
 }

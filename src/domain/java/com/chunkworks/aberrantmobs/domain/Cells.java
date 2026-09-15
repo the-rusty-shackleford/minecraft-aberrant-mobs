@@ -49,6 +49,56 @@ public interface Cells {
         return at((int) Math.floor(p.x()), (int) Math.floor(p.y()), (int) Math.floor(p.z()));
     }
 
+    /** effects: returns the kind of {@code c} */
+    default Kind at(Cell c) {
+        return at(c.x(), c.y(), c.z());
+    }
+
+    /** A cast samples the world this finely, blocks. */
+    double CAST_STEP = 0.2;
+    /** A face is found to within this, blocks. */
+    double FACE_TOLERANCE = 0.01;
+
+    /**
+     * effects: returns the point where a cast from {@code from} along {@code dir}
+     * (unit) first meets a solid cell within {@code reach} blocks -- on the
+     * surface, just outside the cell, within {@link #FACE_TOLERANCE} -- or
+     * null when it meets none; a cast that starts inside a solid cell looks
+     * back the other way for the surface it is under
+     */
+    default Vec face(Vec from, Vec dir, double reach) {
+        if (solidAt(from)) {
+            for (double d = CAST_STEP; d <= reach; d += CAST_STEP) {
+                if (!solidAt(from.minus(dir.times(d)))) {
+                    return bisect(from, dir.times(-1), d, d - CAST_STEP);
+                }
+            }
+            return null;
+        }
+        for (double d = CAST_STEP; d <= reach; d += CAST_STEP) {
+            if (solidAt(from.plus(dir.times(d)))) {
+                return bisect(from, dir, d - CAST_STEP, d);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * requires: {@code from + dir * clear} is not solid, {@code from + dir * solid} is, either order
+     * effects: returns the clear point nearest the solid one along the cast, within {@link #FACE_TOLERANCE}
+     */
+    private Vec bisect(Vec from, Vec dir, double clear, double solid) {
+        while (Math.abs(solid - clear) > FACE_TOLERANCE) {
+            double mid = (clear + solid) / 2;
+            if (solidAt(from.plus(dir.times(mid)))) {
+                solid = mid;
+            } else {
+                clear = mid;
+            }
+        }
+        return from.plus(dir.times(clear));
+    }
+
     /** effects: returns whether the cell containing {@code p} is solid */
     default boolean solidAt(Vec p) {
         return at(p).solid();

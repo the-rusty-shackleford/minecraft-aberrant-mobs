@@ -96,9 +96,25 @@ public final class ChainPose {
                     forward = toPrev.normalized();
                 }
             }
-            orient[k] = Quat.lookAlong(forward, ups[k]);
+            orient[k] = look(forward, ups[k], k > 0 ? ups[k - 1] : (k + 1 < ups.length ? ups[k + 1] : null));
         }
         return new ChainPose(pos, orient);
+    }
+
+    /**
+     * effects: returns the orientation facing {@code forward} with {@code up}
+     * as its up; when the trail's up lies along the forward (a sample
+     * right at a corner), the neighbouring segment's up, and failing that
+     * any perpendicular
+     */
+    private static Quat look(Vec forward, Vec up, Vec fallback) {
+        if (up.minus(forward.times(up.dot(forward))).length() > 1e-6) {
+            return Quat.lookAlong(forward, up);
+        }
+        if (fallback != null && fallback.minus(forward.times(fallback.dot(forward))).length() > 1e-6) {
+            return Quat.lookAlong(forward, fallback);
+        }
+        return Quat.lookAlong(forward, Math.abs(forward.y()) < 0.9 ? Vec.Y : Vec.X);
     }
 
     public int size() {

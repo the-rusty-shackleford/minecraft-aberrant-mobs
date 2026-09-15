@@ -45,15 +45,32 @@ clips: `Clip` (keys slerped, cues at ticks), `Animator` (one clip over the body'
 the server starts a clip by name over synced data, both sides advance, the server acts
 on cues (recorded for now; sounds and the dig's blocks hang on them later).
 
+Phase 3 (done): crawl and dig. `Cell`; `Cells.face` (a bisected cast to a face);
+`Crawl` (the head an axis point held its clearance off the axis face it clings to:
+turns within the face at 25 degrees a tick, climbs a wall it meets, wraps over an edge
+onto the ledge's face, bores into rock when it may dig, holds for the dig, falls and
+attaches when it has nothing; `Rules(clearance, bore, lookahead)`); `Tunnel` (the
+section within the bore's radius of the head's run, rock only, never beside hard or
+fluid); `Burrow` (A* over cells, air 1, unsupported air 4, rock 5 hunting or 14
+stalking, hard and fluid and rock beside them never, a 4000-expansion budget); `Leap`
+(a launch velocity landing exactly under the game's integration). In main: the entity
+runs on the crawl with no gravity, no physics, no pushing, its box centred on the axis,
+its face synced as its up; the scripted walk crawls on along whatever face after a
+corner; `setCrawlTarget` follows a burrowed way, replanned every 20 ticks; the strike
+clip's cue cuts the readied section (`DigWorld`, loud or quiet); `pounce` flies by the
+leap and lands on the first face it flies into; `LevelCells` marks bedrock, obsidian,
+block entities, `#aberrantmobs:undiggable` and the wither-immune as hard.
+
 ## How it is verified
 
-`./gradlew test` (58 JUnit tests, the reader proved against the saved file),
-`runGameTestServer` (6 gametests: the profile and the creature, the parts along the body
+`./gradlew test` (79 JUnit tests, the reader proved against the saved file),
+`runGameTestServer` (9 gametests: the profile and the creature, the parts along the body
 after a walk, only the crack takes a blow, most feet on the floor mid-walk, a clip's
-cues on their ticks, a scripted walk), `runPhotoBooth` (15 checks: side, quarter, face,
-a walking strip, from above, each clip playing on the client at its key frames, drawn
-after the death). The booth world is normal difficulty with spawning off: a monster is
-discarded in peaceful.
+cues on their ticks, a scripted walk, floor-wall-ceiling, a coherent tunnel round
+bedrock to a target, a pounce landing where aimed), `runPhotoBooth` (17 checks: side,
+quarter, face, a walking strip, from above, each clip playing on the client at its key
+frames, drawn after the death, on the wall, dug in). The booth world is normal
+difficulty with spawning off: a monster is discarded in peaceful.
 
 ## Decisions
 
@@ -61,5 +78,6 @@ See `decisions/`.
 
 ## Next
 
-Phase 3, crawl and dig: `Crawl`, `Burrow`, `Tunnel`, `Leap`; `DigWorld` removing blocks
-on the strike clip's cue.
+Phase 4, mind and ears: `mind/*` (Senses, Memory, Node, Cond, Mind, TreeJson), `Hearing`;
+`SensesReader`, `Ears` (the game-event stream), the verbs; the Face-Stealer's tree in
+its profile.

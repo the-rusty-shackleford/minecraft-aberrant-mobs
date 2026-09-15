@@ -101,7 +101,7 @@ public final class AberrantRenderer extends EntityRenderer<Aberrant> {
 
     /** effects: returns the body's pose this frame, relative to the point the game draws the creature from */
     private static Pose posed(Aberrant creature, CreatureProfile p, Skin skin, Body body, float partialTick) {
-        Trail trail = creature.trail(body.axisHeight(), body.length());
+        Trail trail = creature.trail(body.length());
         Undulation undulation = p.rig().undulation();
         Undulation.Wave wave = creature.wave(undulation);
         // The game draws from the head's interpolated position; the trail's newest sample is its position at the
@@ -110,7 +110,7 @@ public final class AberrantRenderer extends EntityRenderer<Aberrant> {
         double y = Mth.lerp(partialTick, creature.yo, creature.getY());
         double z = Mth.lerp(partialTick, creature.zo, creature.getZ());
         Vec origin = new Vec(x, y, z);
-        Vec drawnAxis = origin.plus(creature.up().times(body.axisHeight()));
+        Vec drawnAxis = origin.plus(new Vec(0, creature.getBbHeight() / 2.0, 0));
         double lag = Math.min(drawnAxis.minus(trail.at(0).pos()).length(), 2.0);
         ChainPose chain = ChainPose.of(trail, body.arcBack(), lag, undulation, wave);
         Legs.Foot[] feet = creature.feet();

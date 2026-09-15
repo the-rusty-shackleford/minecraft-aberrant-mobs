@@ -19,7 +19,11 @@ package com.chunkworks.aberrantmobs.gametest;
 
 import com.chunkworks.aberrantmobs.Aberrant;
 import com.chunkworks.aberrantmobs.domain.Clip;
+import com.chunkworks.aberrantmobs.domain.Crawl;
 import com.chunkworks.aberrantmobs.domain.FaceStealerClips;
+import com.chunkworks.aberrantmobs.domain.Vec;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.block.Blocks;
 import com.mojang.blaze3d.platform.NativeImage;
 import java.util.ArrayList;
 import java.util.List;
@@ -56,7 +60,8 @@ import org.slf4j.LoggerFactory;
  * at noon, the creature summoned on the grass facing east, photographed
  * from the side, from its front quarter and up close on its face; then
  * walking, from the side and from above, its feet planted; then each
- * authored clip at its key frames. Each
+ * authored clip at its key frames; then climbing a wall of stone across
+ * its way, and digging into a hill toward a point inside it. Each
  * frame is saved as {@code booth-<name>.png} in the run's screenshots
  * folder and judged by eye afterwards; the verdict lines ({@code booth:
  * PASS} / {@code booth: FAIL}) are what the Gradle task reads. Silent from
@@ -197,7 +202,7 @@ public final class PhotoBooth {
             sp.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(X + 8.0, y + 1.0, Z));
             for (var e : sp.serverLevel().getEntities().getAll()) {
                 if (e instanceof Aberrant a && a.getUUID().equals(creature)) {
-                    a.setScriptedWalk(new com.chunkworks.aberrantmobs.domain.Vec(0.3, 0.0, 0.0), 90);
+                    a.setScriptedWalk(new Vec(0.3, 0.0, 0.0), 90);
                 }
             }
         })));
@@ -249,11 +254,63 @@ public final class PhotoBooth {
         s.add(new Step(t += 20, () -> {
             int drawn = count(mc, PhotoBooth::creature);
             verdict("it is drawn after its death clip", () -> drawn > 2000 ? null : "creature pixels " + drawn);
+        }));
+        // The climb: a wall of stone across its way, ten high and three thick; it walks into it, up it and over it.
+        s.add(new Step(t += 2, () -> onServer(mc, sp -> onCreature(sp, a -> {
+            double y = sp.serverLevel().getMinBuildHeight() + 4;
+            int wx = (int) Math.floor(a.getX()) + 7;
+            fill(sp, wx, (int) y, (int) Z - 4, wx + 2, (int) y + 9, (int) Z + 4, Blocks.STONE);
+            a.setScriptedWalk(new Vec(0.3, 0.0, 0.0), 120);
+            sp.teleportTo(sp.serverLevel(), wx - 1.0, y + 6.0, Z - 17.0, 0.0f, 0.0f);
+            sp.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(wx - 1.0, y + 4.0, Z));
+        }))));
+        s.add(new Step(t += 26, () -> shoot(mc, "booth-climb-1")));
+        s.add(new Step(t += 14, () -> {
+            shoot(mc, "booth-climb-2");
+            Aberrant a = find(mc);
+            verdict("it is on the wall", () -> a != null && a.syncedNormal() == Crawl.Normal.WEST ? null : "its face is " + (a == null ? null : a.syncedNormal()));
+        }));
+        s.add(new Step(t += 24, () -> shoot(mc, "booth-climb-3")));
+        s.add(new Step(t += 20, () -> shoot(mc, "booth-climb-4")));
+        // The dig: set down on the ground before a hill of stone, sent to a point inside it, digging.
+        s.add(new Step(t += 2, () -> onServer(mc, sp -> onCreature(sp, a -> {
+            double y = sp.serverLevel().getMinBuildHeight() + 4;
+            double px = Math.floor(a.getX()) + 12.0;
+            int hx = (int) px + 6;
+            fill(sp, hx, (int) y, (int) Z - 6, hx + 14, (int) y + 5, (int) Z + 6, Blocks.STONE);
+            a.moveTo(px, y, Z, -90.0f, 0.0f);
+            a.resetCrawl();
+            a.setCrawlTarget(new Vec(hx + 10.5, y + 23.3 / 16.0, Z), true, 0.45);
+            sp.teleportTo(sp.serverLevel(), hx - 1.0, y + 4.0, Z - 14.0, 0.0f, 0.0f);
+            sp.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(hx - 1.0, y + 1.5, Z));
+        }))));
+        s.add(new Step(t += 40, () -> shoot(mc, "booth-dig-1")));
+        s.add(new Step(t += 60, () -> onServer(mc, sp -> onCreature(sp, a -> {
+            // From the tunnel's mouth, looking in after it.
+            double y = sp.serverLevel().getMinBuildHeight() + 4;
+            sp.teleportTo(sp.serverLevel(), a.getX() - 9.0, y + 1.4, Z, 0.0f, 0.0f);
+            sp.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(a.getX(), y + 1.2, Z));
+        }))));
+        s.add(new Step(t += 10, () -> {
+            shoot(mc, "booth-dig-2");
+            onServer(mc, sp -> onCreature(sp, a -> verdict("it dug its way in", () -> a.blocksDug() > 20 ? null : "dug " + a.blocksDug() + " blocks, at x " + a.getX())));
+        }));
+        s.add(new Step(t += 10, () -> {
             LOG.info("booth: PASS all checks ran");
             phase = Phase.DONE;
             mc.stop();
         }));
         return s;
+    }
+
+    private static void fill(ServerPlayer sp, int x0, int y0, int z0, int x1, int y1, int z1, net.minecraft.world.level.block.Block block) {
+        for (int x = x0; x <= x1; x++) {
+            for (int y = y0; y <= y1; y++) {
+                for (int z = z0; z <= z1; z++) {
+                    sp.serverLevel().setBlock(new BlockPos(x, y, z), block.defaultBlockState(), 3);
+                }
+            }
+        }
     }
 
     /** effects: puts the camera on the creature's front half from the north side, or from its front quarter */

@@ -11,3 +11,4 @@ type: index
 | D-0001 | A creature is a profile and one entity type; its mind will be a tree |
 | D-0002 | The rig keeps the project's bones; animation is ours, the file untouched |
 | D-0003 | Feet are planted on the level by a pure rule, nothing synced; clips are started by the server by name |
+| D-0004 | The creature keeps itself out of rock by the crawl, not by the game's physics; digs land on the strike's cue |

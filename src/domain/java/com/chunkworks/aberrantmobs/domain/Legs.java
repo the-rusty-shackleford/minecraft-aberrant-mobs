@@ -69,8 +69,6 @@ public final class Legs {
         double stanceTicks = (double) legs / Math.max(1, cap) * swingTicks(speed);
         return Math.min(MAX_LEAD, speed * stanceTicks / 2.0);
     }
-    /** Casts sample the world this finely, blocks. */
-    private static final double CAST_STEP = 0.2;
 
     /**
      * A leg as the body knows it: its chain segment, its side (+1 left, the
@@ -159,47 +157,11 @@ public final class Legs {
     }
 
     /** The surface is found to within this, blocks. */
-    public static final double SURFACE_TOLERANCE = 0.01;
+    public static final double SURFACE_TOLERANCE = Cells.FACE_TOLERANCE;
 
-    /**
-     * effects: returns the point where a cast from {@code from} along {@code dir}
-     * (unit) first meets a solid cell within {@code reach} blocks -- on the
-     * surface, just outside the cell, within {@link #SURFACE_TOLERANCE} --
-     * or null when it meets none; a cast that starts inside a solid cell
-     * looks back the other way for the surface it is under
-     */
+    /** effects: returns {@link Cells#face}: the surface a cast from {@code from} along {@code dir} meets within {@code reach}, or null */
     public static Vec surface(Cells cells, Vec from, Vec dir, double reach) {
-        if (cells.solidAt(from)) {
-            // Inside: back out along -dir until clear; the surface is between the last solid and the first clear.
-            for (double d = CAST_STEP; d <= reach; d += CAST_STEP) {
-                if (!cells.solidAt(from.minus(dir.times(d)))) {
-                    return face(cells, from, dir.times(-1), d, d - CAST_STEP);
-                }
-            }
-            return null;
-        }
-        for (double d = CAST_STEP; d <= reach; d += CAST_STEP) {
-            if (cells.solidAt(from.plus(dir.times(d)))) {
-                return face(cells, from, dir, d - CAST_STEP, d);
-            }
-        }
-        return null;
-    }
-
-    /**
-     * requires: {@code from + dir * clear} is not solid, {@code from + dir * solid} is, either order
-     * effects: returns the clear point nearest the solid one along the cast, within {@link #SURFACE_TOLERANCE}
-     */
-    private static Vec face(Cells cells, Vec from, Vec dir, double clear, double solid) {
-        while (Math.abs(solid - clear) > SURFACE_TOLERANCE) {
-            double mid = (clear + solid) / 2;
-            if (cells.solidAt(from.plus(dir.times(mid)))) {
-                solid = mid;
-            } else {
-                clear = mid;
-            }
-        }
-        return from.plus(dir.times(clear));
+        return cells.face(from, dir, reach);
     }
 
     /**
