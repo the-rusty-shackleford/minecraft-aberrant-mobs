@@ -11,7 +11,9 @@
   "body": {
     "width": 2.5,
     "height": 2.5,
-    "eye_height": 1.6
+    "eye_height": 1.6,
+    "segment": {"width": 2.2, "height": 2.2},
+    "weak_spot": {"candidates": ["s02", "s03", "s04", "s05", "s06", "s07", "s08", "s09"], "glow": "*_tergite*"}
   },
   "stats": {
     "health": 84,

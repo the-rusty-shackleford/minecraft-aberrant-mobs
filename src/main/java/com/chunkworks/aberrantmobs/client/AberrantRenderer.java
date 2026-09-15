@@ -29,6 +29,7 @@ import com.chunkworks.aberrantmobs.domain.Vec;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
+import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.entity.EntityRenderer;
@@ -44,9 +45,10 @@ import net.minecraft.util.Mth;
  * trail's newest sample carries every segment back by the same amount),
  * set aside by the writhe, and the legs skitter by the gait; the head's
  * children (pincers, antennae) and each segment's legs hang from their
- * bones. A profile whose names do not fit its model is drawn at rest,
- * turned to its yaw, so the mistake is visible and not fatal. One draw
- * call a creature.
+ * bones. The cracked segment's glowing cubes are drawn full bright in a
+ * pulsing ember tint, the rest of its plating as any other. A profile
+ * whose names do not fit its model is drawn at rest, turned to its yaw,
+ * so the mistake is visible and not fatal. Two draw calls a creature.
  */
 public final class AberrantRenderer extends EntityRenderer<Aberrant> {
     private static final ResourceLocation MISSING = ResourceLocation.withDefaultNamespace("textures/misc/unknown_server.png");
@@ -73,11 +75,21 @@ public final class AberrantRenderer extends EntityRenderer<Aberrant> {
         VertexConsumer out = buffers.getBuffer(RenderType.entityCutoutNoCull(skin.texture));
         poseStack.pushPose();
         Body body = skin.body;
+        Pose pose;
         if (body == null) {
             poseStack.mulPose(Axis.YP.rotationDegrees(-creature.bodyYaw(partialTick)));
-            RigDrawer.draw(skin, Pose.REST, poseStack, out, packedLight, overlay, null, null);
+            pose = Pose.REST;
         } else {
-            RigDrawer.draw(skin, posed(creature, p, body, partialTick), poseStack, out, packedLight, overlay, null, null);
+            pose = posed(creature, p, body, partialTick);
+        }
+        RigDrawer.draw(skin, skin.bones, pose, poseStack, out, packedLight, overlay, null, null);
+        // The crack: its glowing cubes, and only on the cracked segment, full bright and pulsing like an ember.
+        int weak = creature.weakSegment();
+        if (body != null && weak >= 0 && weak < body.chain().length) {
+            int bone = body.chainBone(weak);
+            float pulse = 0.75f + 0.25f * Mth.sin((creature.tickCount + partialTick) * 0.25f);
+            int ember = 0xFF000000 | (Math.round(255 * pulse) << 16) | (Math.round(120 * pulse) << 8) | Math.round(40 * pulse);
+            RigDrawer.drawBone(skin, skin.glow, bone, pose, poseStack, out, LightTexture.FULL_BRIGHT, overlay, ember);
         }
         poseStack.popPose();
         super.render(creature, entityYaw, partialTick, poseStack, buffers, packedLight);

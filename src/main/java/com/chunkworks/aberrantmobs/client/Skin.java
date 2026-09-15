@@ -19,35 +19,47 @@ package com.chunkworks.aberrantmobs.client;
 
 import com.chunkworks.aberrantmobs.api.CreatureProfile;
 import com.chunkworks.aberrantmobs.domain.BakedMesh;
+import com.chunkworks.aberrantmobs.domain.Body;
+import com.chunkworks.aberrantmobs.domain.Face;
+import com.chunkworks.aberrantmobs.domain.Mesh;
 import com.chunkworks.aberrantmobs.domain.Rig;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.resources.ResourceLocation;
+import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * A creature profile as the renderer wants it: its rig, its texture, and
- * a baked mesh per bone at the profile's scale (blocks). Built once per
- * profile per reload and read every frame with no allocation. Bones with
- * no cubes of their own bake to an empty mesh and cost a matrix each.
+ * A creature profile as the renderer wants it: its rig, its texture, a
+ * baked mesh per bone at the profile's scale (blocks) with the cubes that
+ * glow when the bone is the cracked segment baked apart, and the rig read
+ * as a body by the profile's names. Built once per profile per reload and
+ * read every frame with no allocation. Bones with no cubes of their own
+ * bake to an empty mesh and cost a matrix each.
  */
 public final class Skin {
+    private static final Logger LOG = LoggerFactory.getLogger("Aberrant Mobs");
     private static final ResourceLocation MISSING = ResourceLocation.withDefaultNamespace("textures/misc/unknown_server.png");
     private static final Map<ResourceLocation, Skin> CACHE = new ConcurrentHashMap<>();
 
     public final Rig rig;
     public final ResourceLocation texture;
-    /** Per bone, in blocks, in the bone's space. */
+    /** Per bone, in blocks, in the bone's space: the cubes that never glow. */
     public final BakedMesh[] bones;
+    /** Per bone: the cubes that glow when the bone is the cracked segment (empty for most). */
+    public final BakedMesh[] glow;
     /** Model units to blocks. */
     public final double scale;
     /** The rig read as a body by the profile's names, or null when a name is not in the rig (logged once). */
-    @org.jetbrains.annotations.Nullable
-    public final com.chunkworks.aberrantmobs.domain.Body body;
+    @Nullable
+    public final Body body;
 
-    private Skin(Rig rig, ResourceLocation texture, BakedMesh[] bones, double scale, com.chunkworks.aberrantmobs.domain.Body body) {
+    private Skin(Rig rig, ResourceLocation texture, BakedMesh[] bones, BakedMesh[] glow, double scale, @Nullable Body body) {
         this.rig = rig;
         this.texture = texture;
         this.bones = bones;
+        this.glow = glow;
         this.scale = scale;
         this.body = body;
     }
@@ -65,17 +77,29 @@ public final class Skin {
     private static Skin build(CreatureProfile p) {
         Rig rig = RigLibrary.INSTANCE.get(p.model());
         ResourceLocation texture = RigLibrary.INSTANCE.embeddedTexture(p.model()).orElse(MISSING);
+        CreatureProfile.WeakSpot weak = p.body().weakSpot();
         BakedMesh[] bones = new BakedMesh[rig.boneCount()];
+        BakedMesh[] glow = new BakedMesh[rig.boneCount()];
         for (int i = 0; i < bones.length; i++) {
-            bones[i] = BakedMesh.of(rig.mesh(i), p.scale());
+            Mesh all = rig.mesh(i);
+            Mesh glowing = all.part(f -> weak.glows(cubeName(f)));
+            bones[i] = BakedMesh.of(all.without(glowing), p.scale());
+            glow[i] = BakedMesh.of(glowing, p.scale());
         }
-        com.chunkworks.aberrantmobs.domain.Body body = null;
+        Body body = null;
         try {
             CreatureProfile.RigSpec r = p.rig();
-            body = com.chunkworks.aberrantmobs.domain.Body.of(rig, r.head(), r.chain(), r.legs(), r.left(), r.right(), p.scale());
+            body = Body.of(rig, r.head(), r.chain(), r.legs(), r.left(), r.right(), p.scale());
         } catch (IllegalArgumentException e) {
-            org.slf4j.LoggerFactory.getLogger("Aberrant Mobs").error("aberrantmobs: the profile's rig does not fit the model {}: {}; drawing it still", p.model(), e.getMessage());
+            LOG.error("aberrantmobs: the profile's rig does not fit the model {}: {}; drawing it still", p.model(), e.getMessage());
         }
-        return new Skin(rig, texture, bones, p.scale(), body);
+        return new Skin(rig, texture, bones, glow, p.scale(), body);
+    }
+
+    /** effects: returns the cube's own name from a face's group path (the last component) */
+    private static String cubeName(Face f) {
+        String g = f.group();
+        int slash = g.lastIndexOf('/');
+        return slash < 0 ? g : g.substring(slash + 1);
     }
 }

@@ -41,39 +41,54 @@ public final class RigDrawer {
     public static final int WHITE = 0xFFFFFFFF;
 
     /**
-     * effects: emits every bone of {@code skin} through {@code out} standing
-     * as {@code pose} says, on top of {@code stack}'s current transform;
-     * bone {@code i} tinted {@code tint[i]} (WHITE when tint is null) and lit
-     * {@code light[i]} (packedLight when light is null)
+     * effects: emits every bone's mesh from {@code meshes} (indexed by bone)
+     * through {@code out} standing as {@code pose} says, on top of
+     * {@code stack}'s current transform; bone {@code i} tinted {@code tint[i]}
+     * (WHITE when tint is null) and lit {@code light[i]} (packedLight when
+     * light is null)
      */
-    public static void draw(Skin skin, Pose pose, PoseStack stack, VertexConsumer out, int packedLight, int overlay, int[] tint, int[] light) {
+    public static void draw(Skin skin, BakedMesh[] meshes, Pose pose, PoseStack stack, VertexConsumer out, int packedLight, int overlay, int[] tint, int[] light) {
         Xform[] placed = skin.rig.place(pose);
         Vector3f p = new Vector3f();
         Vector3f nv = new Vector3f();
         for (int b = 0; b < placed.length; b++) {
-            BakedMesh mesh = skin.bones[b];
+            BakedMesh mesh = meshes[b];
             if (mesh.quadCount() == 0) {
                 continue;
             }
-            stack.pushPose();
-            Vec t = placed[b].translation();
-            stack.translate(t.x() * skin.scale, t.y() * skin.scale, t.z() * skin.scale);
-            Quat q = placed[b].rotation();
-            stack.mulPose(new Quaternionf((float) q.x(), (float) q.y(), (float) q.z(), (float) q.w()));
-            Matrix4f m = stack.last().pose();
-            Matrix3f n = stack.last().normal();
             int argb = tint == null ? WHITE : tint[b];
             int l = light == null ? packedLight : light[b];
-            for (int i = 0; i < mesh.quadCount(); i++) {
-                nv.set(mesh.normal(i, 0), mesh.normal(i, 1), mesh.normal(i, 2));
-                n.transform(nv);
-                for (int k = 0; k < 4; k++) {
-                    p.set(mesh.position(i, k, 0), mesh.position(i, k, 1), mesh.position(i, k, 2));
-                    m.transformPosition(p);
-                    out.addVertex(p.x(), p.y(), p.z(), argb, mesh.uv(i, k, 0), mesh.uv(i, k, 1), overlay, l, nv.x(), nv.y(), nv.z());
-                }
-            }
-            stack.popPose();
+            emit(skin, mesh, placed[b], stack, out, argb, l, overlay, p, nv);
         }
+    }
+
+    /** effects: emits one bone's mesh from {@code meshes} alone, under {@code pose}, lit {@code light} and tinted {@code argb} */
+    public static void drawBone(Skin skin, BakedMesh[] meshes, int bone, Pose pose, PoseStack stack, VertexConsumer out, int light, int overlay, int argb) {
+        BakedMesh mesh = meshes[bone];
+        if (mesh.quadCount() == 0) {
+            return;
+        }
+        Xform[] placed = skin.rig.place(pose);
+        emit(skin, mesh, placed[bone], stack, out, argb, light, overlay, new Vector3f(), new Vector3f());
+    }
+
+    private static void emit(Skin skin, BakedMesh mesh, Xform placement, PoseStack stack, VertexConsumer out, int argb, int light, int overlay, Vector3f p, Vector3f nv) {
+        stack.pushPose();
+        Vec t = placement.translation();
+        stack.translate(t.x() * skin.scale, t.y() * skin.scale, t.z() * skin.scale);
+        Quat q = placement.rotation();
+        stack.mulPose(new Quaternionf((float) q.x(), (float) q.y(), (float) q.z(), (float) q.w()));
+        Matrix4f m = stack.last().pose();
+        Matrix3f n = stack.last().normal();
+        for (int i = 0; i < mesh.quadCount(); i++) {
+            nv.set(mesh.normal(i, 0), mesh.normal(i, 1), mesh.normal(i, 2));
+            n.transform(nv);
+            for (int k = 0; k < 4; k++) {
+                p.set(mesh.position(i, k, 0), mesh.position(i, k, 1), mesh.position(i, k, 2));
+                m.transformPosition(p);
+                out.addVertex(p.x(), p.y(), p.z(), argb, mesh.uv(i, k, 0), mesh.uv(i, k, 1), overlay, light, nv.x(), nv.y(), nv.z());
+            }
+        }
+        stack.popPose();
     }
 }

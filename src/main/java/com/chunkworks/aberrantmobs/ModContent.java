@@ -39,7 +39,7 @@ public final class ModContent {
      * default before a profile is set.
      */
     public static final DeferredHolder<EntityType<?>, EntityType<Aberrant>> ABERRANT = ENTITIES.register("aberrant",
-            () -> EntityType.Builder.of(Aberrant::new, MobCategory.MONSTER).sized(2.5f, 2.5f).clientTrackingRange(12).updateInterval(2).build("aberrant"));
+            () -> EntityType.Builder.of(Aberrant::new, MobCategory.MONSTER).sized(2.5f, 2.5f).fireImmune().clientTrackingRange(12).updateInterval(2).build("aberrant"));
 
     static void register(IEventBus modBus) {
         ENTITIES.register(modBus);

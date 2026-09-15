@@ -39,6 +39,34 @@ turns any bone about its pivot or places it outright; the renderer bakes one mes
 bone once per reload and pushes each through its placement every frame. Nothing of the
 friend's file is edited; animation, when it comes, is ours in code.
 
+## The body
+
+The head's path is a trail (`domain/Trail`: the last positions of the head's axis with
+the surface's up at each and the arc length along them); the chain of segments is laid
+along it at the distances the file's own pivots give (`domain/ChainPose`), each segment
+facing the one before it and standing on its own surface's up, so a body over an edge
+bends round it. A wave travels down the body from the head (`domain/Undulation`): a
+third of a block of weave at speed, easing to a tenth and a ten-second writhe standing
+still, a small vertical ripple at twice the frequency -- the creature snakes even going
+straight. The legs skitter by distance travelled (`domain/LegGait`), each pair a little
+behind the pair before, left and right half a cycle apart. `domain/Body` resolves the
+profile's bone names on the rig and turns a chain pose and the legs' poses into the
+rig's `Pose` each frame. Nothing of the pose is synced: each side keeps its own trail
+from the head positions it already has.
+
+On the server every chain segment is a part (`AberrantPart`, the game's multipart
+entities) standing where the chain puts it, so a sword or an arrow meets the segment it
+aims at. The carapace (`domain/Carapace`) says what the blow comes to: a random segment
+among the profile's candidates is cracked at birth (synced, saved); a blow on it lands
+whole and the body flinches; a blow anywhere else, the head's own box included, rings
+off the plating and does nothing; an explosion lands half wherever it goes. The cracked
+segment's glowing cubes (the profile's `weak_spot.glow`, a glob on cube names) are drawn
+full bright in a pulsing ember. The server reads the model from the mod jar
+(`RigStore`) for the segment spacing; a resource pack cannot move what the world hits.
+
+A scripted walk (`Aberrant.setScriptedWalk`) moves the creature for the booth and the
+tests until the crawl arrives.
+
 ## Verifying it
 
 ```

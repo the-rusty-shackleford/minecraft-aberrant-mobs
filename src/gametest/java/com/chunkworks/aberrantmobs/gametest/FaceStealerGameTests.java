@@ -82,6 +82,54 @@ public final class FaceStealerGameTests {
     }
 
     @GameTest(template = "arena", timeoutTicks = 80)
+    public void thePartsLieAlongTheBodyAndFollowItsWalk(GameTestHelper helper) {
+        layFloor(helper);
+        Vec3 at = helper.absoluteVec(new Vec3(2.5, FLOOR, 7.5));
+        Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, -90.0f);
+        helper.assertTrue(a != null, "the creature is made");
+        helper.getLevel().addFreshEntity(a);
+        helper.assertTrue(a.body() != null, "the server read the model from the jar");
+        helper.assertValueEqual(a.body().chain().length, 12, "twelve chain segments");
+        a.setScriptedWalk(new com.chunkworks.aberrantmobs.domain.Vec(0.3, 0.0, 0.0), 30);
+        helper.runAtTickTime(40, () -> {
+            net.neoforged.neoforge.entity.PartEntity<?>[] parts = a.getParts();
+            helper.assertValueEqual(parts.length, Aberrant.MAX_PARTS, "born with its parts");
+            double headX = parts[0].getX(), tailX = parts[11].getX();
+            helper.assertTrue(Math.abs(headX - a.getX()) < 0.05, "the head part is on the head: " + (headX - a.getX()));
+            helper.assertTrue(headX - tailX > 6.0 && headX - tailX < 7.5, "the tail part trails the body's length west: " + (headX - tailX));
+            helper.assertTrue(parts[5].getBbWidth() > 2.0f && parts[12].getBbWidth() < 0.05f, "segments have boxes, the spare parts are specks");
+            helper.assertTrue(parts[5].getBoundingBox().minY < a.getY() + 0.5 && parts[5].getBoundingBox().maxY > a.getY() + 1.5, "a segment's box sits on the body's axis");
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "arena", timeoutTicks = 40)
+    public void onlyTheCrackedSegmentTakesABlow(GameTestHelper helper) {
+        layFloor(helper);
+        Vec3 at = helper.absoluteVec(new Vec3(7.5, FLOOR, 7.5));
+        Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, -90.0f);
+        helper.assertTrue(a != null, "the creature is made");
+        helper.getLevel().addFreshEntity(a);
+        int weak = a.weakSegment();
+        helper.assertTrue(weak >= 2 && weak <= 9, "the crack is on one of the candidates: " + weak);
+        net.minecraft.world.entity.player.Player p = helper.makeMockPlayer(net.minecraft.world.level.GameType.SURVIVAL);
+        p.setPos(a.getX(), a.getY(), a.getZ() - 5.0);
+        net.neoforged.neoforge.entity.PartEntity<?>[] parts = a.getParts();
+        float full = a.getHealth();
+        helper.assertTrue(!parts[weak == 5 ? 6 : 5].hurt(helper.getLevel().damageSources().playerAttack(p), 7.0f), "a plate rings");
+        helper.assertValueEqual(a.getHealth(), full, "and nothing is lost");
+        helper.assertTrue(!a.hurt(helper.getLevel().damageSources().playerAttack(p), 7.0f), "the head's own box is plating too");
+        helper.assertValueEqual(a.getHealth(), full, "still whole");
+        a.invulnerableTime = 0;
+        helper.assertTrue(parts[weak].hurt(helper.getLevel().damageSources().playerAttack(p), 7.0f), "the crack takes the blow");
+        helper.assertTrue(Math.abs(a.getHealth() - (full - 7.0f)) < 1e-4, "seven off: " + a.getHealth());
+        a.invulnerableTime = 0;
+        helper.assertTrue(parts[3 == weak ? 4 : 3].hurt(helper.getLevel().damageSources().explosion(null, null), 10.0f), "an explosion lands anywhere");
+        helper.assertTrue(Math.abs(a.getHealth() - (full - 12.0f)) < 1e-4, "at half: " + a.getHealth());
+        helper.succeed();
+    }
+
+    @GameTest(template = "arena", timeoutTicks = 80)
     public void aScriptedWalkMovesItAlongTheGroundFacingItsWay(GameTestHelper helper) {
         layFloor(helper);
         Vec3 at = helper.absoluteVec(new Vec3(2.5, FLOOR, 7.5));

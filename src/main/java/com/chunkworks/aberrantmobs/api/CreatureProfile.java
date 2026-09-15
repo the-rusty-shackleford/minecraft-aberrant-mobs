@@ -93,12 +93,21 @@ public record CreatureProfile(ResourceLocation model, double scale, RigSpec rig,
         }
     }
 
-    /** The box the world collides with, blocks: a square footprint {@code width} wide, {@code height} tall; the eye at {@code eye_height}. */
-    public record Body(double width, double height, double eyeHeight) {
+    /**
+     * The boxes the world meets, blocks: the head's, a square footprint
+     * {@code width} wide and {@code height} tall with the eye at
+     * {@code eye_height}, and each chain segment's ({@code segment}, the
+     * head's by default); and the weak spot: which chain bones may carry
+     * the crack, and which cubes of the cracked segment glow (a glob on
+     * the cube's name, {@code *} for anything).
+     */
+    public record Body(double width, double height, double eyeHeight, Segment segment, WeakSpot weakSpot) {
         public static final Codec<Body> CODEC = RecordCodecBuilder.create(i -> i.group(
                 Codec.DOUBLE.fieldOf("width").forGetter(Body::width),
                 Codec.DOUBLE.fieldOf("height").forGetter(Body::height),
-                Codec.DOUBLE.optionalFieldOf("eye_height", -1.0).forGetter(Body::eyeHeight)
+                Codec.DOUBLE.optionalFieldOf("eye_height", -1.0).forGetter(Body::eyeHeight),
+                Segment.CODEC.optionalFieldOf("segment", new Segment(-1.0, -1.0)).forGetter(Body::segment),
+                WeakSpot.CODEC.optionalFieldOf("weak_spot", WeakSpot.NONE).forGetter(Body::weakSpot)
         ).apply(i, Body::new));
 
         public Body {
@@ -108,6 +117,44 @@ public record CreatureProfile(ResourceLocation model, double scale, RigSpec rig,
             if (eyeHeight < 0.0) {
                 eyeHeight = height * 0.85;
             }
+            if (segment.width() < 0.0) {
+                segment = new Segment(width, height);
+            }
+        }
+    }
+
+    /** A chain segment's box, blocks; negative means the head's. */
+    public record Segment(double width, double height) {
+        public static final Codec<Segment> CODEC = RecordCodecBuilder.create(i -> i.group(
+                Codec.DOUBLE.fieldOf("width").forGetter(Segment::width),
+                Codec.DOUBLE.fieldOf("height").forGetter(Segment::height)
+        ).apply(i, Segment::new));
+
+        public Segment {
+            if ((width >= 0.0) != (height >= 0.0) || width == 0.0 || height == 0.0) {
+                throw new IllegalArgumentException("a segment box has a positive width and height, or neither: " + width + " x " + height);
+            }
+        }
+    }
+
+    /** Where the crack may be (chain bone names; none means anywhere) and what glows there. */
+    public record WeakSpot(List<String> candidates, String glow) {
+        public static final WeakSpot NONE = new WeakSpot(List.of(), "");
+        public static final Codec<WeakSpot> CODEC = RecordCodecBuilder.create(i -> i.group(
+                Codec.STRING.listOf().optionalFieldOf("candidates", List.of()).forGetter(WeakSpot::candidates),
+                Codec.STRING.optionalFieldOf("glow", "").forGetter(WeakSpot::glow)
+        ).apply(i, WeakSpot::new));
+
+        public WeakSpot {
+            candidates = List.copyOf(candidates);
+        }
+
+        /** effects: returns whether the cube named {@code name} glows: the glob matches it, {@code *} standing for any run of characters */
+        public boolean glows(String name) {
+            if (glow.isEmpty()) {
+                return false;
+            }
+            return name.matches(java.util.regex.Pattern.quote(glow).replace("*", "\\E.*\\Q"));
         }
     }
 

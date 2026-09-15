@@ -57,6 +57,11 @@ final class BodyTest {
         assertEquals(13, b.legPairs());
         assertEquals(23.3 / 16.0, b.axisHeight(), 1e-9);
         assertEquals(110.0 / 16.0, b.length(), 1e-9);
+        assertEquals(0, b.chainIndexOf("head"));
+        assertEquals(5, b.chainIndexOf("s05"));
+        assertEquals(11, b.chainIndexOf("tail"));
+        assertEquals(-1, b.chainIndexOf("s05_leg_l"), "a leg is no chain bone");
+        assertEquals(rig.bone("s05").getAsInt(), b.chainBone(5));
         assertThrows(IllegalArgumentException.class, () -> Body.of(rig, "head", List.of("s99"), LEGS, "_l", "_r", 1.0 / 16.0));
         assertThrows(IllegalArgumentException.class, () -> Body.of(rig, "head", CHAIN, List.of("nope"), "_l", "_r", 1.0 / 16.0));
         assertThrows(IllegalArgumentException.class, () -> Body.of(rig, "head", List.of("tail", "s01"), LEGS, "_l", "_r", 1.0 / 16.0));

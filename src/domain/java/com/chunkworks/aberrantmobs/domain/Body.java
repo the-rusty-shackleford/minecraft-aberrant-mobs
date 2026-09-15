@@ -41,13 +41,15 @@ public final class Body {
     public record Leg(int bone, int side) {}
 
     private final int[] chain;
+    private final String[] boneNames;
     private final double[] arcBack;
     private final Leg[] legs;
     private final double axisHeight;
     private final double scale;
 
-    private Body(int[] chain, double[] arcBack, Leg[] legs, double axisHeight, double scale) {
+    private Body(int[] chain, String[] boneNames, double[] arcBack, Leg[] legs, double axisHeight, double scale) {
         this.chain = chain;
+        this.boneNames = boneNames;
         this.arcBack = arcBack;
         this.legs = legs;
         this.axisHeight = axisHeight;
@@ -87,7 +89,11 @@ public final class Body {
             legs[2 * i] = new Leg(bone(rig, legPairs.get(i) + left), +1);
             legs[2 * i + 1] = new Leg(bone(rig, legPairs.get(i) + right), -1);
         }
-        return new Body(chain, arcBack, legs, rig.bone(chain[0]).pivot().y() * scale, scale);
+        String[] names = new String[chain.length];
+        for (int k = 0; k < chain.length; k++) {
+            names[k] = rig.bone(chain[k]).name();
+        }
+        return new Body(chain, names, arcBack, legs, rig.bone(chain[0]).pivot().y() * scale, scale);
     }
 
     private static int bone(Rig rig, String name) {
@@ -110,6 +116,21 @@ public final class Body {
 
     public int legPairs() {
         return legs.length / 2;
+    }
+
+    /** effects: returns the bone index of chain segment {@code k} (the head 0) */
+    public int chainBone(int k) {
+        return chain[k];
+    }
+
+    /** effects: returns the chain index of the bone named {@code name}, or -1 when no chain bone has that name */
+    public int chainIndexOf(String name) {
+        for (int k = 0; k < chain.length; k++) {
+            if (boneNames[k].equals(name)) {
+                return k;
+            }
+        }
+        return -1;
     }
 
     /** effects: returns how high the body's axis (the chain's pivots) runs over the feet, blocks */
