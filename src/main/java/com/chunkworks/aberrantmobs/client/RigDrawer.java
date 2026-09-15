@@ -72,6 +72,42 @@ public final class RigDrawer {
         emit(skin, mesh, placed[bone], stack, out, argb, light, overlay, new Vector3f(), new Vector3f());
     }
 
+    /**
+     * effects: emits one quad through {@code out} under bone {@code bone}'s
+     * placement in {@code pose}: its corners {@code corners} (bone space,
+     * blocks) pushed {@code lift} along the bone's +Z, textured by
+     * {@code uv} (u0, v0, u1, v1 in texture space) with u across the
+     * bone's X from -X to +X and v down the bone's Y
+     */
+    public static void drawQuad(Skin skin, int bone, Pose pose, Vec[] corners, double lift, float[] uv, PoseStack stack, VertexConsumer out, int argb, int light, int overlay) {
+        Xform placement = skin.rig.place(pose)[bone];
+        stack.pushPose();
+        Vec t = placement.translation();
+        stack.translate(t.x() * skin.scale, t.y() * skin.scale, t.z() * skin.scale);
+        Quat q = placement.rotation();
+        stack.mulPose(new Quaternionf((float) q.x(), (float) q.y(), (float) q.z(), (float) q.w()));
+        Matrix4f m = stack.last().pose();
+        Matrix3f n = stack.last().normal();
+        Vector3f nv = new Vector3f(0, 0, 1);
+        n.transform(nv);
+        double minX = Double.MAX_VALUE, maxX = -Double.MAX_VALUE, minY = Double.MAX_VALUE, maxY = -Double.MAX_VALUE;
+        for (Vec c : corners) {
+            minX = Math.min(minX, c.x());
+            maxX = Math.max(maxX, c.x());
+            minY = Math.min(minY, c.y());
+            maxY = Math.max(maxY, c.y());
+        }
+        Vector3f p = new Vector3f();
+        for (Vec c : corners) {
+            p.set((float) c.x(), (float) c.y(), (float) (c.z() + lift));
+            m.transformPosition(p);
+            float fu = maxX > minX ? (float) ((c.x() - minX) / (maxX - minX)) : 0f;
+            float fv = maxY > minY ? (float) ((maxY - c.y()) / (maxY - minY)) : 0f;
+            out.addVertex(p.x(), p.y(), p.z(), argb, uv[0] + (uv[2] - uv[0]) * fu, uv[1] + (uv[3] - uv[1]) * fv, overlay, light, nv.x(), nv.y(), nv.z());
+        }
+        stack.popPose();
+    }
+
     private static void emit(Skin skin, BakedMesh mesh, Xform placement, PoseStack stack, VertexConsumer out, int argb, int light, int overlay, Vector3f p, Vector3f nv) {
         stack.pushPose();
         Vec t = placement.translation();

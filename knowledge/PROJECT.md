@@ -78,18 +78,33 @@ mobs and its own digging nothing), the entity's `think` (senses → mind → ver
 ticked, ended; the mode synced; the memory in NBT). The Face-Stealer's tree: roam,
 prowl, stalk, hunt, flee.
 
+Phase 5 (done): grab, bite, the coil before the pounce, the face. The target rides the
+creature at the maw (`positionRider`, never a driver; `Grip` cancels a dismount while
+held; pinched on the grab clip's cue); the bite clip's cue hurts the held one by
+`aberrantmobs:devoured` (a damage type tagged bypasses_armor/effects/enchantments/
+shield/cooldown, no_knockback, NOT bypasses_invulnerability), a finite million through
+`hurt`, so a `LivingDamageEvent.Pre` listener (Miracle Bringer) or a totem still saves
+them and the creature knows (`grab.survived` → release, no_bite 600, flee); a dead
+player's `GameProfile` becomes the face it wears (synced name + id, saved; the client
+draws the skin's face and hat over the mask cube's front, `RigDrawer.drawQuad`). The
+pounce verb plays the coil and leaps as it ends; the tree holds it with a `pouncing`
+timer. Verbs grab/release/bite do their work.
+
 ## How it is verified
 
 `./gradlew test` (90 JUnit tests, the reader proved against the saved file),
-`runGameTestServer` (12 gametests: the profile and the creature, the parts along the body
+`runGameTestServer` (15 gametests: the profile and the creature, the parts along the body
 after a walk, only the crack takes a blow, most feet on the floor mid-walk, a clip's
 cues on their ticks, a scripted walk, floor-wall-ceiling, a coherent tunnel round
 bedrock to a target, a pounce landing where aimed, a distant step → prowl toward a vague
 bearing and a near noise exact, a block break heard through the world, a player seen
-underground → stalk out of view → eye contact → hunt), `runPhotoBooth` (18 checks: side,
+underground → stalk out of view → eye contact → hunt, the grab holds at the maw and the
+bite devours and takes the face, a blessed player survives and is let go and it flees,
+hunting in sight it coils then pounces), `runPhotoBooth` (20 checks: side,
 quarter, face, a walking strip, from above, each clip playing on the client at its key
-frames, drawn after the death, on the wall, dug in). The booth world is normal
-difficulty with spawning off: a monster is discarded in peaceful.
+frames, drawn after the death, the stolen face known to the client, the client held at
+the maw, on the wall, dug in). The booth world is normal difficulty with spawning off: a
+monster is discarded in peaceful.
 
 ## Decisions
 
@@ -97,7 +112,7 @@ See `decisions/`.
 
 ## Next
 
-Phase 5, grab, bite, pounce and the face: `GrabVerb` (the target rides the maw),
-`BiteVerb` (`aberrantmobs:devoured`, finite 1e6 through `hurt`, Miracle Bringer
-compatible), `DATA_FACE` (the last victim's profile worn and dropped), the coil before
-the pounce.
+Phase 6, habitat, loot, sounds: spawn placement in the rock beside deep caves, the
+biome modifier, persistence once it knows you, the loot table (Chitin, Cracked Carapace,
+Stolen Face with the profile), sounds.json from freesound CC0 on the cues, a playtest
+through real caves.

@@ -17,8 +17,12 @@
  */
 package com.chunkworks.aberrantmobs.gametest;
 
+import com.chunkworks.aberrantmobs.api.AberrantMobs;
 import net.neoforged.bus.api.IEventBus;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.common.Mod;
+import net.neoforged.neoforge.event.entity.living.LivingDamageEvent;
 
 /**
  * The test mod: the gametests and the photo booth ride in it, exercising
@@ -29,4 +33,26 @@ public final class GameTestMod {
     public static final String MOD_ID = "aberrantmobs_gametest";
 
     public GameTestMod(IEventBus modBus) {}
+
+    /**
+     * Stands in for Miracle Bringer at the same door: a devouring blow on an
+     * entity tagged {@code blessed} is zeroed in {@code LivingDamageEvent.Pre},
+     * as the miracle would; every devouring blow seen is counted.
+     */
+    @EventBusSubscriber(modid = MOD_ID)
+    public static final class Blessing {
+        private Blessing() {}
+
+        public static int devouredSeen;
+
+        @SubscribeEvent
+        public static void onDamage(LivingDamageEvent.Pre event) {
+            if (event.getSource().is(AberrantMobs.DEVOURED)) {
+                devouredSeen++;
+                if (event.getEntity().getTags().contains("blessed")) {
+                    event.setNewDamage(0.0f);
+                }
+            }
+        }
+    }
 }

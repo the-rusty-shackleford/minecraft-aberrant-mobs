@@ -6,7 +6,8 @@
     "chain": ["s01", "s02", "s03", "s04", "s05", "s06", "s07", "s08", "s09", "s10", "tail"],
     "legs": ["head_leg", "s01_leg", "s02_leg", "s03_leg", "s04_leg", "s05_leg", "s06_leg", "s07_leg", "s08_leg", "s09_leg", "s10_leg", "tail_leg1", "tail_leg2"],
     "undulation": {"amplitude": 0.35, "idle_amplitude": 0.10, "wavelength": 5.5, "speed_ref": 0.35, "idle_speed": 0.025, "vertical": 0.15},
-    "gait": {"stride_deg": 22, "lift_deg": 12, "cycle_blocks": 1.6, "wave": 2.2, "speed_ref": 0.3}
+    "gait": {"stride_deg": 22, "lift_deg": 12, "cycle_blocks": 1.6, "wave": 2.2, "speed_ref": 0.3},
+    "mask": "head_mask"
   },
   "body": {
     "width": 2.5,
@@ -43,8 +44,9 @@
         {"when": "grab.held", "then": {"cooldown": "bite", "ticks": 30, "then": {"act": "bite"}}},
         {"when": "grab.survived", "then": {"sequence": [{"act": "release"}, {"timer": "no_bite", "set": 600}, {"enter": "flee"}]}},
         {"when": "hurt_hard", "then": {"sequence": [{"act": "release"}, {"timer": "fled", "set": 40}, {"enter": "flee"}]}},
+        {"when": "timer.pouncing > 0", "then": {"act": "pounce"}},
         {"when": "target.distance < 2.5 && timer.no_bite == 0", "then": {"act": "grab"}},
-        {"when": "target.distance < 9 && target.in_sight && !on_wall && timer.no_bite == 0 && timer.pounced == 0", "then": {"sequence": [{"timer": "pounced", "set": 80}, {"act": "pounce"}]}},
+        {"when": "target.distance < 9 && target.in_sight && !on_wall && !airborne && timer.no_bite == 0 && timer.pounced == 0", "then": {"sequence": [{"timer": "pounced", "set": 80}, {"timer": "pouncing", "set": 18}, {"act": "pounce"}]}},
         {"when": "!target.known", "then": {"wait": "patience", "ticks": 200, "then": {"enter": "stalk"}}},
         {"act": "chase"}]},
       "flee": {"select": [

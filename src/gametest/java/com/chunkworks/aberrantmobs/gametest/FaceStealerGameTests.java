@@ -44,7 +44,11 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  * vague bearing, a near noise is placed exactly, a block broken in the
  * world reaches its ears through the game's events, a player seen
  * underground is stalked -- out of their view -- and their eye contact
- * starts the hunt.
+ * starts the hunt. The grab holds a player at the maw, refuses their
+ * dismount, pinches; the bite devours through the damage pipeline as
+ * {@code aberrantmobs:devoured} and takes the face; a player blessed at
+ * the miracle's door survives it, is let go, and the creature flees;
+ * hunting a player in sight it coils, then pounces.
  *
  * <p>The arena template is 15 by 9 by 15, the tall one 15 by 16 by 15; a
  * floor of stone is laid on them.
@@ -367,6 +371,98 @@ public final class FaceStealerGameTests {
             helper.assertValueEqual(a.mode(), "hunt", "through the wall and into their eyes: the hunt is on");
             helper.assertTrue(a.blocksDug() > 0, "it bored through: " + a.blocksDug());
             helper.assertTrue(java.util.Set.of("chase", "pounce", "grab").contains(a.verb()), "coming for them: " + a.verb());
+        });
+    }
+
+    private static net.minecraft.server.level.ServerPlayer survivor(GameTestHelper helper, double x, double z, float yaw) {
+        net.minecraft.server.level.ServerPlayer p = helper.makeMockServerPlayerInLevel();
+        p.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
+        Vec3 at = helper.absoluteVec(new Vec3(x, FLOOR, z));
+        p.teleportTo(helper.getLevel(), at.x, at.y, at.z, yaw, 0.0f);
+        p.yHeadRot = yaw;
+        return p;   // a fresh player has three seconds of respawn protection, which the bite honours: the tests wait it out
+    }
+
+    /** A fresh server player's respawn protection, ticks; the bite honours it. */
+    private static final int SPAWN_PROTECTION = 62;
+
+    @GameTest(template = "arena", timeoutTicks = 160, batch = "grab")
+    public void theGrabHoldsThemAtTheMawAndTheBiteDevoursThem(GameTestHelper helper) {
+        layFloor(helper);
+        Vec3 at = helper.absoluteVec(new Vec3(7.5, FLOOR, 7.5));
+        Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, -90.0f);
+        helper.assertTrue(a != null, "the creature is made");
+        helper.getLevel().addFreshEntity(a);
+        a.setNoAi(true);
+        net.minecraft.server.level.ServerPlayer p = survivor(helper, 9.5, 7.5, 90.0f);
+        float full = p.getHealth();
+        helper.runAtTickTime(SPAWN_PROTECTION + 3, () -> {
+            helper.assertTrue(a.grab(p), "the pincers close on a player within reach");
+            helper.assertValueEqual(a.clipPlaying(), "grab", "the grab plays");
+        });
+        helper.runAtTickTime(SPAWN_PROTECTION + 6, () -> {
+            helper.assertTrue(p.getVehicle() == a && a.holding() && a.held() == p, "held: riding the creature");
+            com.chunkworks.aberrantmobs.domain.Vec maw = a.axis().plus(a.facing().times(22.8 / 16.0));
+            double off = new com.chunkworks.aberrantmobs.domain.Vec(p.getX(), p.getY() + p.getBbHeight() / 2.0, p.getZ()).minus(maw).length();
+            helper.assertTrue(off < 1.5, "at the maw: " + off);
+            p.stopRiding();
+            helper.assertTrue(p.getVehicle() == a, "and cannot climb off");
+        });
+        helper.runAtTickTime(SPAWN_PROTECTION + 12, () -> {
+            helper.assertTrue(p.getHealth() < full, "pinched as the pincers closed: " + p.getHealth());
+            helper.assertTrue(a.bite(), "the bite");
+            helper.assertValueEqual(a.clipPlaying(), "bite", "plays");
+        });
+        helper.runAtTickTime(SPAWN_PROTECTION + 30, () -> {
+            helper.assertTrue(!p.isAlive(), "devoured: " + p.getHealth());
+            helper.assertTrue(p.getLastDamageSource() != null && p.getLastDamageSource().is(AberrantMobs.DEVOURED), "by the devouring: " + p.getLastDamageSource());
+            helper.assertTrue(a.face() != null && p.getGameProfile().getName().equals(a.face().getName()), "and it wears their face: " + a.face());
+            helper.assertTrue(!a.holding() && a.held() == null, "the pincers empty");
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "tall", timeoutTicks = 320, batch = "blessed")
+    public void aBlessedPlayerSurvivesTheBiteIsLetGoAndTheCreatureFlees(GameTestHelper helper) {
+        layFloor(helper);
+        fill(helper, 0, 13, 0, 14, 15, 14, Blocks.STONE);
+        Aberrant a = minded(helper, 4.5, 7.5, -90.0f);
+        a.setNoAi(true);   // asleep until the player's respawn protection is over
+        net.minecraft.server.level.ServerPlayer p = survivor(helper, 6.3, 7.5, 90.0f);
+        p.addTag("blessed");
+        int seenBefore = GameTestMod.Blessing.devouredSeen;
+        helper.runAtTickTime(SPAWN_PROTECTION, () -> {
+            a.setNoAi(false);
+            a.hurtSegment(a.weakSegment(), helper.getLevel().damageSources().playerAttack(p), 1.0f);
+        });
+        helper.runAtTickTime(SPAWN_PROTECTION + 4, () -> helper.assertValueEqual(a.mode(), "hunt", "struck: hunting"));
+        helper.succeedWhen(() -> {
+            helper.assertTrue(GameTestMod.Blessing.devouredSeen > seenBefore, "the devouring blow reached the miracle's door");
+            helper.assertTrue(p.isAlive(), "and the blessed one lives: " + p.getHealth());
+            helper.assertTrue(p.getVehicle() == null && !a.holding(), "let go");
+            helper.assertValueEqual(a.mode(), "flee", "and the creature flees");
+        });
+    }
+
+    @GameTest(template = "arena", timeoutTicks = 120, batch = "pounce")
+    public void huntingAPlayerInSightItCoilsThenPounces(GameTestHelper helper) {
+        layFloor(helper);
+        Aberrant a = minded(helper, 2.5, 7.5, -90.0f);
+        net.minecraft.server.level.ServerPlayer p = survivor(helper, 9.5, 7.5, 90.0f);
+        java.util.List<String> clips = new java.util.ArrayList<>();
+        helper.onEachTick(() -> {
+            String c = a.clipPlaying();
+            if (c != null && (clips.isEmpty() || !clips.get(clips.size() - 1).equals(c))) {
+                clips.add(c);
+            }
+        });
+        helper.runAtTickTime(2, () -> a.hurtSegment(a.weakSegment(), helper.getLevel().damageSources().playerAttack(p), 1.0f));
+        helper.succeedWhen(() -> {
+            int coil = clips.indexOf("coil"), pounce = clips.indexOf("pounce");
+            helper.assertTrue(coil >= 0, "it coiled: " + clips);
+            helper.assertTrue(pounce > coil, "then pounced: " + clips);
+            double d = a.axis().minus(new com.chunkworks.aberrantmobs.domain.Vec(p.getX(), p.getY() + 1, p.getZ())).length();
+            helper.assertTrue(d < 3.5 || a.holding(), "and landed on them: " + d);
         });
     }
 

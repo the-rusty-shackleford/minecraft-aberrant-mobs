@@ -19,6 +19,7 @@ package com.chunkworks.aberrantmobs.verb;
 
 import com.chunkworks.aberrantmobs.Aberrant;
 import com.chunkworks.aberrantmobs.domain.Crawl;
+import com.chunkworks.aberrantmobs.domain.FaceStealerClips;
 import com.chunkworks.aberrantmobs.domain.Vec;
 import com.chunkworks.aberrantmobs.domain.mind.Intent;
 import java.util.Collections;
@@ -26,6 +27,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
+import net.minecraft.world.entity.LivingEntity;
 
 /**
  * The verbs by name, and the making of them. The protocol's own are
@@ -46,9 +48,11 @@ import java.util.function.Supplier;
  * <li><b>climb</b>: away from the point named by {@code away_from}
  *     ({@code target.look}), eight blocks along its face, so it leaves
  *     the target's view for a wall.
- * <li><b>pounce</b>: one leap at {@code target.pos}.
- * <li><b>grab</b>, <b>release</b>, <b>bite</b>: named now for the tree;
- *     they do their work in phase 5.
+ * <li><b>pounce</b>: the coil (the charge, with its click and hiss), then
+ *     one leap at {@code target.pos} as the coil ends.
+ * <li><b>grab</b>: the pincers close on the target if it is within reach.
+ * <li><b>release</b>: the pincers open.
+ * <li><b>bite</b>: the bite, on the one held.
  * </ul>
  */
 public final class Verbs {
@@ -66,9 +70,9 @@ public final class Verbs {
         register("dig", Dig::new);
         register("climb", Climb::new);
         register("pounce", Pounce::new);
-        register("grab", Nothing::new);
-        register("release", Nothing::new);
-        register("bite", Nothing::new);
+        register("grab", Grab::new);
+        register("release", Release::new);
+        register("bite", Bite::new);
     }
 
     /**
@@ -277,12 +281,70 @@ public final class Verbs {
     }
 
     static final class Pounce implements Verb {
+        private boolean coiling;
+
         @Override
         public void begin(Aberrant a, Intent intent) {
-            Vec at = a.sense("target.pos");
-            if (at != null) {
-                a.pounce(at.minus(new Vec(0, 0, 0)));
+            a.stopCrawl();
+            a.play(FaceStealerClips.COIL);
+            coiling = true;
+        }
+
+        @Override
+        public void tick(Aberrant a, Intent intent) {
+            if (coiling && !FaceStealerClips.COIL.name().equals(a.clipPlaying())) {
+                coiling = false;
+                Vec at = a.sense("target.pos");
+                if (at != null) {
+                    a.pounce(at);
+                }
             }
+        }
+
+        @Override
+        public void end(Aberrant a) {
+            coiling = false;
+        }
+    }
+
+    static final class Grab implements Verb {
+        @Override
+        public void begin(Aberrant a, Intent intent) {
+            tick(a, intent);
+        }
+
+        @Override
+        public void tick(Aberrant a, Intent intent) {
+            if (a.holding()) {
+                return;
+            }
+            LivingEntity target = a.nearestTarget();
+            if (target != null && a.grab(target)) {
+                a.stopCrawl();
+            }
+        }
+
+        @Override
+        public void end(Aberrant a) {}
+    }
+
+    static final class Release implements Verb {
+        @Override
+        public void begin(Aberrant a, Intent intent) {
+            a.release();
+        }
+
+        @Override
+        public void tick(Aberrant a, Intent intent) {}
+
+        @Override
+        public void end(Aberrant a) {}
+    }
+
+    static final class Bite implements Verb {
+        @Override
+        public void begin(Aberrant a, Intent intent) {
+            a.bite();
         }
 
         @Override

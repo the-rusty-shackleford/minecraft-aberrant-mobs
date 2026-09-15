@@ -23,6 +23,7 @@ import com.chunkworks.aberrantmobs.domain.Body;
 import com.chunkworks.aberrantmobs.domain.Face;
 import com.chunkworks.aberrantmobs.domain.Mesh;
 import com.chunkworks.aberrantmobs.domain.Rig;
+import com.chunkworks.aberrantmobs.domain.Vec;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.resources.ResourceLocation;
@@ -54,14 +55,21 @@ public final class Skin {
     /** The rig read as a body by the profile's names, or null when a name is not in the rig (logged once). */
     @Nullable
     public final Body body;
+    /** The four corners of the mask cube's front (its +Z face), in the head bone's space, blocks, in the order the mesh draws them; null when the profile names no mask or the rig has none. */
+    @Nullable
+    public final Vec[] maskFront;
+    /** The head bone, or -1. */
+    public final int headBone;
 
-    private Skin(Rig rig, ResourceLocation texture, BakedMesh[] bones, BakedMesh[] glow, double scale, @Nullable Body body) {
+    private Skin(Rig rig, ResourceLocation texture, BakedMesh[] bones, BakedMesh[] glow, double scale, @Nullable Body body, @Nullable Vec[] maskFront, int headBone) {
         this.rig = rig;
         this.texture = texture;
         this.bones = bones;
         this.glow = glow;
         this.scale = scale;
         this.body = body;
+        this.maskFront = maskFront;
+        this.headBone = headBone;
     }
 
     /** effects: returns the skin of {@code profile}, built on first use since the last reload */
@@ -93,7 +101,25 @@ public final class Skin {
         } catch (IllegalArgumentException e) {
             LOG.error("aberrantmobs: the profile's rig does not fit the model {}: {}; drawing it still", p.model(), e.getMessage());
         }
-        return new Skin(rig, texture, bones, glow, p.scale(), body);
+        int head = rig.bone(p.rig().head()).orElse(-1);
+        Vec[] maskFront = head < 0 || p.rig().mask().isEmpty() ? null : maskFront(rig.mesh(head), p.rig().mask(), p.scale());
+        return new Skin(rig, texture, bones, glow, p.scale(), body, maskFront, head);
+    }
+
+    /** effects: returns the corners of the +Z face of the cube named {@code mask} in {@code mesh}, scaled, in the drawn order; null when there is none */
+    @Nullable
+    private static Vec[] maskFront(Mesh mesh, String mask, double scale) {
+        for (Mesh.Quad q : mesh.quads()) {
+            if (cubeName(q.face()).equals(mask) && q.face().normal().z() > 0.9) {
+                Vec[] out = new Vec[4];
+                com.chunkworks.aberrantmobs.domain.Corner[] corners = {q.a(), q.b(), q.c(), q.d()};
+                for (int k = 0; k < 4; k++) {
+                    out[k] = mesh.positions().get(corners[k].position()).times(scale);
+                }
+                return out;
+            }
+        }
+        return null;
     }
 
     /** effects: returns the cube's own name from a face's group path (the last component) */

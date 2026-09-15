@@ -6,13 +6,14 @@ head, the mind that reads its senses through a decision tree, the crawling, digg
 stalking, grabbing and biting its verbs do, and what it drops. The first creature is the
 **Face-Stealer**, nfx's centipede: eleven blocks of it, a mask for a face.
 
-This is phase 4 of 7 (`~/.claude/plans/wiggly-cuddling-adleman.md` is the plan): the
+This is phase 5 of 7 (`~/.claude/plans/wiggly-cuddling-adleman.md` is the plan): the
 creature exists, is sized and named by its profile, its body follows its head along a
 trail and writhes, its feet stand on the world and step in a wave, its plating rings and
 its crack glows, its attack animations play on the server's say, it crawls over floors,
-walls and ceilings, digs its way to a point through rock, pounces, and it thinks: a
-decision tree in its profile over what it senses and hears, driving verbs in Java. It
-does not yet grab or bite.
+walls and ceilings, digs its way to a point through rock, coils and pounces, thinks (a
+decision tree in its profile over what it senses and hears, driving verbs in Java),
+grabs, bites, and wears the face of its last victim. It does not yet spawn on its own,
+drop anything, or make a sound.
 
 ## A creature
 
@@ -63,14 +64,30 @@ senses (`domain/mind/Senses`): `target.seen/known/in_sight/eye_contact/undergrou
 loud`, `grab.held/survived`, `random`, `home`. A condition naming anything else, a mode
 entered that is not there, or a verb nobody registered is refused when the pack loads,
 naming the path. The tree is pure and tested (`domain/mind`); the verbs are Java
-(`verb/Verbs`: hold, wander, approach, chase, flee, dig, climb, pounce; grab, release
-and bite come with phase 5; another mod may register its own before the profiles load).
+(`verb/Verbs`: hold, wander, approach, chase, flee, dig, climb, pounce, grab, release,
+bite; another mod may register its own before the profiles load).
 Each server tick the creature reads its senses (`SensesReader`: the nearest survival or
 adventure player within `sight`, in sight by the mob's own line-of-sight sensing, known
 for `memory` ticks after with its last position remembered, eye contact when the
 target's look is within `eye_cone_deg` of the head and the head faces them), the mind
 decides, and the verb is begun, ticked or ended. The memory (mode, timers, points, seed)
 is saved with the entity, so a reload does not forget a hunt.
+
+## The grab, the bite, the face
+
+Within reach, the pincers close (`Aberrant.grab`): the target rides the creature, held
+at the maw of nfx's head, never steering it, and the grip (`Grip`) refuses their
+dismount until the creature lets go; the grab clip pinches on its cue. The bite
+(`Aberrant.bite`) plays its clip and on the cue hurts the held one by
+`aberrantmobs:devoured`, a finite million points through the ordinary damage pipeline,
+bypassing armour, enchantments, shields, effects and the hurt cooldown but never
+invulnerability -- so a totem still fires, and so does any mod that answers at
+`LivingDamageEvent.Pre`, as Miracle Bringer does; a survivor is known to have survived
+and the tree lets them go and flees. One who dies is devoured, and if they were a
+player the creature wears their face: the mask cube's front (`rig.mask` in the
+profile) is drawn with the victim's skin, their face and hat layer, on every client and
+across saves, until the next victim. The pounce verb coils first (the charge, with its
+click and hiss) and leaps as the coil ends.
 
 ## The ears
 
@@ -200,13 +217,15 @@ it and find its parts along its body and most of its feet on the floor, ring its
 and crack it, play a clip through its cues, send it over a floor, up a wall and across a
 ceiling, dig it a coherent tunnel round bedrock to a target, land its pounce, and, with
 its mind on, prowl toward a distant step, hear a block break through the world, stalk a
-player seen underground out of their view and hunt them on eye contact. The booth (`Xephyr :7 -screen 1280x720
+player seen underground out of their view and hunt them on eye contact, hold a player at
+the maw and devour them, spare a blessed one and flee, coil and pounce. The booth (`Xephyr :7 -screen 1280x720
 -ac -br -noreset`, then `DISPLAY=:7 __GLX_VENDOR_LIBRARY_NAME=mesa
 LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe MESA_GL_VERSION_OVERRIDE=4.6
 MESA_GLSL_VERSION_OVERRIDE=460 ./gradlew runPhotoBooth`) photographs the creature from
 the side, the front quarter and up close, walking from the side and from above, each
-clip at its key frames, climbing a wall and digging into a hill, silent from its first
-tick; its `booth: PASS/FAIL` lines are the assertion, and the frames are looked at.
+clip at its key frames, wearing the booth player's face, holding them at its maw (from
+their own eyes), climbing a wall and digging into a hill, silent from its first tick; its
+`booth: PASS/FAIL` lines are the assertion, and the frames are looked at.
 
 ## Licence
 

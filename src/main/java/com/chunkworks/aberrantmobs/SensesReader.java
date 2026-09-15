@@ -61,7 +61,7 @@ public final class SensesReader {
         Vec head = a.axis();
         Memory memory = a.memory();
         double sight = tree.tunable("sight", SIGHT);
-        Player target = nearestPlayer(level, a, sight);
+        Player target = a.held() instanceof Player held ? held : nearestPlayer(level, a, sight);
         boolean seen = target != null;
         s.flag("target.seen", seen);
         if (seen) {
@@ -92,8 +92,8 @@ public final class SensesReader {
             }
         }
         s.flag("target.blessed", false);
-        s.flag("grab.held", false);
-        s.flag("grab.survived", false);
+        s.flag("grab.held", a.holding());
+        s.flag("grab.survived", a.grabSurvived());
         boolean[] hurt = a.takeHurt();
         s.flag("hurt", hurt[0]);
         s.flag("hurt_hard", hurt[1]);
@@ -126,7 +126,7 @@ public final class SensesReader {
     }
 
     /** effects: returns the nearest living survival or adventure player within {@code range} of {@code a}, or null; any player entity, so a test's mock player counts */
-    private static Player nearestPlayer(ServerLevel level, Aberrant a, double range) {
+    static Player nearestPlayer(ServerLevel level, Aberrant a, double range) {
         Player best = null;
         double bestDistance = range;
         for (Player p : level.getEntities(EntityTypeTest.forClass(Player.class), a.getBoundingBox().inflate(range), Player::isAlive)) {

@@ -56,6 +56,9 @@ import net.minecraft.util.Mth;
  */
 public final class AberrantRenderer extends EntityRenderer<Aberrant> {
     private static final ResourceLocation MISSING = ResourceLocation.withDefaultNamespace("textures/misc/unknown_server.png");
+    /** A player skin's face and hat layer, in texture space (a 64 by 64 skin). */
+    private static final float[] FACE_UV = {8f / 64f, 8f / 64f, 16f / 64f, 16f / 64f};
+    private static final float[] HAT_UV = {40f / 64f, 8f / 64f, 48f / 64f, 16f / 64f};
 
     public AberrantRenderer(EntityRendererProvider.Context context) {
         super(context);
@@ -94,6 +97,16 @@ public final class AberrantRenderer extends EntityRenderer<Aberrant> {
             float pulse = 0.75f + 0.25f * Mth.sin((creature.tickCount + partialTick) * 0.25f);
             int ember = 0xFF000000 | (Math.round(255 * pulse) << 16) | (Math.round(120 * pulse) << 8) | Math.round(40 * pulse);
             RigDrawer.drawBone(skin, skin.glow, bone, pose, poseStack, out, LightTexture.FULL_BRIGHT, overlay, ember);
+        }
+        // The stolen face, last, since fetching another texture's buffer ends the skin's: the mask's front wears the
+        // last victim's skin, its face over the painted mask and its hat layer a hair in front.
+        com.mojang.authlib.GameProfile face = creature.face();
+        if (face != null && skin.maskFront != null && skin.headBone >= 0) {
+            net.minecraft.resources.ResourceLocation victim = net.minecraft.client.Minecraft.getInstance().getSkinManager().getInsecureSkin(face).texture();
+            VertexConsumer faceOut = buffers.getBuffer(RenderType.entityCutoutNoCull(victim));
+            RigDrawer.drawQuad(skin, skin.headBone, pose, skin.maskFront, 0.004, FACE_UV, poseStack, faceOut, RigDrawer.WHITE, packedLight, overlay);
+            VertexConsumer hatOut = buffers.getBuffer(RenderType.entityTranslucent(victim));
+            RigDrawer.drawQuad(skin, skin.headBone, pose, skin.maskFront, 0.012, HAT_UV, poseStack, hatOut, RigDrawer.WHITE, packedLight, overlay);
         }
         poseStack.popPose();
         super.render(creature, entityYaw, partialTick, poseStack, buffers, packedLight);

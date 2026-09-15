@@ -72,9 +72,10 @@ public record CreatureProfile(ResourceLocation model, double scale, RigSpec rig,
     /**
      * The bones of the body by name: the head, the chain of segments behind
      * it tail-ward, the leg pairs by the prefix their left and right bones
-     * share, and the writhe and the gait the body moves with.
+     * share, the writhe and the gait the body moves with, and the cube of
+     * the head whose front wears a stolen face (none by default).
      */
-    public record RigSpec(String head, List<String> chain, List<String> legs, String left, String right, Undulation undulation, LegGait gait) {
+    public record RigSpec(String head, List<String> chain, List<String> legs, String left, String right, Undulation undulation, LegGait gait, String mask) {
         private static final Codec<Undulation> UNDULATION = RecordCodecBuilder.create(i -> i.group(
                 Codec.DOUBLE.optionalFieldOf("amplitude", Undulation.FACE_STEALER.amplitudeMoving()).forGetter(Undulation::amplitudeMoving),
                 Codec.DOUBLE.optionalFieldOf("idle_amplitude", Undulation.FACE_STEALER.amplitudeRest()).forGetter(Undulation::amplitudeRest),
@@ -97,7 +98,8 @@ public record CreatureProfile(ResourceLocation model, double scale, RigSpec rig,
                 Codec.STRING.optionalFieldOf("left", "_l").forGetter(RigSpec::left),
                 Codec.STRING.optionalFieldOf("right", "_r").forGetter(RigSpec::right),
                 UNDULATION.optionalFieldOf("undulation", Undulation.FACE_STEALER).forGetter(RigSpec::undulation),
-                GAIT.optionalFieldOf("gait", LegGait.FACE_STEALER).forGetter(RigSpec::gait)
+                GAIT.optionalFieldOf("gait", LegGait.FACE_STEALER).forGetter(RigSpec::gait),
+                Codec.STRING.optionalFieldOf("mask", "").forGetter(RigSpec::mask)
         ).apply(i, RigSpec::new));
 
         public RigSpec {

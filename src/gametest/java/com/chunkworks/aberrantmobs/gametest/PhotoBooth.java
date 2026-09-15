@@ -255,6 +255,38 @@ public final class PhotoBooth {
             int drawn = count(mc, PhotoBooth::creature);
             verdict("it is drawn after its death clip", () -> drawn > 2000 ? null : "creature pixels " + drawn);
         }));
+        // The stolen face: it wears the booth player's, seen up close from ahead; then the grab, from the held one's own eyes.
+        s.add(new Step(t += 2, () -> onServer(mc, sp -> onCreature(sp, a -> {
+            double y = sp.serverLevel().getMinBuildHeight() + 4;
+            a.setFace(sp.getGameProfile());
+            sp.teleportTo(sp.serverLevel(), a.getX() + 6.5, y + 1.3, Z, 0.0f, 0.0f);
+            sp.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(a.getX() + 2.0, y + 1.4, Z));
+        }))));
+        s.add(new Step(t += 30, () -> {
+            shoot(mc, "booth-face-stolen");
+            Aberrant a = find(mc);
+            verdict("the client knows whose face it wears", () -> a != null && a.face() != null && a.face().getName().equals(mc.player.getGameProfile().getName()) ? null : "face " + (a == null ? null : a.face()));
+        }));
+        s.add(new Step(t += 2, () -> onServer(mc, sp -> onCreature(sp, a -> {
+            double y = sp.serverLevel().getMinBuildHeight() + 4;
+            sp.getAbilities().flying = false;
+            sp.onUpdateAbilities();
+            sp.teleportTo(sp.serverLevel(), a.getX() + 2.0, y, Z, 90.0f, 0.0f);   // within the pincers' reach
+            verdict("the pincers take the booth player", () -> a.grab(sp) ? null : "the grab was refused at " + (a.getX() + 2.0));
+        }))));
+        s.add(new Step(t += 4, () -> onServer(mc, sp -> onCreature(sp, a -> {
+            double y = sp.serverLevel().getMinBuildHeight() + 4;
+            sp.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(a.getX() + 1.0, y + 2.2, Z));
+        }))));
+        s.add(new Step(t += 8, () -> {
+            shoot(mc, "booth-grab-held");
+            verdict("the client is held", () -> mc.player != null && mc.player.getVehicle() instanceof Aberrant ? null : "the player rides " + (mc.player == null ? null : mc.player.getVehicle()));
+        }));
+        s.add(new Step(t += 2, () -> onServer(mc, sp -> onCreature(sp, a -> {
+            a.release();
+            sp.getAbilities().flying = true;
+            sp.onUpdateAbilities();
+        }))));
         // The climb: a wall of stone across its way, ten high and three thick; it walks into it, up it and over it.
         s.add(new Step(t += 2, () -> onServer(mc, sp -> onCreature(sp, a -> {
             double y = sp.serverLevel().getMinBuildHeight() + 4;

@@ -37,7 +37,8 @@ import org.junit.jupiter.api.Test;
  * when gates; enter changes the mode; timer sets; wait starts, holds,
  * fires once and clears; cooldown fires then holds. Mind: the memory is
  * aged first; an unknown mode falls to the start; an entry is followed
- * once and a second entry kept but not followed. JSON: the Face-Stealer's
+ * once and a second entry kept but not followed; an act before an entry
+ * is the tick's intent. JSON: the Face-Stealer's
  * grammar reads; a typo in a sense, an unknown mode, an unknown verb, a
  * missing then, a bad tick count are refused naming the path.
  */
@@ -130,6 +131,16 @@ final class MindTest {
         d = Mind.tick(tree, Senses.NONE, Memory.fresh("loop", 1));
         assertEquals("loop", d.memory().mode(), "an entry is followed once; the second is kept, not followed further");
         assertTrue(d.intent().isNone());
+        // An act before an entry is the tick's intent; the entered mode's own choice waits for the next tick.
+        Intent release = new Intent("release", Map.of());
+        Tree leaving = new Tree("hunt", Map.of(
+                "hunt", new Node.Sequence(List.of(new Node.Act(release), new Node.SetTimer("no_bite", 600), new Node.Enter("flee"))),
+                "flee", new Node.Act(new Intent("flee", Map.of()))), Map.of());
+        Mind.Decision left = Mind.tick(leaving, Senses.NONE, Memory.fresh("hunt", 1));
+        assertEquals(release, left.intent(), "the release is not lost to the flight");
+        assertEquals("flee", left.memory().mode());
+        assertEquals(600, left.memory().timer("no_bite"));
+        assertEquals("flee", Mind.tick(leaving, Senses.NONE, left.memory()).intent().verb(), "and the flight follows");
         assertEquals(32.0, tree.tunable("sight", 0), 1e-12);
         assertEquals(1.0, tree.tunable("nope", 1.0), 1e-12);
         assertThrows(IllegalArgumentException.class, () -> new Tree("x", Map.of("roam", new Node.Act(roam)), Map.of()));

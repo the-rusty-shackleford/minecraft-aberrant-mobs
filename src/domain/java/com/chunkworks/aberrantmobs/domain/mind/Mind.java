@@ -22,7 +22,10 @@ package com.chunkworks.aberrantmobs.domain.mind;
  * (the start mode when the memory names none of the tree's), and, if that
  * entered another mode, the new mode evaluated once more -- a second entry
  * is kept but not followed this tick, so a cycle of entries can never
- * loop. Deterministic: randomness is a sense. Pure.
+ * loop. The tick's intent is the first decided one: an act that came
+ * before the entry (a release before a flight) is carried out, and the
+ * entered mode's own choice counts only when the entering pass gave none.
+ * Deterministic: randomness is a sense. Pure.
  */
 public final class Mind {
     private Mind() {}
@@ -40,10 +43,12 @@ public final class Mind {
         m = m.withMode(mode);
         Node.Outcome o = tree.modes().get(mode).eval(senses, m);
         m = o.memory();
+        Intent first = o.decided() ? o.intent() : Intent.NONE;
         if (!m.mode().equals(mode) && tree.modes().containsKey(m.mode())) {
             Node.Outcome again = tree.modes().get(m.mode()).eval(senses, m);
-            return new Decision(again.decided() ? again.intent() : Intent.NONE, again.memory());
+            Intent second = again.decided() ? again.intent() : Intent.NONE;
+            return new Decision(first.isNone() ? second : first, again.memory());
         }
-        return new Decision(o.decided() ? o.intent() : Intent.NONE, m);
+        return new Decision(first, m);
     }
 }

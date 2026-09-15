@@ -44,11 +44,14 @@ import com.chunkworks.aberrantmobs.domain.mind.Senses;
 import com.chunkworks.aberrantmobs.domain.mind.Tree;
 import com.chunkworks.aberrantmobs.verb.Verb;
 import com.chunkworks.aberrantmobs.verb.Verbs;
+import com.mojang.authlib.GameProfile;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import net.minecraft.core.Holder;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.syncher.EntityDataAccessor;
@@ -61,10 +64,13 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.monster.Monster;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
@@ -113,6 +119,15 @@ import org.jetbrains.annotations.Nullable;
  * saved, so a reload does not forget a hunt), and the named {@link Verb}
  * is begun, ticked or ended; the verbs drive the crawl. Its ears
  * ({@link Hearing}) are fed by {@link Ears} from the world's game events.
+ *
+ * <p>It grabs: the target rides it, held at the maw (a passenger, never a
+ * driver; the {@link Grip} refuses a dismount while it holds), pinched on
+ * the grab clip's cue. It bites: on the bite clip's cue the held one is
+ * hurt by {@code aberrantmobs:devoured}, a finite million through the
+ * ordinary damage pipeline -- so a miracle, a totem or a blessing at that
+ * door still saves them, and a survivor is known to have survived; one
+ * who dies is devoured, and if they were a player the creature wears
+ * their face from then on (synced, saved) until its next victim.
  */
 public class Aberrant extends Monster {
     private static final EntityDataAccessor<String> DATA_PROFILE = SynchedEntityData.defineId(Aberrant.class, EntityDataSerializers.STRING);
@@ -125,6 +140,11 @@ public class Aberrant extends Monster {
     private static final EntityDataAccessor<Byte> DATA_NORMAL = SynchedEntityData.defineId(Aberrant.class, EntityDataSerializers.BYTE);
     /** The mind's mode, for whoever watches. */
     private static final EntityDataAccessor<String> DATA_MODE = SynchedEntityData.defineId(Aberrant.class, EntityDataSerializers.STRING);
+    /** Whether the pincers hold someone. */
+    private static final EntityDataAccessor<Boolean> DATA_HELD = SynchedEntityData.defineId(Aberrant.class, EntityDataSerializers.BOOLEAN);
+    /** The last victim's name and id ("" for none): the face it wears. */
+    private static final EntityDataAccessor<String> DATA_FACE_NAME = SynchedEntityData.defineId(Aberrant.class, EntityDataSerializers.STRING);
+    private static final EntityDataAccessor<String> DATA_FACE_ID = SynchedEntityData.defineId(Aberrant.class, EntityDataSerializers.STRING);
 
     /** How far beyond its box a creature is still drawn: a body eleven blocks long trails well past its head. */
     private static final double CULL_REACH = 12.0;
@@ -151,6 +171,13 @@ public class Aberrant extends Monster {
     private static final int FORGET_EVERY = 200;
     /** A blow this hard is a hard one, unless the tree's {@code flinch_at} says. */
     private static final double FLINCH_AT = 10.0;
+    /** The pincers reach this far from the head's axis, blocks. */
+    public static final double GRAB_REACH = 3.0;
+    /** The pinch as the pincers close, and the bite: finite, beyond any absorption, through the pipeline. */
+    public static final float PINCH = 2.0f;
+    public static final float DEVOUR = 1.0e6f;
+    /** Where the held one hangs: the maw's centre from the head's pivot, in the head's frame, blocks (the file's units over sixteen). */
+    private static final Vec MAW = new Vec(0.0, -11.1 / 16.0, 22.8 / 16.0);
 
     private final AberrantPart[] parts;
     @Nullable
@@ -209,6 +236,9 @@ public class Aberrant extends Monster {
     private Intent intent = Intent.NONE;
     private boolean hurtFlag;
     private boolean hurtHard;
+    private boolean releasing;
+    private boolean grabSurvived;
+    private boolean biting;
 
     public Aberrant(EntityType<? extends Aberrant> type, Level level) {
         super(type, level);
@@ -249,6 +279,9 @@ public class Aberrant extends Monster {
         builder.define(DATA_CLIP_SERIAL, 0);
         builder.define(DATA_NORMAL, (byte) Crawl.Normal.UP.ordinal());
         builder.define(DATA_MODE, "");
+        builder.define(DATA_HELD, false);
+        builder.define(DATA_FACE_NAME, "");
+        builder.define(DATA_FACE_ID, "");
     }
 
     /** effects: returns this creature's profile, or null before one is set or when the packs lost it */
@@ -883,6 +916,183 @@ public class Aberrant extends Monster {
         return hearing;
     }
 
+    // --- the grab, the bite, the face ------------------------------------
+
+    /** effects: returns whether the pincers hold someone */
+    public boolean holding() {
+        return entityData.get(DATA_HELD);
+    }
+
+    /** effects: returns whether the creature is letting go this instant, for the grip to allow it */
+    public boolean releasing() {
+        return releasing;
+    }
+
+    /** effects: returns whether the last bite left its victim alive */
+    public boolean grabSurvived() {
+        return grabSurvived;
+    }
+
+    /** effects: returns the nearest player the senses would hunt within the pincers' reach, or null */
+    @Nullable
+    public LivingEntity nearestTarget() {
+        if (!(level() instanceof ServerLevel server)) {
+            return null;
+        }
+        return SensesReader.nearestPlayer(server, this, GRAB_REACH + 1.0);
+    }
+
+    /** effects: returns the one held, or null */
+    @Nullable
+    public LivingEntity held() {
+        return holding() && getFirstPassenger() instanceof LivingEntity l ? l : null;
+    }
+
+    /**
+     * requires: called on the server
+     * effects: closes the pincers on {@code victim} if it is within reach and
+     * nothing else is held: it rides the creature at the maw, the grab
+     * clip plays and pinches on its cue; returns whether it was taken
+     */
+    public boolean grab(LivingEntity victim) {
+        if (holding() || !getPassengers().isEmpty() || victim.getVehicle() != null) {
+            return false;
+        }
+        Vec at = new Vec(victim.getX(), victim.getY() + victim.getBbHeight() / 2.0, victim.getZ());
+        if (at.minus(axis()).length() > GRAB_REACH + victim.getBbWidth()) {
+            return false;
+        }
+        if (!victim.startRiding(this, true)) {
+            return false;
+        }
+        entityData.set(DATA_HELD, true);
+        grabSurvived = false;
+        play(FaceStealerClips.GRAB);
+        return true;
+    }
+
+    /** effects: opens the pincers: the held one is let go where it hangs; nothing is held afterwards */
+    public void release() {
+        Entity passenger = getFirstPassenger();
+        releasing = true;
+        try {
+            if (passenger != null) {
+                passenger.stopRiding();
+            }
+        } finally {
+            releasing = false;
+        }
+        entityData.set(DATA_HELD, false);
+        grabSurvived = false;
+        biting = false;
+    }
+
+    /** effects: bites the one held: the bite clip plays and devours on its cue; nothing when nothing is held or a bite is under way */
+    public boolean bite() {
+        if (held() == null || biting) {
+            return false;
+        }
+        biting = true;
+        play(FaceStealerClips.BITE);
+        return true;
+    }
+
+    /** effects: the bite lands: the held one takes the devouring blow; dead, they are eaten and a player's face is taken; alive, they are known to have survived */
+    private void devour() {
+        biting = false;
+        LivingEntity victim = held();
+        if (victim == null || !(level() instanceof ServerLevel server)) {
+            return;
+        }
+        Holder<net.minecraft.world.damagesource.DamageType> type = server.registryAccess().registryOrThrow(Registries.DAMAGE_TYPE).getHolderOrThrow(AberrantMobs.DEVOURED);
+        victim.hurt(new DamageSource(type, this), DEVOUR);
+        if (victim.isAlive()) {
+            grabSurvived = true;
+            return;
+        }
+        if (victim instanceof Player player) {
+            setFace(player.getGameProfile());
+        }
+        release();
+    }
+
+    /** effects: the pincers close: the held one is pinched */
+    private void pinch() {
+        LivingEntity victim = held();
+        if (victim != null) {
+            victim.hurt(damageSources().mobAttack(this), PINCH);
+        }
+    }
+
+    /** effects: wears {@code profile}'s face from now on, on every client, across saves */
+    public void setFace(GameProfile profile) {
+        entityData.set(DATA_FACE_NAME, profile.getName() == null ? "" : profile.getName());
+        entityData.set(DATA_FACE_ID, profile.getId() == null ? "" : profile.getId().toString());
+    }
+
+    /** effects: returns the profile whose face it wears, or null for nfx's painted mask */
+    @Nullable
+    public GameProfile face() {
+        String name = entityData.get(DATA_FACE_NAME);
+        String id = entityData.get(DATA_FACE_ID);
+        if (name.isEmpty() && id.isEmpty()) {
+            return null;
+        }
+        UUID uuid;
+        try {
+            uuid = id.isEmpty() ? UUID.nameUUIDFromBytes(("OfflinePlayer:" + name).getBytes(java.nio.charset.StandardCharsets.UTF_8)) : UUID.fromString(id);
+        } catch (IllegalArgumentException e) {
+            uuid = UUID.nameUUIDFromBytes(name.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        }
+        return new GameProfile(uuid, name.isEmpty() ? "?" : name);
+    }
+
+    @Override
+    protected boolean canAddPassenger(Entity passenger) {
+        return getPassengers().isEmpty();
+    }
+
+    @Override
+    public boolean shouldRiderSit() {
+        return false;
+    }
+
+    @Override
+    protected void removePassenger(Entity passenger) {
+        super.removePassenger(passenger);
+        if (!level().isClientSide()) {
+            entityData.set(DATA_HELD, false);
+            biting = false;
+        }
+    }
+
+    /** effects: returns the head's orientation this tick: along the trail's newest sample, or the yaw and the up before the body is known */
+    private net.minecraft.world.phys.Vec3 mawPoint() {
+        Vec forward = facing();
+        Vec up = up();
+        if (trail != null) {
+            Trail.Sample s = trail.at(0);
+            forward = s.forward();
+            up = s.up();
+        }
+        Vec maw;
+        try {
+            maw = axis().plus(com.chunkworks.aberrantmobs.domain.Quat.lookAlong(forward, up).rotate(MAW));
+        } catch (IllegalArgumentException e) {
+            maw = axis().plus(forward.times(MAW.z()));
+        }
+        return new net.minecraft.world.phys.Vec3(maw.x(), maw.y(), maw.z());
+    }
+
+    @Override
+    protected void positionRider(Entity passenger, Entity.MoveFunction move) {
+        if (!hasPassenger(passenger)) {
+            return;
+        }
+        net.minecraft.world.phys.Vec3 maw = mawPoint();
+        move.accept(passenger, maw.x, maw.y - passenger.getBbHeight() / 2.0, maw.z);
+    }
+
     // --- the feet -------------------------------------------------------
 
     /** effects: steps every foot one tick on {@code chain} over the level's blocks, the body's travel along its heading */
@@ -940,10 +1150,19 @@ public class Aberrant extends Monster {
         return lastCueTick;
     }
 
-    /** effects: acts on a clip's cue: the strike cuts the section the crawl readied; every cue is remembered; the sounds hang on them in a later phase */
+    /** effects: acts on a clip's cue: the strike cuts the section the crawl readied, the grab pinches, the bite devours; every cue is remembered; the sounds hang on them in a later phase */
     private void onCue(String cue) {
         lastCue = cue;
         lastCueTick = tickCount;
+        if (level().isClientSide()) {
+            return;
+        }
+        if (FaceStealerClips.CUE_GRAB.equals(cue)) {
+            pinch();
+        }
+        if (FaceStealerClips.CUE_BITE.equals(cue)) {
+            devour();
+        }
         if (FaceStealerClips.CUE_STRIKE.equals(cue) && pendingDig != null && level() instanceof ServerLevel server) {
             List<Cell> rock = Tunnel.rock(cells(), pendingDig);
             blocksDug += DigWorld.dig(server, this, rock.size() > STRIKE_BUDGET ? rock.subList(0, STRIKE_BUDGET) : rock, !quiet);
@@ -965,6 +1184,8 @@ public class Aberrant extends Monster {
             tag.putDouble("HeadingY", crawl.heading().y());
             tag.putDouble("HeadingZ", crawl.heading().z());
         }
+        tag.putString("FaceName", entityData.get(DATA_FACE_NAME));
+        tag.putString("FaceId", entityData.get(DATA_FACE_ID));
         if (memory != null) {
             CompoundTag mind = new CompoundTag();
             mind.putString("Mode", memory.mode());
@@ -1006,6 +1227,10 @@ public class Aberrant extends Monster {
                 crawl = new Crawl.Pose(axis(), h.normalized(), n);
                 entityData.set(DATA_NORMAL, (byte) n.ordinal());
             }
+        }
+        if (tag.contains("FaceName")) {
+            entityData.set(DATA_FACE_NAME, tag.getString("FaceName"));
+            entityData.set(DATA_FACE_ID, tag.getString("FaceId"));
         }
         if (tag.contains("Mind")) {
             CompoundTag mind = tag.getCompound("Mind");
