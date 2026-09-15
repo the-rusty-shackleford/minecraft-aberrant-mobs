@@ -40,6 +40,11 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  * fires its cues on their ticks and ends; it crawls the floor, climbs the
  * wall and crosses the ceiling; it digs a coherent tunnel to a target
  * through rock and leaves bedrock alone; a pounce lands where it aimed.
+ * With its mind on: a distant step turns roaming into prowling toward a
+ * vague bearing, a near noise is placed exactly, a block broken in the
+ * world reaches its ears through the game's events, a player seen
+ * underground is stalked -- out of their view -- and their eye contact
+ * starts the hunt.
  *
  * <p>The arena template is 15 by 9 by 15, the tall one 15 by 16 by 15; a
  * floor of stone is laid on them.
@@ -75,6 +80,7 @@ public final class FaceStealerGameTests {
         Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, -90.0f);
         helper.assertTrue(a != null, "the creature is made");
         helper.getLevel().addFreshEntity(a);
+        a.setNoAi(true);   // moved by the test, not by its mind
         helper.assertTrue(Math.abs(a.getBbWidth() - 2.5f) < 1e-5 && Math.abs(a.getBbHeight() - 2.5f) < 1e-5, "sized by the profile: " + a.getBbWidth() + " x " + a.getBbHeight());
         helper.assertTrue(Math.abs(a.getMaxHealth() - 84.0f) < 1e-5 && Math.abs(a.getHealth() - 84.0f) < 1e-5, "healthy as the profile says: " + a.getHealth());
         helper.assertValueEqual(a.getName().getString(), "Face-Stealer", "named by its profile");
@@ -94,6 +100,7 @@ public final class FaceStealerGameTests {
         Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, -90.0f);
         helper.assertTrue(a != null, "the creature is made");
         helper.getLevel().addFreshEntity(a);
+        a.setNoAi(true);   // moved by the test, not by its mind
         helper.assertTrue(a.body() != null, "the server read the model from the jar");
         helper.assertValueEqual(a.body().chain().length, 12, "twelve chain segments");
         a.setScriptedWalk(new com.chunkworks.aberrantmobs.domain.Vec(0.3, 0.0, 0.0), 30);
@@ -116,6 +123,7 @@ public final class FaceStealerGameTests {
         Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, -90.0f);
         helper.assertTrue(a != null, "the creature is made");
         helper.getLevel().addFreshEntity(a);
+        a.setNoAi(true);   // moved by the test, not by its mind
         int weak = a.weakSegment();
         helper.assertTrue(weak >= 2 && weak <= 9, "the crack is on one of the candidates: " + weak);
         net.minecraft.world.entity.player.Player p = helper.makeMockPlayer(net.minecraft.world.level.GameType.SURVIVAL);
@@ -142,6 +150,7 @@ public final class FaceStealerGameTests {
         Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, -90.0f);
         helper.assertTrue(a != null, "the creature is made");
         helper.getLevel().addFreshEntity(a);
+        a.setNoAi(true);   // moved by the test, not by its mind
         a.setScriptedWalk(new com.chunkworks.aberrantmobs.domain.Vec(0.3, 0.0, 0.0), 40);
         helper.runAtTickTime(25, () -> {
             com.chunkworks.aberrantmobs.domain.Legs.Foot[] feet = a.feet();
@@ -173,6 +182,7 @@ public final class FaceStealerGameTests {
         Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, -90.0f);
         helper.assertTrue(a != null, "the creature is made");
         helper.getLevel().addFreshEntity(a);
+        a.setNoAi(true);   // moved by the test, not by its mind
         helper.assertTrue(a.clipPlaying() == null && a.lastCue() == null, "nothing plays at first");
         a.play(com.chunkworks.aberrantmobs.domain.FaceStealerClips.COIL);
         helper.assertValueEqual(a.clipPlaying(), "coil", "the coil plays");
@@ -206,6 +216,7 @@ public final class FaceStealerGameTests {
         Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, -90.0f);
         helper.assertTrue(a != null, "the creature is made");
         helper.getLevel().addFreshEntity(a);
+        a.setNoAi(true);   // moved by the test, not by its mind
         a.setScriptedWalk(new com.chunkworks.aberrantmobs.domain.Vec(0.3, 0.0, 0.0), 180);
         java.util.Set<com.chunkworks.aberrantmobs.domain.Crawl.Normal> seen = new java.util.HashSet<>();
         for (int t = 2; t < 180; t += 2) {
@@ -241,6 +252,7 @@ public final class FaceStealerGameTests {
         Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, -90.0f);
         helper.assertTrue(a != null, "the creature is made");
         helper.getLevel().addFreshEntity(a);
+        a.setNoAi(true);   // moved by the test, not by its mind
         Vec3 goal = helper.absoluteVec(new Vec3(13.5, FLOOR + 23.3 / 16.0, 7.5));
         a.setCrawlTarget(new com.chunkworks.aberrantmobs.domain.Vec(goal.x, goal.y, goal.z), true, 0.45);
         helper.runAtTickTime(240, () -> {
@@ -268,6 +280,7 @@ public final class FaceStealerGameTests {
         Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, -90.0f);
         helper.assertTrue(a != null, "the creature is made");
         helper.getLevel().addFreshEntity(a);
+        a.setNoAi(true);   // moved by the test, not by its mind
         Vec3 spot = helper.absoluteVec(new Vec3(9.5, FLOOR, 7.5));
         helper.runAtTickTime(5, () -> {
             helper.assertTrue(a.pounce(new com.chunkworks.aberrantmobs.domain.Vec(spot.x, spot.y, spot.z)), "it leaps");
@@ -282,6 +295,81 @@ public final class FaceStealerGameTests {
         });
     }
 
+    private static Aberrant minded(GameTestHelper helper, double x, double z, float yaw) {
+        Vec3 at = helper.absoluteVec(new Vec3(x, FLOOR, z));
+        Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, yaw);
+        helper.assertTrue(a != null, "the creature is made");
+        helper.getLevel().addFreshEntity(a);
+        return a;
+    }
+
+    // The minded tests run one to a batch: batches run in turn, so no creature sees another test's player.
+    @GameTest(template = "arena", timeoutTicks = 60, batch = "mind_prowl")
+    public void aDistantStepTurnsRoamingIntoProwlingTowardAVagueBearing(GameTestHelper helper) {
+        layFloor(helper);
+        Aberrant a = minded(helper, 2.5, 7.5, -90.0f);
+        helper.assertTrue(a.profile() != null && a.profile().mind().isPresent(), "the Face-Stealer has a mind");
+        helper.runAtTickTime(2, () -> {
+            helper.assertValueEqual(a.mode(), "roam", "it starts roaming");
+            helper.assertValueEqual(a.verb(), "wander", "and wanders");
+            com.chunkworks.aberrantmobs.domain.Vec far = a.axis().plus(new com.chunkworks.aberrantmobs.domain.Vec(250, 0, 0));
+            a.hear(new com.chunkworks.aberrantmobs.domain.Hearing.Sound(far, 1.0, a.tickCount, "someone"));
+        });
+        helper.runAtTickTime(22, () -> {
+            helper.assertValueEqual(a.mode(), "prowl", "a step heard: prowling");
+            helper.assertValueEqual(a.verb(), "approach", "toward it");
+            com.chunkworks.aberrantmobs.domain.Hearing.Estimate e = a.hearing().estimate(a.axis(), a.tickCount).orElseThrow();
+            helper.assertTrue(e.error() >= 100.0, "only a vague bearing at that range: " + e.error());
+            helper.assertTrue(a.crawlPose() != null && a.crawlPose().heading().x() > 0.5, "heading that way: " + a.crawlPose().heading());
+            a.hear(new com.chunkworks.aberrantmobs.domain.Hearing.Sound(a.axis().plus(new com.chunkworks.aberrantmobs.domain.Vec(20, 0, 0)), 1.0, a.tickCount, "someone"));
+        });
+        helper.runAtTickTime(24, () -> {
+            com.chunkworks.aberrantmobs.domain.Hearing.Estimate e = a.hearing().estimate(a.axis(), a.tickCount).orElseThrow();
+            helper.assertTrue(e.error() == 0.0 && Math.abs(e.distance() - 20.0) < 1.0, "a near noise is placed exactly: " + e.error() + " at " + e.distance());
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "arena", timeoutTicks = 60, batch = "mind_ears")
+    public void aBlockBrokenNearbyReachesItsEarsThroughTheWorld(GameTestHelper helper) {
+        layFloor(helper);
+        Aberrant a = minded(helper, 2.5, 7.5, -90.0f);
+        helper.runAtTickTime(5, () -> {
+            helper.assertValueEqual(a.hearing().remembered(), 0, "nothing heard yet");
+            helper.destroyBlock(new BlockPos(11, FLOOR - 1, 7));
+        });
+        helper.runAtTickTime(12, () -> {
+            helper.assertValueEqual(a.hearing().remembered(), 1, "the world's block break was heard");
+            helper.assertValueEqual(a.mode(), "prowl", "and prowled toward");
+            helper.assertTrue(a.hearing().estimate(a.axis(), a.tickCount).orElseThrow().loud(), "a loud one");
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "tall", timeoutTicks = 260, batch = "mind_stalk")
+    public void aPlayerSeenUndergroundIsStalkedInTheDarkAndEyeContactStartsTheHunt(GameTestHelper helper) {
+        layFloor(helper);
+        fill(helper, 0, 13, 0, 14, 15, 14, Blocks.STONE);   // a ceiling: underground
+        fill(helper, 7, FLOOR, 4, 7, FLOOR + 4, 10, Blocks.STONE);   // a wall between them: no line of sight
+        Aberrant a = minded(helper, 2.5, 7.5, -90.0f);
+        net.minecraft.server.level.ServerPlayer p = helper.makeMockServerPlayerInLevel();   // in the level, unlike a mock player
+        p.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
+        Vec3 at = helper.absoluteVec(new Vec3(12.5, FLOOR, 7.5));
+        p.teleportTo(helper.getLevel(), at.x, at.y, at.z, 90.0f, 0.0f);
+        // The player stares at where the creature is the whole time; through the wall that means nothing.
+        helper.onEachTick(() -> p.lookAt(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES, new Vec3(a.getX(), a.getEyeY(), a.getZ())));
+        helper.runAtTickTime(10, () -> {
+            helper.assertTrue(!helper.getLevel().canSeeSky(p.blockPosition()), "the player is under the ceiling: sky light " + helper.getLevel().getBrightness(net.minecraft.world.level.LightLayer.SKY, p.blockPosition()));
+            helper.assertValueEqual(a.mode(), "stalk", "a player sensed underground: stalking");
+            helper.assertValueEqual(a.verb(), "approach", "out of their sight, closing in");
+        });
+        helper.succeedWhen(() -> {
+            helper.assertValueEqual(a.mode(), "hunt", "through the wall and into their eyes: the hunt is on");
+            helper.assertTrue(a.blocksDug() > 0, "it bored through: " + a.blocksDug());
+            helper.assertTrue(java.util.Set.of("chase", "pounce", "grab").contains(a.verb()), "coming for them: " + a.verb());
+        });
+    }
+
     @GameTest(template = "arena", timeoutTicks = 80)
     public void aScriptedWalkMovesItAlongTheGroundFacingItsWay(GameTestHelper helper) {
         layFloor(helper);
@@ -289,6 +377,7 @@ public final class FaceStealerGameTests {
         Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, 0.0f);
         helper.assertTrue(a != null, "the creature is made");
         helper.getLevel().addFreshEntity(a);
+        a.setNoAi(true);   // moved by the test, not by its mind
         a.setScriptedWalk(new com.chunkworks.aberrantmobs.domain.Vec(0.3, 0.0, 0.0), 30);
         helper.runAtTickTime(40, () -> {
             double moved = a.getX() - at.x;

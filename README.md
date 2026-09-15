@@ -6,12 +6,13 @@ head, the mind that reads its senses through a decision tree, the crawling, digg
 stalking, grabbing and biting its verbs do, and what it drops. The first creature is the
 **Face-Stealer**, nfx's centipede: eleven blocks of it, a mask for a face.
 
-This is phase 3 of 7 (`~/.claude/plans/wiggly-cuddling-adleman.md` is the plan): the
+This is phase 4 of 7 (`~/.claude/plans/wiggly-cuddling-adleman.md` is the plan): the
 creature exists, is sized and named by its profile, its body follows its head along a
 trail and writhes, its feet stand on the world and step in a wave, its plating rings and
-its crack glows, its attack animations play on the server's say, and it crawls over
-floors, walls and ceilings, digs its way to a point through rock, and pounces. It does
-not yet think, stalk, or bite.
+its crack glows, its attack animations play on the server's say, it crawls over floors,
+walls and ceilings, digs its way to a point through rock, pounces, and it thinks: a
+decision tree in its profile over what it senses and hears, driving verbs in Java. It
+does not yet grab or bite.
 
 ## A creature
 
@@ -29,6 +30,60 @@ not yet think, stalk, or bite.
 Every creature is the one entity type `aberrantmobs:aberrant`; the profile id rides its
 synced data. `/summon aberrantmobs:aberrant ~ ~ ~ {Profile:"aberrantmobs:face_stealer"}`.
 The name is `creature.<ns>.<name>` in the lang file.
+
+## The mind
+
+A creature's mind is a decision tree in its profile (`"mind"`): modes, each a tree of
+nodes, entered at `start`, over a fixed vocabulary of senses:
+
+```jsonc
+"mind": {"start": "roam", "tunables": {"sight": 40, "eye_cone_deg": 10},
+  "modes": {
+    "roam":  {"select": [ {"when": "hurt", "then": {"enter": "hunt"}},
+                          {"when": "heard.any", "then": {"enter": "prowl"}},
+                          {"act": "wander", "dig": true} ]},
+    "prowl": {"select": [ {"when": "!heard.any || heard.age > 2400", "then": {"enter": "roam"}},
+                          {"act": "approach", "target": "heard.bearing", "quiet": true} ]},
+    "hunt":  {"select": [ {"when": "grab.held", "then": {"cooldown": "bite", "ticks": 30, "then": {"act": "bite"}}},
+                          {"when": "!target.known", "then": {"wait": "patience", "ticks": 200, "then": {"enter": "stalk"}}},
+                          {"when": "target.distance < 9 && timer.pounced == 0",
+                           "then": {"sequence": [{"timer": "pounced", "set": 80}, {"act": "pounce"}]}},
+                          {"act": "chase"} ]} } }
+```
+
+Nodes: `select` (the first child that decides), `sequence` (every child, the last intent
+kept), `when` (a condition, then a node), `act` (a verb and its arguments), `enter` (a
+mode; the new mode decides once more the same tick), `timer` (set), `wait` (patience:
+start it, hold while it runs, fire once and clear), `cooldown` (fire, then hold while it
+runs). Conditions are `&&`, `||`, `!`, parentheses, flags (`hurt`), comparisons
+(`target.distance < 4`), and timers (`timer.no_bite == 0`; never set reads as zero). The
+senses (`domain/mind/Senses`): `target.seen/known/in_sight/eye_contact/underground`,
+`target.distance/pos/last_pos/look`, `hurt`, `hurt_hard`, `health`, `y`, `light`,
+`on_wall`, `airborne`, `underground`, `blocked`, `heard.any/bearing/error/age/distance/
+loud`, `grab.held/survived`, `random`, `home`. A condition naming anything else, a mode
+entered that is not there, or a verb nobody registered is refused when the pack loads,
+naming the path. The tree is pure and tested (`domain/mind`); the verbs are Java
+(`verb/Verbs`: hold, wander, approach, chase, flee, dig, climb, pounce; grab, release
+and bite come with phase 5; another mod may register its own before the profiles load).
+Each server tick the creature reads its senses (`SensesReader`: the nearest survival or
+adventure player within `sight`, in sight by the mob's own line-of-sight sensing, known
+for `memory` ticks after with its last position remembered, eye contact when the
+target's look is within `eye_cone_deg` of the head and the head faces them), the mind
+decides, and the verb is begun, ticked or ended. The memory (mode, timers, points, seed)
+is saved with the entity, so a reload does not forget a hunt.
+
+## The ears
+
+It hears what the world hears (`Ears`): every game event a player causes -- a step
+(one; two sprinting; nothing sneaking, so silence is a defence), a block broken or
+placed (six), a splash, a blow, a blast (twenty) -- within 320 blocks reaches every
+creature as a sound; other mobs' sounds and its own digging are nothing to it. Its ears
+(`domain/Hearing`) keep the last sound from each source and report the one loudest for
+its distance, with an error of half a block per block of distance divided by the
+loudness, exact within 24 blocks: the bearing it heads for is the true point moved
+sideways by that error along a direction drawn from its seed and re-drawn every 600
+ticks, so a guess drifts rather than jitters, and at three hundred blocks a step is no
+more than a direction. A sound older than 2400 ticks is forgotten.
 
 ## The rig
 
@@ -134,7 +189,7 @@ tests until the crawl arrives.
 
 ```
 export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 PATH="$JAVA_HOME/bin:$PATH"
-./gradlew test                   # JUnit on the pure layer: the rig, the body, the feet, the clips, the crawl
+./gradlew test                   # JUnit on the pure layer: the rig, the body, the feet, the clips, the crawl, the mind, the ears
 ./gradlew check                  # plus the gametests and the photo booth (needs a display; -PskipBooth, -PskipGameTests)
 ```
 
@@ -143,7 +198,9 @@ error. Its tests are partitioned by each class's spec and named in the class doc
 gametests, on a headless server, register the profile and make a creature from it, walk
 it and find its parts along its body and most of its feet on the floor, ring its plating
 and crack it, play a clip through its cues, send it over a floor, up a wall and across a
-ceiling, dig it a coherent tunnel round bedrock to a target, and land its pounce. The booth (`Xephyr :7 -screen 1280x720
+ceiling, dig it a coherent tunnel round bedrock to a target, land its pounce, and, with
+its mind on, prowl toward a distant step, hear a block break through the world, stalk a
+player seen underground out of their view and hunt them on eye contact. The booth (`Xephyr :7 -screen 1280x720
 -ac -br -noreset`, then `DISPLAY=:7 __GLX_VENDOR_LIBRARY_NAME=mesa
 LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe MESA_GL_VERSION_OVERRIDE=4.6
 MESA_GLSL_VERSION_OVERRIDE=460 ./gradlew runPhotoBooth`) photographs the creature from

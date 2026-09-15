@@ -61,13 +61,32 @@ clip's cue cuts the readied section (`DigWorld`, loud or quiet); `pounce` flies 
 leap and lands on the first face it flies into; `LevelCells` marks bedrock, obsidian,
 block entities, `#aberrantmobs:undiggable` and the wither-immune as hard.
 
+Phase 4 (done): mind and ears. `domain/mind`: `Senses` (a fixed vocabulary of numbers,
+flags and points; absent is NaN/false/null), `Memory` (mode, timers counting to zero,
+points, seed; saved), `Intent`, `Cond` (a parsed boolean grammar over senses and
+timers), `Node` (select, sequence, when, act, enter, timer, wait = patience, cooldown),
+`Tree`, `Mind.tick` (aged, evaluated, one entry followed), `TreeJson` (the grammar,
+refusing a typo naming its path). `Hearing` (a sound per source, the loudest for its
+distance wins, error = distance / 2 / loudness, exact within 24, a sideways offset
+re-rolled every 600 ticks, forgotten after 2400). In main: the profile's `mind` field
+(gson bridged to the domain, verbs from `Verbs`), `Verbs` (hold, wander, approach,
+chase, flee, dig, climb, pounce; grab/release/bite named for phase 5), `SensesReader`
+(target = nearest survival/adventure player within `sight`, in sight by the mob's own
+sensing, known 600 ticks, eye contact by cones, underground = no sky), `Ears`
+(`VanillaGameEvent` → sounds: step 1, sprint 2, block 6, blast 20, sneaking 0, other
+mobs and its own digging nothing), the entity's `think` (senses → mind → verb begun,
+ticked, ended; the mode synced; the memory in NBT). The Face-Stealer's tree: roam,
+prowl, stalk, hunt, flee.
+
 ## How it is verified
 
-`./gradlew test` (79 JUnit tests, the reader proved against the saved file),
-`runGameTestServer` (9 gametests: the profile and the creature, the parts along the body
+`./gradlew test` (90 JUnit tests, the reader proved against the saved file),
+`runGameTestServer` (12 gametests: the profile and the creature, the parts along the body
 after a walk, only the crack takes a blow, most feet on the floor mid-walk, a clip's
 cues on their ticks, a scripted walk, floor-wall-ceiling, a coherent tunnel round
-bedrock to a target, a pounce landing where aimed), `runPhotoBooth` (17 checks: side,
+bedrock to a target, a pounce landing where aimed, a distant step → prowl toward a vague
+bearing and a near noise exact, a block break heard through the world, a player seen
+underground → stalk out of view → eye contact → hunt), `runPhotoBooth` (18 checks: side,
 quarter, face, a walking strip, from above, each clip playing on the client at its key
 frames, drawn after the death, on the wall, dug in). The booth world is normal
 difficulty with spawning off: a monster is discarded in peaceful.
@@ -78,6 +97,7 @@ See `decisions/`.
 
 ## Next
 
-Phase 4, mind and ears: `mind/*` (Senses, Memory, Node, Cond, Mind, TreeJson), `Hearing`;
-`SensesReader`, `Ears` (the game-event stream), the verbs; the Face-Stealer's tree in
-its profile.
+Phase 5, grab, bite, pounce and the face: `GrabVerb` (the target rides the maw),
+`BiteVerb` (`aberrantmobs:devoured`, finite 1e6 through `hurt`, Miracle Bringer
+compatible), `DATA_FACE` (the last victim's profile worn and dropped), the coil before
+the pounce.

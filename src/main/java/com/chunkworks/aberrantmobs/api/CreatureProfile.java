@@ -17,32 +17,51 @@
  */
 package com.chunkworks.aberrantmobs.api;
 
+import com.chunkworks.aberrantmobs.JsonBridge;
 import com.chunkworks.aberrantmobs.domain.LegGait;
 import com.chunkworks.aberrantmobs.domain.Undulation;
+import com.chunkworks.aberrantmobs.domain.mind.Tree;
+import com.chunkworks.aberrantmobs.domain.mind.TreeJson;
+import com.chunkworks.aberrantmobs.verb.Verbs;
+import com.google.gson.JsonElement;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import java.util.List;
+import java.util.Optional;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.ExtraCodecs;
 
 /**
  * What a creature is, as a datapack says it: the project that draws it and
  * the scale it is drawn at, the bones that make its body and how that body
- * moves, the box the world collides with, and its stats. The mind, the
- * habitat and the loot join in later phases; every field is checked in its
- * compact constructor, so a bad file is refused at load naming the field,
- * never at first sight.
+ * moves, the box the world collides with, its stats, and its mind -- a
+ * decision tree in JSON over the senses, read by the domain's
+ * {@link TreeJson} with the verbs registered in {@link Verbs}, so a
+ * condition naming no sense, a mode entered that is not there or a verb
+ * nobody knows is refused at load, naming its path. The habitat and the
+ * loot join in later phases; every field is checked in its compact
+ * constructor, so a bad file is refused at load naming the field, never
+ * at first sight. A creature without a mind stands, and is moved by the
+ * booth and the tests.
  *
  * <p>Model units are Blockbench's; {@code scale} turns them into blocks
  * (a sixteenth for a model drawn at the game's pixel).
  */
-public record CreatureProfile(ResourceLocation model, double scale, RigSpec rig, Body body, Stats stats) {
+public record CreatureProfile(ResourceLocation model, double scale, RigSpec rig, Body body, Stats stats, Optional<JsonElement> mindJson, Optional<Tree> mind) {
     public static final Codec<CreatureProfile> CODEC = RecordCodecBuilder.create(i -> i.group(
             ResourceLocation.CODEC.fieldOf("model").forGetter(CreatureProfile::model),
             Codec.DOUBLE.optionalFieldOf("scale", 1.0 / 16.0).forGetter(CreatureProfile::scale),
             RigSpec.CODEC.fieldOf("rig").forGetter(CreatureProfile::rig),
             Body.CODEC.fieldOf("body").forGetter(CreatureProfile::body),
-            Stats.CODEC.optionalFieldOf("stats", Stats.DEFAULT).forGetter(CreatureProfile::stats)
-    ).apply(i, CreatureProfile::new));
+            Stats.CODEC.optionalFieldOf("stats", Stats.DEFAULT).forGetter(CreatureProfile::stats),
+            ExtraCodecs.JSON.optionalFieldOf("mind").forGetter(CreatureProfile::mindJson)
+    ).apply(i, CreatureProfile::of));
+
+    /** effects: returns the profile with its mind read from {@code mindJson}; throws as the class says for a bad mind */
+    public static CreatureProfile of(ResourceLocation model, double scale, RigSpec rig, Body body, Stats stats, Optional<JsonElement> mindJson) {
+        Optional<Tree> mind = mindJson.map(json -> TreeJson.parse(JsonBridge.plain(json), Verbs.names()));
+        return new CreatureProfile(model, scale, rig, body, stats, mindJson, mind);
+    }
 
     public CreatureProfile {
         if (!(scale > 0.0) || !Double.isFinite(scale)) {

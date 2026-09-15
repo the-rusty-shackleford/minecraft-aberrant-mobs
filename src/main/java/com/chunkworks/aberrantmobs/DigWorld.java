@@ -21,6 +21,7 @@ import com.chunkworks.aberrantmobs.domain.Cell;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
@@ -35,8 +36,8 @@ import net.minecraft.world.level.gameevent.GameEvent;
 public final class DigWorld {
     private DigWorld() {}
 
-    /** effects: cuts every cell of {@code rock} to air; returns how many were solid before */
-    public static int dig(ServerLevel level, List<Cell> rock, boolean loud) {
+    /** effects: cuts every cell of {@code rock} to air on {@code digger}'s account; returns how many were solid before */
+    public static int dig(ServerLevel level, Entity digger, List<Cell> rock, boolean loud) {
         int n = 0;
         for (Cell c : rock) {
             BlockPos pos = new BlockPos(c.x(), c.y(), c.z());
@@ -49,7 +50,7 @@ public final class DigWorld {
             }
             level.setBlock(pos, Blocks.AIR.defaultBlockState(), 3);
             if (loud) {
-                level.gameEvent(GameEvent.BLOCK_DESTROY, pos, GameEvent.Context.of(state));
+                level.gameEvent(GameEvent.BLOCK_DESTROY, pos, GameEvent.Context.of(digger, state));
             }
             n++;
         }

@@ -28,6 +28,7 @@ import com.chunkworks.aberrantmobs.domain.ChainPose;
 import com.chunkworks.aberrantmobs.domain.Clip;
 import com.chunkworks.aberrantmobs.domain.Crawl;
 import com.chunkworks.aberrantmobs.domain.FaceStealerClips;
+import com.chunkworks.aberrantmobs.domain.Hearing;
 import com.chunkworks.aberrantmobs.domain.Leap;
 import com.chunkworks.aberrantmobs.domain.Legs;
 import com.chunkworks.aberrantmobs.domain.Pose;
@@ -36,7 +37,16 @@ import com.chunkworks.aberrantmobs.domain.Trail;
 import com.chunkworks.aberrantmobs.domain.Tunnel;
 import com.chunkworks.aberrantmobs.domain.Undulation;
 import com.chunkworks.aberrantmobs.domain.Vec;
+import com.chunkworks.aberrantmobs.domain.mind.Intent;
+import com.chunkworks.aberrantmobs.domain.mind.Memory;
+import com.chunkworks.aberrantmobs.domain.mind.Mind;
+import com.chunkworks.aberrantmobs.domain.mind.Senses;
+import com.chunkworks.aberrantmobs.domain.mind.Tree;
+import com.chunkworks.aberrantmobs.verb.Verb;
+import com.chunkworks.aberrantmobs.verb.Verbs;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import net.minecraft.core.Holder;
 import net.minecraft.nbt.CompoundTag;
@@ -96,6 +106,13 @@ import org.jetbrains.annotations.Nullable;
  * serial ride synced data, so every client starts the same clip within a
  * tick; both sides then advance their own {@link Animator}, the server
  * acting on the cues, the client drawing the turns over the body's pose.
+ *
+ * <p>It thinks, on the server, when its profile has a mind and its AI is
+ * not off: each tick the {@link SensesReader} gathers the senses, the pure
+ * {@link Mind} decides an intent from the tree and the memory (kept, and
+ * saved, so a reload does not forget a hunt), and the named {@link Verb}
+ * is begun, ticked or ended; the verbs drive the crawl. Its ears
+ * ({@link Hearing}) are fed by {@link Ears} from the world's game events.
  */
 public class Aberrant extends Monster {
     private static final EntityDataAccessor<String> DATA_PROFILE = SynchedEntityData.defineId(Aberrant.class, EntityDataSerializers.STRING);
@@ -106,6 +123,8 @@ public class Aberrant extends Monster {
     private static final EntityDataAccessor<Integer> DATA_CLIP_SERIAL = SynchedEntityData.defineId(Aberrant.class, EntityDataSerializers.INT);
     /** The face the head clings to, a {@link Crawl.Normal} ordinal. */
     private static final EntityDataAccessor<Byte> DATA_NORMAL = SynchedEntityData.defineId(Aberrant.class, EntityDataSerializers.BYTE);
+    /** The mind's mode, for whoever watches. */
+    private static final EntityDataAccessor<String> DATA_MODE = SynchedEntityData.defineId(Aberrant.class, EntityDataSerializers.STRING);
 
     /** How far beyond its box a creature is still drawn: a body eleven blocks long trails well past its head. */
     private static final double CULL_REACH = 12.0;
@@ -126,6 +145,12 @@ public class Aberrant extends Monster {
     private static final double TARGET_REACH = 1.5;
     /** A strike cuts at most this many blocks. */
     private static final int STRIKE_BUDGET = 32;
+    /** A target within this of the last one keeps the way already planned, blocks. */
+    private static final double SAME_TARGET = 4.0;
+    /** Old sounds are forgotten this often, ticks. */
+    private static final int FORGET_EVERY = 200;
+    /** A blow this hard is a hard one, unless the tree's {@code flinch_at} says. */
+    private static final double FLINCH_AT = 10.0;
 
     private final AberrantPart[] parts;
     @Nullable
@@ -172,6 +197,18 @@ public class Aberrant extends Monster {
     private List<Cell> pendingDig;
     private boolean quiet;
     private int blocksDug;
+    private boolean lastBlocked;
+
+    // The mind, on the server.
+    @Nullable
+    private Memory memory;
+    private Hearing hearing = Hearing.SILENT;
+    private Senses senses = Senses.NONE;
+    @Nullable
+    private Verb verb;
+    private Intent intent = Intent.NONE;
+    private boolean hurtFlag;
+    private boolean hurtHard;
 
     public Aberrant(EntityType<? extends Aberrant> type, Level level) {
         super(type, level);
@@ -211,6 +248,7 @@ public class Aberrant extends Monster {
         builder.define(DATA_CLIP, "");
         builder.define(DATA_CLIP_SERIAL, 0);
         builder.define(DATA_NORMAL, (byte) Crawl.Normal.UP.ordinal());
+        builder.define(DATA_MODE, "");
     }
 
     /** effects: returns this creature's profile, or null before one is set or when the packs lost it */
@@ -399,7 +437,14 @@ public class Aberrant extends Monster {
             }
             return false;
         }
-        return super.hurt(source, (float) v.damage());
+        boolean landed = super.hurt(source, (float) v.damage());
+        if (landed) {
+            hurtFlag = true;
+            CreatureProfile p = profile();
+            double flinchAt = p != null && p.mind().isPresent() ? p.mind().get().tunable("flinch_at", FLINCH_AT) : FLINCH_AT;
+            hurtHard |= v.damage() >= flinchAt;
+        }
+        return landed;
     }
 
     @Override
@@ -521,12 +566,23 @@ public class Aberrant extends Monster {
      * is within reach of it
      */
     public void setCrawlTarget(Vec point, boolean dig, double speed) {
+        boolean same = target != null && target.minus(point).length() < SAME_TARGET && mayDig == dig;
         target = point;
         mayDig = dig;
         crawlSpeed = speed;
         crawlTicks = 0;
+        if (!same) {
+            path = null;
+            replanIn = 0;
+        }
+    }
+
+    /** effects: stops any scripted walk or burrow; the head holds where it is */
+    public void stopCrawl() {
+        target = null;
         path = null;
-        replanIn = 0;
+        crawlTicks = 0;
+        desired = Vec.ZERO;
     }
 
     /** effects: whether the server's digs are quiet (no particles, no game event) */
@@ -595,6 +651,7 @@ public class Aberrant extends Monster {
             Vec wish = wish(cells);
             Crawl.Step step = Crawl.step(cells, crawl, wish, wish.equals(Vec.ZERO) ? 0.0 : crawlSpeed, rules, mayDig);
             crawl = step.pose();
+            lastBlocked = step.blocked();
             if (step.digNeeded()) {
                 pendingDig = Crawl.section(crawl, rules);
                 if (!animator.busy()) {
@@ -706,6 +763,9 @@ public class Aberrant extends Monster {
         CreatureProfile p = profile();
         Body body = body();
         if (!level().isClientSide() && body != null && p != null) {
+            if (p.mind().isPresent() && !isNoAi()) {
+                think(p.mind().get());
+            }
             crawlTick(body, p);
         }
         double dx = getX() - xo, dy = getY() - yo, dz = getZ() - zo;
@@ -733,6 +793,94 @@ public class Aberrant extends Monster {
         for (String cue : animator.advance()) {
             onCue(cue);
         }
+    }
+
+    // --- the mind -------------------------------------------------------
+
+    /** effects: one tick of thought: the senses read, the tree decided, the verb begun, ticked or changed */
+    private void think(Tree tree) {
+        if (memory == null) {
+            memory = Memory.fresh(tree.start(), random.nextLong());
+            hearing = Hearing.seeded(random.nextLong());
+        }
+        if (tickCount % FORGET_EVERY == 0) {
+            hearing = hearing.forgotten(tickCount);
+        }
+        senses = SensesReader.read(this, tree);
+        Mind.Decision d = Mind.tick(tree, senses, memory);
+        memory = d.memory();
+        if (!memory.mode().equals(entityData.get(DATA_MODE))) {
+            entityData.set(DATA_MODE, memory.mode());
+        }
+        Intent next = d.intent();
+        if (!next.verb().equals(intent.verb())) {
+            if (verb != null) {
+                verb.end(this);
+            }
+            intent = next;
+            verb = next.isNone() ? null : Verbs.make(next.verb());
+            if (verb != null) {
+                verb.begin(this, intent);
+            }
+        } else {
+            intent = next;
+            if (verb != null) {
+                verb.tick(this, intent);
+            }
+        }
+    }
+
+    /** effects: returns the mind's memory as it stands, fresh in the tree's start mode before the first thought */
+    public Memory memory() {
+        if (memory == null) {
+            CreatureProfile p = profile();
+            memory = Memory.fresh(p != null && p.mind().isPresent() ? p.mind().get().start() : "", random.nextLong());
+        }
+        return memory;
+    }
+
+    /** effects: replaces the memory: what the senses noted */
+    public void remember(Memory m) {
+        memory = m;
+    }
+
+    /** effects: returns the mind's mode as synced, "" before it thinks */
+    public String mode() {
+        return entityData.get(DATA_MODE);
+    }
+
+    /** effects: returns the point sense named as read this tick, or null */
+    @Nullable
+    public Vec sense(String point) {
+        return senses.point(point);
+    }
+
+    /** effects: returns the verb under way, by name; "none" when nothing is */
+    public String verb() {
+        return intent.verb();
+    }
+
+    /** effects: returns whether the last crawl step was refused the way it wanted */
+    public boolean lastBlocked() {
+        return lastBlocked;
+    }
+
+    /** effects: returns and clears whether a blow landed since last asked, and whether a hard one did */
+    public boolean[] takeHurt() {
+        boolean[] out = {hurtFlag, hurtHard};
+        hurtFlag = false;
+        hurtHard = false;
+        return out;
+    }
+
+    /** effects: these ears hear {@code sound} from where the head is */
+    public void hear(Hearing.Sound sound) {
+        hearing = hearing.heard(sound, axis());
+    }
+
+    /** effects: returns the ears as they stand */
+    public Hearing hearing() {
+        return hearing;
     }
 
     // --- the feet -------------------------------------------------------
@@ -798,7 +946,7 @@ public class Aberrant extends Monster {
         lastCueTick = tickCount;
         if (FaceStealerClips.CUE_STRIKE.equals(cue) && pendingDig != null && level() instanceof ServerLevel server) {
             List<Cell> rock = Tunnel.rock(cells(), pendingDig);
-            blocksDug += DigWorld.dig(server, rock.size() > STRIKE_BUDGET ? rock.subList(0, STRIKE_BUDGET) : rock, !quiet);
+            blocksDug += DigWorld.dig(server, this, rock.size() > STRIKE_BUDGET ? rock.subList(0, STRIKE_BUDGET) : rock, !quiet);
             pendingDig = null;
         }
     }
@@ -816,6 +964,24 @@ public class Aberrant extends Monster {
             tag.putDouble("HeadingX", crawl.heading().x());
             tag.putDouble("HeadingY", crawl.heading().y());
             tag.putDouble("HeadingZ", crawl.heading().z());
+        }
+        if (memory != null) {
+            CompoundTag mind = new CompoundTag();
+            mind.putString("Mode", memory.mode());
+            mind.putLong("Seed", memory.seed());
+            CompoundTag timers = new CompoundTag();
+            memory.timers().forEach(timers::putInt);
+            mind.put("Timers", timers);
+            CompoundTag points = new CompoundTag();
+            memory.points().forEach((name, v) -> {
+                CompoundTag p = new CompoundTag();
+                p.putDouble("X", v.x());
+                p.putDouble("Y", v.y());
+                p.putDouble("Z", v.z());
+                points.put(name, p);
+            });
+            mind.put("Points", points);
+            tag.put("Mind", mind);
         }
     }
 
@@ -840,6 +1006,22 @@ public class Aberrant extends Monster {
                 crawl = new Crawl.Pose(axis(), h.normalized(), n);
                 entityData.set(DATA_NORMAL, (byte) n.ordinal());
             }
+        }
+        if (tag.contains("Mind")) {
+            CompoundTag mind = tag.getCompound("Mind");
+            Map<String, Integer> timers = new HashMap<>();
+            CompoundTag t = mind.getCompound("Timers");
+            for (String name : t.getAllKeys()) {
+                timers.put(name, Math.max(0, t.getInt(name)));
+            }
+            Map<String, Vec> points = new HashMap<>();
+            CompoundTag ps = mind.getCompound("Points");
+            for (String name : ps.getAllKeys()) {
+                CompoundTag p = ps.getCompound(name);
+                points.put(name, new Vec(p.getDouble("X"), p.getDouble("Y"), p.getDouble("Z")));
+            }
+            memory = new Memory(mind.getString("Mode"), timers, points, mind.getLong("Seed"));
+            entityData.set(DATA_MODE, memory.mode());
         }
     }
 

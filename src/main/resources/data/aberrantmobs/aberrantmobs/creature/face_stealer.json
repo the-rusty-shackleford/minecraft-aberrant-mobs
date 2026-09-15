@@ -18,5 +18,38 @@
   "stats": {
     "health": 84,
     "speed": 0.45
+  },
+  "mind": {
+    "start": "roam",
+    "tunables": {"sight": 40, "eye_cone_deg": 10, "face_cone_deg": 75, "memory": 600, "flinch_at": 10},
+    "modes": {
+      "roam": {"select": [
+        {"when": "hurt", "then": {"enter": "hunt"}},
+        {"when": "target.seen && target.distance < 40 && target.underground", "then": {"enter": "stalk"}},
+        {"when": "heard.any", "then": {"enter": "prowl"}},
+        {"act": "wander", "dig": true}]},
+      "prowl": {"select": [
+        {"when": "hurt", "then": {"enter": "hunt"}},
+        {"when": "target.seen && target.underground", "then": {"enter": "stalk"}},
+        {"when": "!heard.any || heard.age > 2400", "then": {"enter": "roam"}},
+        {"act": "approach", "target": "heard.bearing", "quiet": true, "dig": true}]},
+      "stalk": {"select": [
+        {"when": "hurt || target.eye_contact", "then": {"enter": "hunt"}},
+        {"when": "!target.known", "then": {"wait": "patience", "ticks": 1200, "then": {"enter": "roam"}}},
+        {"when": "target.in_sight && target.distance > 6", "then": {"act": "climb", "away_from": "target.look"}},
+        {"when": "target.distance < 4 && !target.in_sight", "then": {"act": "grab"}},
+        {"act": "approach", "target": "target.last_pos", "quiet": true, "dig": true}]},
+      "hunt": {"select": [
+        {"when": "grab.held", "then": {"cooldown": "bite", "ticks": 30, "then": {"act": "bite"}}},
+        {"when": "grab.survived", "then": {"sequence": [{"act": "release"}, {"timer": "no_bite", "set": 600}, {"enter": "flee"}]}},
+        {"when": "hurt_hard", "then": {"sequence": [{"act": "release"}, {"timer": "fled", "set": 40}, {"enter": "flee"}]}},
+        {"when": "target.distance < 2.5 && timer.no_bite == 0", "then": {"act": "grab"}},
+        {"when": "target.distance < 9 && target.in_sight && !on_wall && timer.no_bite == 0 && timer.pounced == 0", "then": {"sequence": [{"timer": "pounced", "set": 80}, {"act": "pounce"}]}},
+        {"when": "!target.known", "then": {"wait": "patience", "ticks": 200, "then": {"enter": "stalk"}}},
+        {"act": "chase"}]},
+      "flee": {"select": [
+        {"when": "timer.fled == 0 && !target.in_sight", "then": {"enter": "roam"}},
+        {"act": "flee"}]}
+    }
   }
 }
