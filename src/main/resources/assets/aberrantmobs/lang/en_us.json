@@ -16,5 +16,9 @@
   "subtitles.aberrantmobs.bite": "Bones crunch",
   "subtitles.aberrantmobs.crack": "Carapace cracks",
   "subtitles.aberrantmobs.death": "Face-Stealer dies",
-  "subtitles.aberrantmobs.breath": "Something breathes"
+  "subtitles.aberrantmobs.breath": "Something breathes",
+  "item.aberrantmobs.chitin_helmet": "Chitin Helmet",
+  "item.aberrantmobs.chitin_chestplate": "Chitin Chestplate",
+  "item.aberrantmobs.chitin_leggings": "Chitin Leggings",
+  "item.aberrantmobs.chitin_boots": "Chitin Boots"
 }

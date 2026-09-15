@@ -302,7 +302,15 @@ public final class FaceStealerGameTests {
         });
     }
 
+    /** effects: takes away every player another test left near this one's arena, so a minded creature sees only its own */
+    private static void clearPlayers(GameTestHelper helper) {
+        for (net.minecraft.world.entity.player.Player p : helper.getLevel().getEntities(net.minecraft.world.level.entity.EntityTypeTest.forClass(net.minecraft.world.entity.player.Player.class), helper.getBounds().inflate(96), e -> true)) {
+            p.discard();
+        }
+    }
+
     private static Aberrant minded(GameTestHelper helper, double x, double z, float yaw) {
+        clearPlayers(helper);
         Vec3 at = helper.absoluteVec(new Vec3(x, FLOOR, z));
         Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, yaw);
         helper.assertTrue(a != null, "the creature is made");

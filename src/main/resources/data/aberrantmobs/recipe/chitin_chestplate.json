@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "C C",
+    "CXC",
+    "CCC"
+  ],
+  "key": {
+    "C": {
+      "item": "aberrantmobs:chitin"
+    },
+    "X": {
+      "item": "aberrantmobs:cracked_carapace"
+    }
+  },
+  "result": {
+    "id": "aberrantmobs:chitin_chestplate",
+    "count": 1
+  }
+}

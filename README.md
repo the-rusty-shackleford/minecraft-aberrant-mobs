@@ -13,8 +13,11 @@ its crack glows, its attack animations play on the server's say, it crawls over 
 walls and ceilings, digs its way to a point through rock, coils and pounces, thinks (a
 decision tree in its profile over what it senses and hears, driving verbs in Java),
 grabs, bites, wears the face of its last victim, spawns in the rock beside deep dark
-caves, drops chitin and its cracked plate, and sounds like what it is. The armour its
-chitin makes is phase 7.
+caves, drops chitin and its cracked plate, and sounds like what it is; and its chitin
+makes an armour whose full set walks on walls and ceilings as if they were ground. This
+is phase 7 of 7; what the plan left for its phase C (knockback and projectiles into the
+wearer's frame, block placement facing on a wall, the shadow) is listed under Next in
+`knowledge/PROJECT.md`.
 
 ## A creature
 
@@ -115,6 +118,37 @@ Its sounds are cut by the same script from CC0 recordings on freesound.org, cred
 the hiss of the coil, the screech of the pounce, the pincers meeting, the crunch of the
 bite, the crack of its plating giving, the scrape of the dig (quiet or loud), and its
 death. The plating's clang is the anvil.
+
+## The chitin armour
+
+Chitin makes a set (`chitin_helmet`, `chitin_chestplate` -- with the Cracked Carapace at
+its heart -- `chitin_leggings`, `chitin_boots`; netherite's plating, mended with chitin).
+Worn whole, it lets the wearer walk on walls and ceilings as if they were ground: not a
+climbing trick but a change of down. A wearer has a *frame* (`domain/frame`): one of six
+axis gravities, with right, up and forward axes in the world; its motion, its look and
+its box are reckoned in those axes and turned to the world's by the mixins on the
+entity (`mixin/EntityMixin`: the box is the axis swap with the feet on the gravity face,
+the eyes are up along the frame, the view vector is the local look turned to the world,
+the move collides the frame's up axis first and steps up along it, the supporting block
+is under the frame's feet), while `travel` keeps working in the wearer's own axes --
+gravity along its down, a jump along its up, friction on its floor -- and only its move
+into the world is turned (`mixin/LivingEntityMixin`). Walking into a sturdy wall hard
+enough takes it (`Transition.intoWall`: the wall becomes the floor, the feet on its face,
+if the wearer's box fits there); walking off an edge wraps onto the ledge's face
+(`Transition.overEdge`); taking the set off, water, lava, flying, riding, gliding,
+sleeping or spectating lets go to the world's own down by the least way out that fits
+(`Transition.release`). The server decides every tick after the player moved
+(`wallwalk/WallWalk` on `PlayerTickEvent.Post`, the pure rules over
+`level.noCollision`); the client runs the same rule on its own player a tick ahead, so
+the two agree within the game's tolerance and no packet is added -- the frame rides the
+player's synced data as one byte (`mixin/PlayerMixin`). The server's fall check on a
+reported move reads the fall along the wearer's down (`mixin/ServerPlayerMixin`). On the
+client the camera sits at the wearer's eyes (`mixin/CameraMixin`), its angles are the
+frame's rotation composed with the look and handed back as yaw, pitch and roll
+(`client/WallWalkClient` on `ComputeCameraAngles`), a change of frame swinging over six
+eased ticks (`Blend`), and a wearer's model stands along its frame
+(`mixin/LivingEntityRendererMixin`). Anyone not in the set runs the game's code
+untouched: every hook returns at once for the world's frame.
 
 ## The ears
 
@@ -246,15 +280,18 @@ ceiling, dig it a coherent tunnel round bedrock to a target, land its pounce, an
 its mind on, prowl toward a distant step, hear a block break through the world, stalk a
 player seen underground out of their view and hunt them on eye contact, hold a player at
 the maw and devour them, spare a blessed one and flee, coil and pounce, refuse a lit
-surface and take a dark chimney by thick rock to bore its pocket, and drop its loot. The booth (`Xephyr :7 -screen 1280x720
+surface and take a dark chimney by thick rock to bore its pocket, and drop its loot; and a
+player in the full chitin set walked into a wall takes it, climbs it, lets go without the
+helmet and lands, lets go in water, while the undressed stop at the wall. The booth (`Xephyr :7 -screen 1280x720
 -ac -br -noreset`, then `DISPLAY=:7 __GLX_VENDOR_LIBRARY_NAME=mesa
 LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe MESA_GL_VERSION_OVERRIDE=4.6
 MESA_GLSL_VERSION_OVERRIDE=460 ./gradlew runPhotoBooth`) checks every sound event
 resolves and photographs the creature from
 the side, the front quarter and up close, walking from the side and from above, each
 clip at its key frames, wearing the booth player's face, holding them at its maw (from
-their own eyes), climbing a wall and digging into a hill, silent from its first tick; its
-`booth: PASS/FAIL` lines are the assertion, and the frames are looked at.
+their own eyes), climbing a wall and digging into a hill, and the booth player in the
+chitin set standing on a wall from its own eyes and from behind, silent from its first
+tick; its `booth: PASS/FAIL` lines are the assertion, and the frames are looked at.
 
 ## Licence
 

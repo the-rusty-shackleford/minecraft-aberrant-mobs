@@ -24,7 +24,10 @@ import net.neoforged.neoforge.event.entity.EntityMountEvent;
 /**
  * The pincers' grip: a creature holding someone does not let them climb
  * off. A dismount from a creature that is holding is refused unless the
- * creature itself is letting go.
+ * creature itself is letting go. The server alone enforces it: a client
+ * only mirrors what the server says, and its passenger update can arrive
+ * a packet before the held flag drops, so a client that enforced too would
+ * refuse its own release and ride forever.
  */
 @EventBusSubscriber(modid = AberrantMobsMod.MOD_ID)
 public final class Grip {
@@ -32,6 +35,9 @@ public final class Grip {
 
     @SubscribeEvent
     public static void onMount(EntityMountEvent event) {
+        if (event.getLevel().isClientSide()) {
+            return;
+        }
         if (event.isDismounting() && event.getEntityBeingMounted() instanceof Aberrant a && a.holding() && !a.releasing()) {
             event.setCanceled(true);
         }

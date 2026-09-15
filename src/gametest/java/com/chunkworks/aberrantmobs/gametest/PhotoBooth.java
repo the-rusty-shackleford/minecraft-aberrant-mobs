@@ -330,6 +330,37 @@ public final class PhotoBooth {
             shoot(mc, "booth-dig-2");
             onServer(mc, sp -> onCreature(sp, a -> verdict("it dug its way in", () -> a.blocksDug() > 20 ? null : "dug " + a.blocksDug() + " blocks, at x " + a.getX())));
         }));
+        // The chitin armour: the booth player in the full set, set down before a wall and walked into it;
+        // from its own eyes the world rolls, from behind it stands on the wall.
+        s.add(new Step(t += 20, () -> onServer(mc, sp -> onCreature(sp, a -> {
+            double y = sp.serverLevel().getMinBuildHeight() + 4;
+            double px = Math.floor(a.getX()) + 30.0;
+            int wx = (int) px + 6;
+            fill(sp, wx, (int) y, (int) Z - 5, wx + 3, (int) y + 8, (int) Z + 5, Blocks.STONE);
+            sp.setItemSlot(net.minecraft.world.entity.EquipmentSlot.HEAD, new net.minecraft.world.item.ItemStack(com.chunkworks.aberrantmobs.ModContent.CHITIN_HELMET.get()));
+            sp.setItemSlot(net.minecraft.world.entity.EquipmentSlot.CHEST, new net.minecraft.world.item.ItemStack(com.chunkworks.aberrantmobs.ModContent.CHITIN_CHESTPLATE.get()));
+            sp.setItemSlot(net.minecraft.world.entity.EquipmentSlot.LEGS, new net.minecraft.world.item.ItemStack(com.chunkworks.aberrantmobs.ModContent.CHITIN_LEGGINGS.get()));
+            sp.setItemSlot(net.minecraft.world.entity.EquipmentSlot.FEET, new net.minecraft.world.item.ItemStack(com.chunkworks.aberrantmobs.ModContent.CHITIN_BOOTS.get()));
+            sp.getAbilities().flying = false;
+            sp.onUpdateAbilities();
+            sp.teleportTo(sp.serverLevel(), px, y, Z, -90.0f, 0.0f);
+        }))));
+        s.add(new Step(t += 3, () -> verdict("the client was let go of the maw", () -> mc.player != null && !mc.player.isPassenger() ? null : "the client still rides " + (mc.player == null ? null : mc.player.getVehicle()))));
+        // The client walks: its forward key held, it goes east into the wall and predicts the change of down itself,
+        // the server agreeing from the moves it reports.
+        s.add(new Step(t += 4, () -> mc.options.keyUp.setDown(true)));
+        s.add(new Step(t += 50, () -> mc.options.keyUp.setDown(false)));
+        s.add(new Step(t += 6, () -> {
+            shoot(mc, "booth-wallwalk-eyes");
+            verdict("the client stands on the wall", () -> mc.player != null && com.chunkworks.aberrantmobs.wallwalk.WallWalk.frameOf(mc.player).gravity() == com.chunkworks.aberrantmobs.domain.frame.Gravity.EAST
+                    ? null : "the client's gravity is " + (mc.player == null ? null : com.chunkworks.aberrantmobs.wallwalk.WallWalk.frameOf(mc.player).gravity()));
+            // From the front: the camera backs off along the look, which on a wall is up it and into open air.
+            mc.options.setCameraType(net.minecraft.client.CameraType.THIRD_PERSON_FRONT);
+        }));
+        s.add(new Step(t += 6, () -> {
+            shoot(mc, "booth-wallwalk-third");
+            mc.options.setCameraType(net.minecraft.client.CameraType.FIRST_PERSON);
+        }));
         s.add(new Step(t += 10, () -> {
             LOG.info("booth: PASS all checks ran");
             phase = Phase.DONE;

@@ -19,13 +19,19 @@ package com.chunkworks.aberrantmobs;
 
 import com.chunkworks.aberrantmobs.api.AberrantMobs;
 import net.minecraft.core.registries.Registries;
+import java.util.List;
+import java.util.Map;
 import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.entity.monster.Monster;
+import net.minecraft.world.item.ArmorItem;
+import net.minecraft.world.item.ArmorMaterial;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Rarity;
+import net.minecraft.world.item.crafting.Ingredient;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
 import net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent;
@@ -45,6 +51,7 @@ public final class ModContent {
     private static final DeferredRegister<EntityType<?>> ENTITIES = DeferredRegister.create(Registries.ENTITY_TYPE, AberrantMobs.NAMESPACE);
     private static final DeferredRegister.Items ITEMS = DeferredRegister.createItems(AberrantMobs.NAMESPACE);
     private static final DeferredRegister<SoundEvent> SOUNDS = DeferredRegister.create(Registries.SOUND_EVENT, AberrantMobs.NAMESPACE);
+    private static final DeferredRegister<ArmorMaterial> ARMOR = DeferredRegister.create(Registries.ARMOR_MATERIAL, AberrantMobs.NAMESPACE);
 
     /**
      * Every creature is this one entity type, sized and skinned by its
@@ -57,6 +64,19 @@ public final class ModContent {
     public static final DeferredItem<Item> CHITIN = ITEMS.registerSimpleItem("chitin");
     public static final DeferredItem<Item> CRACKED_CARAPACE = ITEMS.registerSimpleItem("cracked_carapace", new Item.Properties().rarity(Rarity.RARE));
     public static final DeferredItem<Item> STOLEN_FACE = ITEMS.registerItem("stolen_face", StolenFaceItem::new, new Item.Properties().rarity(Rarity.EPIC).stacksTo(1));
+
+    /** Chitin: netherite's plating and a tenth of a knockback resistance, mended with chitin; the full set walks on walls. */
+    public static final DeferredHolder<ArmorMaterial, ArmorMaterial> CHITIN_MATERIAL = ARMOR.register("chitin", () -> new ArmorMaterial(
+            Map.of(ArmorItem.Type.HELMET, 3, ArmorItem.Type.CHESTPLATE, 8, ArmorItem.Type.LEGGINGS, 6, ArmorItem.Type.BOOTS, 3, ArmorItem.Type.BODY, 11),
+            15, SoundEvents.ARMOR_EQUIP_NETHERITE, () -> Ingredient.of(CHITIN.get()), List.of(new ArmorMaterial.Layer(AberrantMobs.id("chitin"))), 2.0f, 0.1f));
+    public static final DeferredItem<ArmorItem> CHITIN_HELMET = armour("chitin_helmet", ArmorItem.Type.HELMET);
+    public static final DeferredItem<ArmorItem> CHITIN_CHESTPLATE = armour("chitin_chestplate", ArmorItem.Type.CHESTPLATE);
+    public static final DeferredItem<ArmorItem> CHITIN_LEGGINGS = armour("chitin_leggings", ArmorItem.Type.LEGGINGS);
+    public static final DeferredItem<ArmorItem> CHITIN_BOOTS = armour("chitin_boots", ArmorItem.Type.BOOTS);
+
+    private static DeferredItem<ArmorItem> armour(String name, ArmorItem.Type type) {
+        return ITEMS.registerItem(name, p -> new ArmorItem(CHITIN_MATERIAL, type, p), new Item.Properties().rarity(Rarity.RARE).durability(type.getDurability(37)));
+    }
 
     public static final DeferredHolder<SoundEvent, SoundEvent> SKITTER = sound("skitter");
     public static final DeferredHolder<SoundEvent, SoundEvent> DIG_LOUD = sound("dig_loud");
@@ -76,6 +96,7 @@ public final class ModContent {
 
     static void register(IEventBus modBus) {
         ENTITIES.register(modBus);
+        ARMOR.register(modBus);
         ITEMS.register(modBus);
         SOUNDS.register(modBus);
         modBus.addListener((EntityAttributeCreationEvent event) -> event.put(ABERRANT.get(), Monster.createMonsterAttributes().build()));
@@ -85,6 +106,12 @@ public final class ModContent {
                 event.accept(CHITIN);
                 event.accept(CRACKED_CARAPACE);
                 event.accept(STOLEN_FACE);
+            }
+            if (event.getTabKey().equals(CreativeModeTabs.COMBAT)) {
+                event.accept(CHITIN_HELMET);
+                event.accept(CHITIN_CHESTPLATE);
+                event.accept(CHITIN_LEGGINGS);
+                event.accept(CHITIN_BOOTS);
             }
         });
     }

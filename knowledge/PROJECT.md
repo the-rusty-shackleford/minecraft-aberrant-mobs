@@ -107,10 +107,32 @@ the body goes. Items chitin, cracked_carapace, stolen_face with icons drawn by
 quiet / 1.0 loud, breath when still, and on the cues click, hiss, screech, grab, bite,
 crack, dig loud/quiet; death as the death sound; the clang stays vanilla's anvil.
 
+Phase 7 (built; the plan's phases A and B, with the edge wrap of C): the chitin armour.
+`domain/frame`: `Gravity` (six axis directions), `Frame` (right, up, forward per gravity;
+local/world; the box as an axis swap with the feet on the gravity face; the eye; the
+rotation; a byte code), `CameraAngles` (yaw/pitch/roll to a quaternion and back, gimbal
+rows included), `Transition` (into a wall when pushing at 0.02+ and the box fits; over
+an edge onto the ledge's face; release to the world's down by the least way out), `Blend`
+(an eased slerp over six ticks). Main: `ModContent` chitin material (netherite's plating,
+mended with chitin) and four pieces (recipes from chitin, the chestplate with the cracked
+carapace), `wallwalk/FrameCarrier` (on Player by mixin: one synced byte for the frame,
+the last wall and move tried, the blend), `WallWalk` (the rule on `PlayerTickEvent.Post`
+on the server and the local client alike: wearing the full set and not in water, flying,
+riding, gliding, asleep or a spectator; into-wall, over-edge, let-go), `WallWalkMove`
+(the game's move with the frame's up as its vertical: axis-ordered collision, a step up
+along the frame's up, flags, ground, fall and velocity in the frame, the wall recorded
+for the rule). Mixins: Entity (box, eye, eye position, view vector, move, supporting
+block, on-pos), LivingEntity (travel's move calls turned local to world), Player (the
+carrier), ServerPlayer (the fall check along the frame), LocalPlayer (no nudge out of
+edges), Camera (the eye), LivingEntityRenderer (the model stands along the frame); the
+camera angles event composes the frame's blend with the look and hands back yaw, pitch
+and roll. Not built (plan phase C beyond the edge): knockback and projectiles into the
+frame, placement facing, the shadow and nameplate.
+
 ## How it is verified
 
-`./gradlew test` (93 JUnit tests, the reader proved against the saved file),
-`runGameTestServer` (17 gametests: the profile and the creature, the parts along the body
+`./gradlew test` (100 JUnit tests, the reader proved against the saved file),
+`runGameTestServer` (19 gametests: the profile and the creature, the parts along the body
 after a walk, only the crack takes a blow, most feet on the floor mid-walk, a clip's
 cues on their ticks, a scripted walk, floor-wall-ceiling, a coherent tunnel round
 bedrock to a target, a pounce landing where aimed, a distant step → prowl toward a vague
@@ -119,10 +141,13 @@ underground → stalk out of view → eye contact → hunt, the grab holds at th
 bite devours and takes the face, a blessed player survives and is let go and it flees,
 hunting in sight it coils then pounces, the spawn rules refuse the lit surface and
 accept a dark chimney by thick rock where it bores its pocket, killed it drops chitin
-and its plate and experience), `runPhotoBooth` (32 checks: every sound event resolves, side,
+and its plate and experience, a full set walked into a wall takes it and climbs and lets
+go without the helmet and lands, water lets go and the undressed stop at the wall),
+`runPhotoBooth` (33 checks: every sound event resolves, side,
 quarter, face, a walking strip, from above, each clip playing on the client at its key
 frames, drawn after the death, the stolen face known to the client, the client held at
-the maw, on the wall, dug in). The booth world is normal difficulty with spawning off: a
+the maw, on the wall, dug in, the client in the chitin set standing on a wall from its
+own eyes and from behind). The booth world is normal difficulty with spawning off: a
 monster is discarded in peaceful.
 
 ## Decisions
@@ -131,8 +156,10 @@ See `decisions/`.
 
 ## Next
 
-Phase 7, the chitin armour: gravity in six directions (`frame/*`: Gravity, Frame, Look,
-CameraAngles, Transition, Blend), the server's rule on `PlayerTickEvent.Post`, the
-client's blend, mixins on move/collide/box/eye/camera/model, recipes from chitin and the
-cracked carapace. Before it: a playtest through real caves for the dread (distance cues,
-the first sight, a chase), read from the log then the frames.
+Rusty's vetting of the whole, then a GitHub remote and a release on their go. Open: a
+playtest through real caves for the dread (distance cues, the first sight, a chase),
+read from the log then the frames; the armour's phase C (knockback and projectiles into
+the frame, placement facing on a wall, the shadow and nameplate, and the third-person
+back camera: on a wall it backs off down into the ground and the game's clip parks it on
+the surface, so the booth uses the front camera); the wall-walk under Iris in the booth
+from a second client; the eye-contact gaze (eight of ten ticks) the plan sketched.

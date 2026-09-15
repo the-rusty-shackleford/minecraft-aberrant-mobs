@@ -16,3 +16,4 @@ type: index
 | D-0006 | The bite passes through the damage pipeline, finite, so miracles and totems work |
 | D-0007 | The face is the last victim's profile, worn on the mask |
 | D-0008 | It spawns in the rock beside deep dark caves and persists once it knows you; sounds are CC0 recordings, nothing added |
+| D-0009 | Gravity in six directions: the server's rule, the client's blend, the entity's motion in its own frame |

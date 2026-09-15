@@ -16,6 +16,9 @@ digging, stalking, grabbing and biting its verbs do, and what it drops. The
 first creature is the Face-Stealer.
 '''
 
+[[mixins]]
+config="aberrantmobs.mixins.json"
+
 [[dependencies.${mod_id}]]
     modId="neoforge"
     type="required"

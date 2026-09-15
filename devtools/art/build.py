@@ -88,7 +88,61 @@ def stolen_face():
     return px
 
 
-ICONS = {"chitin": chitin, "cracked_carapace": cracked_carapace, "stolen_face": stolen_face}
+def armour_icon(kind: str):
+    """A piece of chitin armour as an icon: the plate's colours in the piece's silhouette."""
+    px = blank()
+    shape = {
+        "helmet": [(4, 3, 11, 3), (3, 4, 12, 8), (3, 9, 5, 11), (10, 9, 12, 11)],
+        "chestplate": [(2, 3, 5, 5), (10, 3, 13, 5), (3, 5, 12, 13), (5, 2, 10, 3)],
+        "leggings": [(3, 2, 12, 5), (3, 5, 7, 13), (8, 5, 12, 13)],
+        "boots": [(3, 6, 6, 12), (9, 6, 12, 12), (2, 12, 7, 13), (8, 12, 13, 13)],
+    }[kind]
+    for x0, y0, x1, y1 in shape:
+        for y in range(y0, y1 + 1):
+            for x in range(x0, x1 + 1):
+                px[y][x] = PLATE
+    for x0, y0, x1, y1 in shape:
+        for x in range(x0, x1 + 1):
+            px[y0][x] = PLATE_LIGHT
+            px[y1][x] = PLATE_DARK
+    if kind == "chestplate":
+        for x, y in [(7, 8), (8, 8), (7, 9), (8, 9)]:
+            px[y][x] = EMBER
+    return px
+
+
+ICONS = {"chitin": chitin, "cracked_carapace": cracked_carapace, "stolen_face": stolen_face,
+         "chitin_helmet": lambda: armour_icon("helmet"), "chitin_chestplate": lambda: armour_icon("chestplate"),
+         "chitin_leggings": lambda: armour_icon("leggings"), "chitin_boots": lambda: armour_icon("boots")}
+
+
+def armour_layer(layer: int):
+    """A 64 by 32 armour layer in the game's layout: layer 1 carries the helmet, the chest and the boots,
+    layer 2 the leggings, each box's faces filled with the plate's colours, a lit top row and a dark bottom
+    row per box so the plating reads as plates. Transparent elsewhere."""
+    px = [[CLEAR for _ in range(64)] for _ in range(32)]
+
+    def box(u, v, w, h, d):
+        # The game's box UV: top/bottom at (u+d, v), sides in a strip at (u, v+d) of height h.
+        for y in range(v, v + d):
+            for x in range(u + d, u + d + 2 * w):
+                px[y][x] = PLATE_LIGHT if x < u + d + w else PLATE_DARK
+        for y in range(v + d, v + d + h):
+            for x in range(u, u + 2 * d + 2 * w):
+                px[y][x] = PLATE_LIGHT if y == v + d else PLATE_DARK if y == v + d + h - 1 else PLATE
+
+    if layer == 1:
+        box(0, 0, 8, 8, 8)      # the head
+        box(16, 16, 8, 12, 4)   # the body
+        box(40, 16, 4, 12, 4)   # the right arm
+        box(0, 16, 4, 12, 4)    # the right leg (the boots draw its lower part)
+    else:
+        box(16, 16, 8, 12, 4)   # the body (the belt)
+        box(0, 16, 4, 12, 4)    # the legs
+    return px
+
+
+LAYERS = {"chitin_layer_1": lambda: armour_layer(1), "chitin_layer_2": lambda: armour_layer(2)}
 
 # ---------------------------------------------------------------- sounds
 
@@ -172,7 +226,9 @@ def main(argv) -> None:
     if "icons" in want:
         for name, draw in ICONS.items():
             write_png(ASSETS / f"textures/item/{name}.png", 16, 16, draw())
-        print("wrote the icons")
+        for name, draw in LAYERS.items():
+            write_png(ASSETS / f"textures/models/armor/{name}.png", 64, 32, draw())
+        print("wrote the icons and the armour layers")
     if "sounds" in want:
         for name, build in SOUNDS.items():
             write_ogg(ASSETS / f"sounds/{name}.ogg", build())
