@@ -1,0 +1,233 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'net.neoforged.moddev' version '2.0.144'
+    id 'idea'
+}
+
+version = mod_version
+group = mod_group_id
+
+base {
+    archivesName = mod_id
+}
+
+// Mojang ships Java 21 to end users in 1.21.1, so mods must target Java 21.
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+repositories {
+    mavenCentral()
+    mavenLocal()
+}
+
+// Three layers, one direction of dependency:
+//
+//   domain   <--  main (adapters)  <--  gametest (a real server, the booth)
+//     ^
+//     +----  test (plain JUnit; no Minecraft on its classpath at all)
+//
+// `domain` is the pure layer: the decisions this mod makes -- how a rig
+// stands, how a body follows its head, what a mind decides of its senses,
+// how a crawler keeps to a surface, what a bite is -- over plain numbers.
+// It is compiled against nothing but the JDK, so a `net.minecraft` import
+// there is a compile error rather than something a reviewer has to catch.
+// `gametest` is the only source set besides `main` that receives the
+// modding dependencies; `test` never does.
+sourceSets {
+    domain
+    gametest
+}
+
+var copyGameTestStructures = tasks.register("copyGameTestStructures", Copy) {
+    from "devtools/gameteststructures"
+    into "run/gameteststructures"
+}
+
+// The booth has its own game directory, run/booth: a flat world of its own,
+// the creature summoned into a cave it digs, photographed. Only the old
+// photos and the save are cleared.
+var prepareBooth = tasks.register("prepareBooth") {
+    def booth = layout.projectDirectory.dir('run/booth').asFile
+    outputs.upToDateWhen { false }
+    doLast {
+        new File(booth, 'screenshots').deleteDir()
+        new File(booth, 'saves').deleteDir()
+        def options = new File(booth, 'options.txt')
+        if (!options.exists()) {
+            booth.mkdirs()
+            options.text = "onboardAccessibility:false\nnarrator:0\n"
+        }
+    }
+}
+
+neoForge {
+    version = project.neo_version
+
+    accessTransformers {
+        from('src/main/resources/META-INF/accesstransformer.cfg')
+    }
+
+    parchment {
+        mappingsVersion = project.parchment_mappings_version
+        minecraftVersion = project.parchment_minecraft_version
+    }
+
+    runs {
+        client {
+            client()
+        }
+        server {
+            server()
+            programArgument '--nogui'
+        }
+        gameTestServer {
+            type = "gameTestServer"
+            sourceSet = sourceSets.gametest
+            systemProperty 'neoforge.enabledGameTestNamespaces', mod_id
+            taskBefore copyGameTestStructures
+        }
+        photoBooth {
+            client()
+            sourceSet = sourceSets.gametest
+            gameDirectory = file('run/booth')
+            systemProperty 'aberrantmobs.photobooth', 'true'
+            taskBefore prepareBooth
+        }
+        configureEach {
+            logLevel = org.slf4j.event.Level.DEBUG
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet(sourceSets.domain)
+            sourceSet(sourceSets.main)
+        }
+        "${mod_id}_gametest" {
+            sourceSet(sourceSets.gametest)
+        }
+    }
+
+    // Deliberately not `domain` and not `test` -- see the layering comment.
+    addModdingDependenciesTo(sourceSets.gametest)
+}
+
+neoForge.runs.matching { it.name != 'gameTestServer' && it.name != 'photoBooth' }.configureEach {
+    loadedMods = neoForge.mods.matching { it.name != "${mod_id}_gametest" }
+}
+
+configurations {
+    gametestImplementation.extendsFrom implementation
+    gametestRuntimeOnly.extendsFrom runtimeOnly
+}
+
+dependencies {
+    implementation sourceSets.domain.output
+
+    gametestImplementation sourceSets.main.output
+    gametestImplementation sourceSets.domain.output
+
+    // Plain JUnit 5 against the pure layer only. Gradle 9 no longer injects
+    // the platform launcher, so it is declared.
+    testImplementation sourceSets.domain.output
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.2'
+    testRuntimeOnly    'org.junit.jupiter:junit-jupiter-engine:5.9.2'
+    testRuntimeOnly    'org.junit.platform:junit-platform-launcher:1.9.2'
+}
+
+tasks.named('test', Test) {
+    // Gradle enables -ea for Test tasks by default; the domain layer's rep
+    // invariants are `assert`s and rely on it.
+    useJUnitPlatform()
+}
+
+// The shipped jar is main + domain. gametest is never shipped.
+jar {
+    from sourceSets.domain.output
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+        }
+    }
+}
+
+// The gametest server's exit code is the number of failed *required* tests,
+// which is also zero when no test ran at all. The assertion is the
+// framework's own summary line in the log. `check` runs the gate unless
+// asked not to (`-PskipGameTests`).
+tasks.named('runGameTestServer') { task ->
+    def logFile = layout.projectDirectory.file('run/logs/latest.log').asFile
+    task.doLast {
+        def text = logFile.exists() ? logFile.text : ''
+        if (text =~ /Missing or unsupported mandatory|Mod loading has failed/) {
+            throw new GradleException("gametest: the loader refused a mod; see ${logFile}")
+        }
+        def passed = (text =~ /All (\d+) required tests passed/)
+        if (!passed.find()) {
+            throw new GradleException("gametest: no 'required tests passed' line in ${logFile}")
+        }
+        task.logger.lifecycle("gametest: all ${passed.group(1)} required tests passed")
+    }
+}
+if (!project.hasProperty('skipGameTests')) {
+    tasks.named('check') {
+        dependsOn 'runGameTestServer'
+    }
+}
+
+// The booth's verdict lines are the assertion. It needs a display, so
+// `check` runs it after the gametest server unless asked not to (`-PskipBooth`).
+tasks.named('runPhotoBooth') { task ->
+    def logFile = layout.projectDirectory.file('run/booth/logs/latest.log').asFile
+    task.doLast {
+        def text = logFile.exists() ? logFile.text : ''
+        if (text =~ /Missing or unsupported mandatory|Mod loading has failed/) {
+            throw new GradleException("booth: the loader refused a mod; see ${logFile}")
+        }
+        def failures = text.readLines().findAll { it.contains('booth: FAIL') }
+        if (!failures.isEmpty()) {
+            throw new GradleException("booth: ${failures.size()} failed check(s):\n" + failures.join('\n'))
+        }
+        if (!(text =~ /booth: PASS/)) {
+            throw new GradleException("booth: no verdict in ${logFile} -- the booth never ran")
+        }
+        task.logger.lifecycle("booth: " + (text =~ /booth: PASS.*/)[0])
+    }
+}
+if (!project.hasProperty('skipBooth') && !project.hasProperty('skipGameTests')) {
+    tasks.named('runPhotoBooth') { mustRunAfter 'runGameTestServer' }
+    tasks.named('check') { dependsOn 'runPhotoBooth' }
+}
+
+var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {
+    var replaceProperties = [
+            minecraft_version      : minecraft_version,
+            minecraft_version_range: minecraft_version_range,
+            neo_version            : neo_version,
+            loader_version_range   : loader_version_range,
+            mod_id                 : mod_id,
+            mod_name               : mod_name,
+            mod_license            : mod_license,
+            mod_version            : mod_version,
+    ]
+    inputs.properties replaceProperties
+    expand replaceProperties
+    from "src/main/templates"
+    into "build/generated/sources/modMetadata"
+}
+sourceSets.main.resources.srcDir generateModMetadata
+neoForge.ideSyncTask generateModMetadata
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+idea {
+    module {
+        downloadSources = true
+        downloadJavadoc = true
+    }
+}

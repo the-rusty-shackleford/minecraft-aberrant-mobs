@@ -1,0 +1,13 @@
+{
+  "model": "aberrantmobs:face_stealer",
+  "scale": 0.0625,
+  "body": {
+    "width": 2.5,
+    "height": 2.5,
+    "eye_height": 1.6
+  },
+  "stats": {
+    "health": 84,
+    "speed": 0.45
+  }
+}

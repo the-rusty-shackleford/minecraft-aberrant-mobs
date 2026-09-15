@@ -1,0 +1,17 @@
+# The gametests and the photo booth, as a mod of their own; never shipped.
+modLoader="javafml"
+loaderVersion="[1,)"
+license="AGPL-3.0-or-later"
+
+[[mods]]
+modId="aberrantmobs_gametest"
+version="1.0.0"
+displayName="Aberrant Mobs gametests"
+description='''The gametests and the photo booth.'''
+
+[[dependencies.aberrantmobs_gametest]]
+    modId="aberrantmobs"
+    type="required"
+    versionRange="[0.1,)"
+    ordering="AFTER"
+    side="BOTH"

@@ -1,0 +1,5 @@
+{
+  "entity.aberrantmobs.aberrant": "Aberrant",
+  "creature.aberrantmobs.face_stealer": "Face-Stealer",
+  "death.attack.devoured": "%1$s was devoured by the Face-Stealer"
+}
