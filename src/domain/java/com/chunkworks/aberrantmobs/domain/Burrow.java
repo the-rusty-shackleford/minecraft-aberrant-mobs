@@ -25,11 +25,16 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * A way through rock and air: A* over cells, six-connected, air cheap,
- * air with no face to cling to dearer, rock at the cost of digging it,
- * hard cells and fluid never -- nor rock beside them, so the bore that
- * follows the way never breaches them. Bounded by a budget of expansions,
- * so a hopeless search ends. Pure.
+ * A way through rock and air for a body ({@link Crawl.Rules}): A* over
+ * cells, six-connected, air within the body's hold of a face cheap (a
+ * face within {@link Crawl.Rules#hold} cells along an axis: where the
+ * head's axis can ride, so a bore wider than three is planned down its
+ * middle and not along its walls), air with none dearer, rock at the cost
+ * of digging it, hard cells and fluid never -- nor rock within the body's
+ * margin of them (the cells its bore reaches out from the way,
+ * {@link Crawl.Rules#margin}), so the bore that follows the way never
+ * breaches them. Bounded by a budget of expansions, so a hopeless search
+ * ends. Pure.
  *
  * <p>Three things keep a plan cheap. The heuristic knows how deep in rock
  * the target lies ({@link #rockDepth}): every way in must cross that many
@@ -73,12 +78,16 @@ public final class Burrow {
     /**
      * requires: {@code budget > 0}
      * effects: returns the cheapest path of cells from {@code from} to
-     * {@code to} inclusive under {@code costs} (the start cell costs
-     * nothing whatever it is), or nothing when none exists or the search
-     * spends more than {@code budget} expansions
+     * {@code to} inclusive under {@code costs} for a body of {@code rules}
+     * (the start cell costs nothing whatever it is): air with a face
+     * within the body's hold at the air cost, air with none at the
+     * unsupported cost, rock at the rock cost, and every rock cell of it
+     * the body's margin or more, in every direction, from anything hard
+     * or wet; or nothing when none exists or the search spends more than
+     * {@code budget} expansions
      */
-    public static Optional<List<Cell>> plan(Cells cells, Cell from, Cell to, Costs costs, int budget) {
-        return search(cells, from, to, costs, budget, false);
+    public static Optional<List<Cell>> plan(Cells cells, Cell from, Cell to, Costs costs, Crawl.Rules rules, int budget) {
+        return search(cells, from, to, costs, rules.margin(), rules.hold(), budget, false);
     }
 
     /**
@@ -89,15 +98,15 @@ public final class Burrow {
      * search saw -- the best a creature cut off by water or bedrock can do;
      * nothing only when {@code from} itself cannot be left
      */
-    public static Optional<List<Cell>> planNearest(Cells cells, Cell from, Cell to, Costs costs, int budget) {
-        return search(cells, from, to, costs, budget, true);
+    public static Optional<List<Cell>> planNearest(Cells cells, Cell from, Cell to, Costs costs, Crawl.Rules rules, int budget) {
+        return search(cells, from, to, costs, rules.margin(), rules.hold(), budget, true);
     }
 
-    private static Optional<List<Cell>> search(Cells world, Cell from, Cell to, Costs costs, int budget, boolean nearest) {
-        if (budget <= 0) {
-            throw new IllegalArgumentException("a budget of expansions");
+    private static Optional<List<Cell>> search(Cells world, Cell from, Cell to, Costs costs, int margin, int hold, int budget, boolean nearest) {
+        if (margin < 0 || hold < 1 || budget <= 0) {
+            throw new IllegalArgumentException("a margin of cells, a hold of at least one, and a budget of expansions");
         }
-        Table t = new Table(world);
+        Table t = new Table(world, margin, hold);
         int depth = rockDepth(t, to, DEPTH_LOOK);
         double air = costs.air();
         double shell = costs.rock() - costs.air();
@@ -206,32 +215,34 @@ public final class Burrow {
     }
 
     /**
-     * effects: returns what {@code c} is to a way: hard cells and fluid are
-     * never passed, nor rock with a hard or fluid cell anywhere in the
-     * three-by-three-by-three about it, since the bore that cuts it would
-     * breach that
+     * effects: returns what {@code c} is to a way for a body keeping
+     * {@code margin} cells from harm and riding within {@code hold} of a
+     * face: air by a face within the hold, or alone; hard cells and fluid
+     * are never passed, nor rock with a hard or fluid cell anywhere within
+     * {@code margin} of it in every direction (the cells about it the bore
+     * would reach), since the bore that cuts it would breach that
      */
-    static Passage passage(Cells cells, Cell c) {
-        return passage(cells, c.x(), c.y(), c.z());
+    static Passage passage(Cells cells, Cell c, int margin, int hold) {
+        return passage(cells, c.x(), c.y(), c.z(), margin, hold);
     }
 
-    private static Passage passage(Cells cells, int x, int y, int z) {
+    private static Passage passage(Cells cells, int x, int y, int z, int margin, int hold) {
         return switch (cells.at(x, y, z)) {
-            case AIR -> supported(cells, x, y, z) ? Passage.AIR_BY_A_FACE : Passage.AIR_ALONE;
-            case ROCK -> clearAbout(cells, x, y, z) ? Passage.ROCK : Passage.NEVER;
+            case AIR -> supported(cells, x, y, z, hold) ? Passage.AIR_BY_A_FACE : Passage.AIR_ALONE;
+            case ROCK -> clearAbout(cells, x, y, z, margin) ? Passage.ROCK : Passage.NEVER;
             case HARD, FLUID -> Passage.NEVER;
         };
     }
 
-    /** effects: returns whether no cell within one of {@code c} in every direction is hard or fluid */
-    static boolean clearAbout(Cells cells, Cell c) {
-        return clearAbout(cells, c.x(), c.y(), c.z());
+    /** effects: returns whether no cell within {@code margin} of {@code c} in every direction is hard or fluid */
+    static boolean clearAbout(Cells cells, Cell c, int margin) {
+        return clearAbout(cells, c.x(), c.y(), c.z(), margin);
     }
 
-    private static boolean clearAbout(Cells cells, int x, int y, int z) {
-        for (int dx = -1; dx <= 1; dx++) {
-            for (int dy = -1; dy <= 1; dy++) {
-                for (int dz = -1; dz <= 1; dz++) {
+    private static boolean clearAbout(Cells cells, int x, int y, int z, int margin) {
+        for (int dx = -margin; dx <= margin; dx++) {
+            for (int dy = -margin; dy <= margin; dy++) {
+                for (int dz = -margin; dz <= margin; dz++) {
                     Cells.Kind k = cells.at(x + dx, y + dy, z + dz);
                     if (k == Cells.Kind.HARD || k == Cells.Kind.FLUID) {
                         return false;
@@ -242,15 +253,17 @@ public final class Burrow {
         return true;
     }
 
-    /** effects: returns whether any face neighbour of {@code c} is solid */
-    static boolean supported(Cells cells, Cell c) {
-        return supported(cells, c.x(), c.y(), c.z());
+    /** effects: returns whether a solid cell lies within {@code hold} cells of {@code c} along one of the six axes: a face a head there can ride */
+    static boolean supported(Cells cells, Cell c, int hold) {
+        return supported(cells, c.x(), c.y(), c.z(), hold);
     }
 
-    private static boolean supported(Cells cells, int x, int y, int z) {
+    private static boolean supported(Cells cells, int x, int y, int z, int hold) {
         for (int k = 0; k < 6; k++) {
-            if (cells.at(x + DX[k], y + DY[k], z + DZ[k]).solid()) {
-                return true;
+            for (int d = 1; d <= hold; d++) {
+                if (cells.at(x + DX[k] * d, y + DY[k] * d, z + DZ[k] * d).solid()) {
+                    return true;
+                }
             }
         }
         return false;
@@ -277,6 +290,8 @@ public final class Burrow {
         private static final int FIRST = 4096;
 
         private final Cells world;
+        private final int margin;
+        private final int hold;
         private long[] keys = new long[FIRST];
         private byte[] kinds = new byte[FIRST];
         private byte[] passages = new byte[FIRST];
@@ -286,8 +301,11 @@ public final class Burrow {
         private int size;
         private int reads;
 
-        Table(Cells world) {
+        /** requires: {@code margin >= 0}, {@code hold >= 1} */
+        Table(Cells world, int margin, int hold) {
             this.world = world;
+            this.margin = margin;
+            this.hold = hold;
         }
 
         @Override
@@ -303,7 +321,7 @@ public final class Burrow {
             if (p != 0) {
                 return PASSAGES[p - 1];
             }
-            Passage found = Burrow.passage(this, x(key), y(key), z(key));
+            Passage found = Burrow.passage(this, x(key), y(key), z(key), margin, hold);
             // Reading the cells about it may have grown the table: find its slot afresh.
             passages[slot(key)] = (byte) (found.ordinal() + 1);
             return found;

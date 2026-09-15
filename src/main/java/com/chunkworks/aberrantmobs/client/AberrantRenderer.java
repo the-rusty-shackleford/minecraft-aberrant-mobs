@@ -62,7 +62,13 @@ public final class AberrantRenderer extends EntityRenderer<Aberrant> {
 
     public AberrantRenderer(EntityRendererProvider.Context context) {
         super(context);
-        this.shadowRadius = 1.5f;
+    }
+
+    /** effects: returns the shadow's radius: six tenths of the profile's width (the head's box), so it is the creature's, not one size for all */
+    @Override
+    protected float getShadowRadius(Aberrant creature) {
+        CreatureProfile p = creature.profile();
+        return p == null ? 0.0f : (float) (p.body().width() * 0.6);
     }
 
     @Override
@@ -134,7 +140,7 @@ public final class AberrantRenderer extends EntityRenderer<Aberrant> {
             Vec pos = chain.position(leg.segment());
             Quat orient = chain.orientation(leg.segment());
             Vec rest = Legs.rest(leg, pos, orient);
-            Vec foot = feet[i].advanced(dt).at(rest, orient.rotate(Vec.Y));
+            Vec foot = feet[i].advanced(dt).at(rest, orient.rotate(Vec.Y), p.rig().gait().lift());
             legs[i] = Legs.aim(leg, pos, orient, foot);
         }
         return creature.overlay(skin.rig, body.pose(chain, legs, origin), partialTick);

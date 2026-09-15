@@ -73,8 +73,12 @@ final class LegGaitTest {
 
     @Test
     void badArgumentsAreRefused() {
-        assertThrows(IllegalArgumentException.class, () -> new LegGait(-1, 1, 1, 0, 1));
-        assertThrows(IllegalArgumentException.class, () -> new LegGait(1, 1, 0, 0, 1));
+        assertThrows(IllegalArgumentException.class, () -> new LegGait(-1, 1, 1, 0, 1, 0.5, 1.6, 0.35, 1.2));
+        assertThrows(IllegalArgumentException.class, () -> new LegGait(1, 1, 0, 0, 1, 0.5, 1.6, 0.35, 1.2));
+        assertThrows(IllegalArgumentException.class, () -> new LegGait(1, 1, 1, 0, 1, 0.0, 1.6, 0.35, 1.2), "a foot must be allowed some drift");
+        assertThrows(IllegalArgumentException.class, () -> new LegGait(1, 1, 1, 0, 1, 0.5, 0.0, 0.35, 1.2), "and some reach for ground");
+        assertThrows(IllegalArgumentException.class, () -> new LegGait(1, 1, 1, 0, 1, 0.5, 1.6, -0.1, 1.2));
+        assertThrows(IllegalArgumentException.class, () -> new LegGait(1, 1, 1, 0, 1, 0.5, 1.6, 0.35, -1.0));
         assertThrows(IllegalArgumentException.class, () -> G.poses(-1, 0, 0));
         assertThrows(IllegalArgumentException.class, () -> G.poses(1, 0, -1));
     }

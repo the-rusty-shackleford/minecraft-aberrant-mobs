@@ -38,8 +38,13 @@ package com.chunkworks.aberrantmobs.domain;
  *     frequency".
  */
 public record Undulation(double amplitudeMoving, double amplitudeRest, double wavelength, double speedRef, double restSpeed, double verticalRatio) {
-    /** The Face-Stealer's: a third of a block of weave at speed, a tenth at rest, five and a half blocks a wave, a ten-second idle. */
-    public static final Undulation FACE_STEALER = new Undulation(0.35, 0.10, 5.5, 0.35, 0.025, 0.15);
+    /**
+     * The Face-Stealer's, at its size (a model unit is a sixteenth and a
+     * half): half a block of weave at speed, a sixth at rest, eight and a
+     * quarter blocks a wave -- a third, a tenth and five and a half at the
+     * model's own size -- and a ten-second idle.
+     */
+    public static final Undulation FACE_STEALER = new Undulation(0.525, 0.15, 8.25, 0.35, 0.025, 0.15);
 
     /** How much of the gap to the target amplitude closes each tick. */
     private static final double EASE = 0.1;

@@ -87,10 +87,38 @@ public final class Crawl {
                 throw new IllegalArgumentException("clearance, bore and lookahead are positive");
             }
         }
+
+        /**
+         * effects: returns how many cells out from the head's own, along an
+         * axis, the bore reaches: the cells a way must keep between itself
+         * and anything hard or wet, so the bore that follows it never
+         * touches them -- one for a bore of one and a half, two for two
+         * and a quarter
+         */
+        public int margin() {
+            return (int) Math.ceil(bore - 0.5 - 1e-9);
+        }
+
+        /**
+         * effects: returns how many cells out from the head's own, along an
+         * axis, a face may lie for the head to be riding it: the whole
+         * cells of the clearance and one more -- two for an axis a block
+         * and a half over its feet (the floor's cell is the second below),
+         * three for one over two -- so a way may run through any cell that
+         * near a face, where the head can be, and a bore wider than three
+         * is not planned along its walls
+         */
+        public int hold() {
+            return (int) Math.floor(clearance) + 1;
+        }
     }
 
-    /** The Face-Stealer's: its axis 23.3 units over its feet, a bore of one and a half, looking 1.6 ahead. */
-    public static final Rules FACE_STEALER = new Rules(23.3 / 16.0, 1.5, 1.6);
+    /**
+     * The Face-Stealer's, at its size (a model unit is a sixteenth and a
+     * half): its axis 23.3 units over its feet, a bore of 2.25 (six tenths
+     * of its width of 3.75), looking 2.4 ahead.
+     */
+    public static final Rules FACE_STEALER = new Rules(23.3 * 1.5 / 16.0, 2.25, 2.4);
 
     /**
      * Where the head is: its axis point, the way it faces (unit) and the
@@ -129,8 +157,53 @@ public final class Crawl {
     public static final double SNAP_REACH = 0.75;
     /** A dig cuts the section this far ahead of the head, blocks. */
     public static final double DIG_AHEAD = 2.0;
+    /** A point may lie this far under the face the head stands on and still be underfoot, blocks: a sound in the floor's own block. */
+    public static final double UNDERFOOT = 1.0;
     /** A wish mostly along the normal (less than this share of it in the face) is a wish to leave the face. */
     private static final double IN_FACE_SHARE = 0.25;
+    /** A wish into the face that cannot be taken is still followed along the face while at least this share of it lies there; under that it is straight in, and blocked. */
+    private static final double ALONG_SHARE = 0.05;
+
+    /**
+     * effects: returns whether the head at {@code pose} reaches
+     * {@code point} within {@code reach}: within it outright; or, the head
+     * on a face, within it across the face while the point lies under the
+     * head, between its axis and {@link #UNDERFOOT} below the face -- a
+     * target on the surface the head stands on (a player's feet, a sound
+     * in the floor) is as reached as a head riding its clearance can reach
+     * it, and a way's cell in the rows under the axis is passed when the
+     * head is over it, while a cell below a ledge the head has not gone
+     * over is not
+     */
+    public static boolean reaches(Pose pose, Rules rules, Vec point, double reach) {
+        Vec d = point.minus(pose.centre());
+        if (d.length() < reach) {
+            return true;
+        }
+        if (pose.airborne()) {
+            return false;
+        }
+        Vec n = pose.normal().dir;
+        double under = -d.dot(n);
+        if (under < 0 || under > rules.clearance() + UNDERFOOT) {
+            return false;
+        }
+        return d.plus(n.times(under)).length() < reach;
+    }
+
+    /**
+     * effects: returns how many cells a strike cuts at most under
+     * {@code rules}: the straight section of a head at its clearance over
+     * the middle of a cell, heading along an axis from the cell's boundary
+     * -- 32 at the model's own size, the number the first release cut, 82
+     * at one and a half -- so a straight bore is cleared a section a
+     * strike (a few cells more when the head rides off the cell's middle,
+     * and the tube round a bend in the way, take a second) and the world
+     * never changes by more in a tick
+     */
+    public static int strikeBudget(Rules rules) {
+        return section(new Pose(new Vec(0.0, rules.clearance(), 0.5), Vec.X, Normal.UP), rules).size();
+    }
 
     /**
      * requires: {@code speed >= 0}
@@ -148,7 +221,12 @@ public final class Crawl {
      *     the nearest other face within {@link #ATTACH_REACH} the wish
      *     lies along (half of it in that face at least) -- a creature on a
      *     wall wanting what is out on the floor steps down onto the floor;
-     *     with none, blocked, settled;
+     *     with none: into the face, with {@link #ALONG_SHARE} of the wish
+     *     in the face at all, crawls on along that part, as below -- toward
+     *     the point's column, or to the edge that leads down to it, since a
+     *     head near the top of a wall whose way goes over the edge would
+     *     otherwise stand blocked half a block short of it -- else blocked,
+     *     settled;
      * <li>otherwise turns toward the wish within the face by at most
      *     {@link #TURN_RATE}; with rock within the lookahead ahead: digging,
      *     holds for the dig (blocked if the section is not diggable); else
@@ -190,7 +268,10 @@ public final class Crawl {
             if (other != null) {
                 return new Step(snapOr(cells, other, rules), false, false, true);
             }
-            return settle(cells, pose, rules, true);
+            if (!(desired.dot(n) < 0) || inFace.length() < ALONG_SHARE * wish) {
+                return settle(cells, pose, rules, true);
+            }
+            // Into the face, no digging, no other face in reach: on along what little of the wish lies in the face.
         }
         Vec h2 = turnToward(h, inFace.normalized(), n, TURN_RATE);
         Pose turned = new Pose(pose.centre(), h2, pose.normal());

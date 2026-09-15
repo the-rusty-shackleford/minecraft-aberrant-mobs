@@ -54,8 +54,9 @@ four blocks from the player, wanting what was out on the floor), falls and attac
 when it has nothing; `Rules(clearance, bore, lookahead)`); `Tunnel` (the
 section within the bore's radius of the head's run, rock only, never beside hard or
 fluid); `Burrow` (A* over cells, air 1, unsupported air 4, rock 5 hunting or 14
-stalking, hard and fluid and rock beside them never, a 4000-expansion budget as a
-backstop; its bound charges the rock depth about the target, `rockDepth`, and a
+stalking, hard and fluid never nor rock within the body's margin of them, air by a face
+within the body's hold of it cheap -- both from the crawl's rules, D-0011 -- a
+4000-expansion budget as a backstop; its bound charges the rock depth about the target, `rockDepth`, and a
 per-search `Table` reads each cell once and holds the search's state in primitive
 arrays with a heap of its own -- before these, 2026-09-15, a hunt to a point ten blocks
 into a hill never planned within the budget, see D-0010); `Leap`
@@ -114,8 +115,9 @@ pounce verb plays the coil and leaps as it ends; the tree holds it with a `pounc
 timer. Verbs grab/release/bite do their work.
 
 Phase 6 (done): habitat, loot, sounds. `domain/Habitat` (`Rules(yMin, yMax, maxLight,
-exclusion, cap)`; `deepAndDark`; `siteInWall` crosses the cave's air then needs six of
-rock ending in a 3x3x3 pocket of rock). `SpawnRules` on `RegisterSpawnPlacementsEvent`
+exclusion, cap)`; `deepAndDark`; `siteInWall` crosses the cave's air then needs seven of
+rock ending in a pocket of rock five across, `POCKET_RADIUS`; six and three by three
+before 1.2.0). `SpawnRules` on `RegisterSpawnPlacementsEvent`
 (NO_RESTRICTIONS, REPLACE): natural spawns need a profile with a habitat fitting the
 site's depth and light, not deep dark, a wall thick enough, none within the exclusion,
 fewer than the cap; the biome modifier adds the type to `#is_overworld` (weight 2).
@@ -166,7 +168,7 @@ hunted.
 
 ## How it is verified
 
-`./gradlew test` (103 JUnit tests, the reader proved against the saved file),
+`./gradlew test` (116 JUnit tests, the reader proved against the saved file),
 `runGameTestServer` (21 gametests: the profile and the creature, the parts along the body
 after a walk, only the crack takes a blow, most feet on the floor mid-walk, a clip's
 cues on their ticks, a scripted walk, floor-wall-ceiling, a coherent tunnel round
@@ -231,9 +233,42 @@ asserted the way's first-leg heading and flaked under the new planner's tie-brea
 now asserts where the crawl is bound. Rusty also wants the creature 1.5x bigger: that is
 1.2.0, on its own, since it touches every body-tied number and needs the booth looked at.
 
+1.2.0 (built 2026-09-15 evening, unreleased -- Rusty's go is still to come): the creature
+one and a half times bigger, as Rusty asked. The profile's scale is 0.09375 (a sixteenth and
+a half a unit), the head's box 3.75, the segments' 3.3, the eye at 2.4, the writhe and the
+gait's measures in blocks half again, and every Java number tied to the body now follows from
+the profile or the crawl's rules rather than sitting beside them (D-0011): the feet's stride,
+reach, lift and lead moved into `rig.gait`; the strike's budget is a straight section's worth
+(`Crawl.strikeBudget`, 82); the way keeps the bore's reach from bedrock and water
+(`Crawl.Rules.margin`, two cells, passed to `Burrow`); a waypoint or target under the head's
+feet counts as reached (`Crawl.reaches`) -- at the new clearance of 2.18 the old reach of 1.5
+never arrived and the head stood blocked, replanning; the maw is in model units scaled at use;
+the pincers reach 4.5; the spawn pocket is five across, seven into the wall; the shadow is the
+profile's width. The mind's grab thresholds scale (3.75 hunting, 6 stalking from behind); the
+speed does not (0.45 a tick: the tuning session's number). Gametests: a long arena (31 wide)
+for the body's length, the geometry and timings re-derived (the climb is on the wall by tick
+32 and under the ceiling by 65; the spawn chimney at x = 5 so a seven-deep site and its
+pocket fit the template); the booth's cameras half again further, its wall fifteen high and
+five thick, its hill eighteen high and twenty-five wide, the dig judged by more than a
+strike's worth cut and the head inside the face. Three things the bigger body exposed and
+the gametests caught, all fixed in the domain with tests: a head riding 2.18 off a wall,
+half a block under its top, read its wish toward the way's next cell over the edge as
+"into the wall" and stood blocked (a wish into the face with no other face in reach is now
+followed along whatever of it lies in the face); a leap landed when a face was within one
+tick's travel plus a hair, which at the old clearance was the riding height and at the new
+one overshot the aim by 3.5 (it lands at its clearance plus this tick's approach); and the
+planner rated an air cell cheap only when a solid cell touched it, so in a five-by-four
+bore the way ran along the ceiling row and the head stood wishing upward (an air cell is
+cheap within the body's hold of a face). And one the booth's frame showed, at either size:
+a held player's eyes sat inside the head's front cube, since nfx's maw point is the maw
+cube's centre; the held one now hangs against the mask's front at the maw's height, half
+their own width forward, in the pincers. The 1.2.0 queue also holds (b) the item and armour
+art redrawn in vanilla's family and (c) scarier recordings.
+
 ## Next
 
-Rusty's vetting of the whole in play. Open: the
+Rusty's vetting of the whole in play, now at the new size: the booth's frames first, then the
+server. Then (b) and (c) of the 1.2.0 queue. Open: the
 armour's remaining phase C (block placement facing on a wall, the shadow and nameplate,
 explosions into the frame, and the third-person back camera: on a wall it backs off
 down into the ground and the game's clip parks it on the surface, so the booth uses the

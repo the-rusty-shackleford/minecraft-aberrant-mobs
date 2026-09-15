@@ -30,6 +30,10 @@ import java.util.List;
  * while its pair's other leg stands and fewer than a share of all legs
  * are swinging, the candidates taken in the gait's metachronal order, so
  * the steps run in a wave down the body. Standing still nothing swings.
+ * The measures of a step -- how far an anchor drifts before the foot
+ * steps, how far under the rest point ground is looked for, how high the
+ * foot lifts, how far ahead it may land -- are the body's own, carried by
+ * its {@link LegGait}.
  *
  * <p>All values immutable; the per-leg state is a {@link Foot} array the
  * caller owns and hands back each tick.
@@ -37,18 +41,10 @@ import java.util.List;
 public final class Legs {
     private Legs() {}
 
-    /** How far off the rest point an anchor may drift before the foot steps, blocks. */
-    public static final double STRIDE = 0.55;
-    /** How far under the rest point a surface is looked for, blocks. */
-    public static final double REACH = 1.6;
     /** A step takes this many ticks standing or crawling; fewer at speed, see {@link #swingTicks}. */
     public static final int SWING_TICKS = 4;
-    /** How high the foot lifts mid-step, blocks. */
-    public static final double LIFT = 0.35;
     /** At most this share of all legs swings at once. */
     public static final double MAX_SWINGING = 0.4;
-    /** A step is aimed at most this far ahead of the rest point, blocks. */
-    public static final double MAX_LEAD = 1.2;
 
     /**
      * effects: returns how many ticks a step takes at {@code speed}: four at a
@@ -63,11 +59,12 @@ public final class Legs {
      * {@code speed} with {@code legs} legs of which {@code cap} may swing at
      * once: half the ground the body covers while a foot stands its turn
      * (every leg steps once per {@code legs / cap} swings), so a foot lands
-     * as far ahead as it will be behind when it steps again; capped
+     * as far ahead as it will be behind when it steps again; capped at
+     * {@code maxLead}
      */
-    public static double lead(double speed, int legs, int cap) {
+    public static double lead(double speed, int legs, int cap, double maxLead) {
         double stanceTicks = (double) legs / Math.max(1, cap) * swingTicks(speed);
-        return Math.min(MAX_LEAD, speed * stanceTicks / 2.0);
+        return Math.min(maxLead, speed * stanceTicks / 2.0);
     }
 
     /**
@@ -127,15 +124,15 @@ public final class Legs {
             return new Foot(anchor, from, Math.min(1.0, swingT + dt), true);
         }
 
-        /** effects: returns where the foot is now, given the leg's rest point for a hanging foot */
-        public Vec at(Vec rest, Vec up) {
+        /** effects: returns where the foot is now, given the leg's rest point for a hanging foot, a swinging one risen {@code lift} blocks at mid-step */
+        public Vec at(Vec rest, Vec up, double lift) {
             if (anchor == null) {
                 return rest;
             }
             if (!swinging) {
                 return anchor;
             }
-            return from.plus(anchor.minus(from).times(swingT)).plus(up.times(LIFT * Math.sin(Math.PI * swingT)));
+            return from.plus(anchor.minus(from).times(swingT)).plus(up.times(lift * Math.sin(Math.PI * swingT)));
         }
     }
 
@@ -169,10 +166,10 @@ public final class Legs {
      * placement for every leg's segment; {@code speed >= 0}
      * effects: returns the feet one tick on: a swinging foot advances and
      * plants at its anchor when done; a planted foot stays while its anchor
-     * is within the stride (the larger of {@link #STRIDE} and the lead) of
+     * is within the stride (the larger of the gait's stride and the lead) of
      * its rest point and its supporting cell is still solid; a foot that
-     * must step, or hangs with a surface now in reach, starts a swing to the
-     * surface under the rest point led along {@code travel} by
+     * must step, or hangs with a surface now within the gait's reach, starts
+     * a swing to the surface under the rest point led along {@code travel} by
      * {@link #lead} if its pair's other foot is not
      * swinging and fewer than {@link #MAX_SWINGING} of all legs are, legs
      * with no foot down first and then in the gait's order of phase; with
@@ -189,8 +186,8 @@ public final class Legs {
         Foot[] out = feet.clone();
         int swinging = 0;
         int cap = Math.max(1, (int) Math.floor(legs.length * MAX_SWINGING));
-        double lead = speed > 0 ? lead(speed, legs.length, cap) : 0.0;
-        double stride = Math.max(STRIDE, lead);
+        double lead = speed > 0 ? lead(speed, legs.length, cap, gait.lead()) : 0.0;
+        double stride = Math.max(gait.stride(), lead);
         // Advance the swings.
         for (int i = 0; i < legs.length; i++) {
             Foot f = feet[i];
@@ -221,7 +218,7 @@ public final class Legs {
                 boolean supported = cells.solidAt(f.anchor().minus(ups[i].times(0.15)));
                 needs = !supported || (speed > 0 && f.anchor().minus(rests[i]).length() > stride);
             } else {
-                needs = surface(cells, rests[i].plus(ups[i].times(0.5)), ups[i].times(-1), REACH + 0.5) != null;
+                needs = surface(cells, rests[i].plus(ups[i].times(0.5)), ups[i].times(-1), gait.reach() + 0.5) != null;
             }
             if (needs) {
                 wanting.add(i);
@@ -250,12 +247,12 @@ public final class Legs {
                 continue;
             }
             Vec aim = rests[i].plus(travel.times(lead));
-            Vec target = surface(cells, aim.plus(ups[i].times(0.5)), ups[i].times(-1), REACH + 0.5);
+            Vec target = surface(cells, aim.plus(ups[i].times(0.5)), ups[i].times(-1), gait.reach() + 0.5);
             if (target == null) {
                 out[i] = Foot.HANGING;
                 continue;
             }
-            Vec from = out[i].at(rests[i], ups[i]);
+            Vec from = out[i].at(rests[i], ups[i], gait.lift());
             if (out[i].planted() && target.minus(out[i].anchor()).length() < 1e-6) {
                 continue;
             }

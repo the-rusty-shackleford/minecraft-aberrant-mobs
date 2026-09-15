@@ -258,7 +258,7 @@ public final class Playtest {
             verdict("it dug its way", () -> dug ? null : "cut nothing beyond its pocket");
             verdict("it came near", () -> nearest < 16.0 ? null : "nearest " + nearest);
             verdict("it stalked, then hunted", () -> stalked && hunted ? null : "stalked " + stalked + ", hunted " + hunted);
-            verdict("it closed for the kill", () -> grabbed || pounced || nearest < 3.0 ? null : "nearest " + nearest + ", pounced " + pounced);
+            verdict("it closed for the kill", () -> grabbed || pounced || nearest < Aberrant.GRAB_REACH ? null : "nearest " + nearest + ", pounced " + pounced);
             LOG.info("playtest: grabbed {} pounced {} nearest {} player health {}", grabbed, pounced, nearest, mc.player == null ? null : mc.player.getHealth());
             LOG.info("playtest: PASS all checks ran");
             phase = Phase.DONE;

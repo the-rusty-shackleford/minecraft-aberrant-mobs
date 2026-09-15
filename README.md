@@ -4,7 +4,8 @@ A protocol for monsters, for NeoForge 1.21.1. A creature is a datapack entry and
 Blockbench project: this mod owns the rig that stands it up, the body that follows its
 head, the mind that reads its senses through a decision tree, the crawling, digging,
 stalking, grabbing and biting its verbs do, and what it drops. The first creature is the
-**Face-Stealer**, nfx's centipede: eleven blocks of it, a mask for a face.
+**Face-Stealer**, nfx's centipede: sixteen blocks of it (the model at a unit of a sixteenth
+and a half), a mask for a face.
 
 All seven phases of the plan are built (1.0.0): the
 creature exists, is sized and named by its profile, its body follows its head along a
@@ -40,8 +41,8 @@ player, but only a survival or adventure player is prey.
 ```jsonc
 {
   "model": "aberrantmobs:face_stealer",      // assets/<ns>/aberrantmobs/model/<name>.bbmodel, saved as it is
-  "scale": 0.0625,                            // model units to blocks (optional, a sixteenth)
-  "body": {"width": 2.5, "height": 2.5, "eye_height": 1.6},   // the box the world collides with, blocks
+  "scale": 0.09375,                           // model units to blocks (optional, a sixteenth; the Face-Stealer's is one and a half)
+  "body": {"width": 3.75, "height": 3.75, "eye_height": 2.4},   // the box the world collides with, blocks
   "stats": {"health": 84, "speed": 0.45}
 }
 ```
@@ -94,9 +95,11 @@ is saved with the entity, so a reload does not forget a hunt.
 
 ## The grab, the bite, the face
 
-Within reach, the pincers close (`Aberrant.grab`): the target rides the creature, held
-at the maw of nfx's head (or at the head's own axis when the maw has just surfaced
-inside rock, so the held one never hangs in a wall), never steering it, and the grip
+Within reach (4.5 blocks of the head's axis), the pincers close (`Aberrant.grab`): the target rides the creature, held
+in the jaws of nfx's head -- against the mask's front at the maw's height, half their own
+width before the face, so from their own eyes they see the mask and the pincers, not the
+inside of the head (or at the head's own axis when the jaws have just surfaced inside
+rock, so the held one never hangs in a wall), never steering it, and the grip
 (`Grip`) refuses their dismount until the creature lets go, in air; the grab clip
 pinches on its cue. A stalker that takes its prey from behind hands over to the hunt,
 where the bite lives. The bite
@@ -117,10 +120,11 @@ A profile with a `habitat` spawns on its own (`{"y_min": -58, "y_max": 0, "max_l
 0, "weight": 2, "exclusion": 128, "cap": 6}`): the biome modifier offers the entity type
 to every overworld biome, and `SpawnRules` takes a site only when it is deep and dark
 enough for some habitat, not in the deep dark, with a wall beside the cave thick enough
-to bore into (`domain/Habitat`: across the cave's air, then six of rock ending in a
-pocket of rock), no other creature within the exclusion and fewer than the cap in the
-level. The creature then takes the profile whose habitat fits (by weight), bores its
-pocket six blocks into that wall and starts there, so the first sign of it is digging.
+to bore into (`domain/Habitat`: across the cave's air, then seven of rock ending in a
+pocket of rock five across), no other creature within the exclusion and fewer than the
+cap in the level. The creature then takes the profile whose habitat fits (by weight),
+bores its pocket, five across, seven blocks into that wall and starts there, so the
+first sign of it is digging.
 Once it stalks or hunts it persists; a lit base is safe, since it will not spawn in
 light. A command or an egg puts it anywhere.
 
@@ -220,9 +224,9 @@ The head's path is a trail (`domain/Trail`: the last positions of the head's axi
 the surface's up at each and the arc length along them); the chain of segments is laid
 along it at the distances the file's own pivots give (`domain/ChainPose`), each segment
 facing the one before it and standing on its own surface's up, so a body over an edge
-bends round it. A wave travels down the body from the head (`domain/Undulation`): a
-third of a block of weave at speed, easing to a tenth and a ten-second writhe standing
-still, a small vertical ripple at twice the frequency -- the creature snakes even going
+bends round it. A wave travels down the body from the head (`domain/Undulation`): half
+a block of weave at speed, easing to a sixth and a ten-second writhe standing still, a
+small vertical ripple at twice the frequency -- the creature snakes even going
 straight. `domain/Body` resolves the profile's bone names on the rig, reads each leg's
 segment, hip and rest foot off the file's pivots and cubes, and turns a chain pose and
 the legs' poses into the rig's `Pose` each frame. Nothing of the pose is synced: each
@@ -234,7 +238,10 @@ Every leg has a foot (`domain/Legs`): planted on a solid surface of the level, i
 where it is while the body walks over it, until it has drifted a stride from the leg's
 rest point or its block is gone; then it swings, a few ticks on a lifted arc, to the
 surface under the rest point a little ahead -- floor, wall or ceiling, found by a cast
-along the segment's own down -- or hangs at rest when nothing is in reach. Most feet are
+along the segment's own down -- or hangs at rest when nothing is in reach. The stride,
+the reach of that cast, the lift and how far ahead a step may land are the profile's
+(`rig.gait`: `stride`, `reach`, `lift`, `lead`, blocks, beside `cycle_blocks`), so a
+bigger body takes bigger steps. Most feet are
 down at all times: a foot may start a swing only while its pair's other foot stands and
 fewer than 40 % of all feet are swinging, candidates taken in the gait's metachronal
 order (`domain/LegGait`: each pair a little behind the pair before, left and right half a
@@ -256,11 +263,13 @@ snapped to its clearance; over an edge, wrapped onto the ledge's face heading do
 with nothing under it, attached to any face in reach, else falling. Rock ahead is
 climbed (the wall becomes its face, the old up its heading) or, when it may dig, bored:
 the head holds, the strike clip plays, and on the strike's cue the section ahead
-(`domain/Tunnel`: the cells within the bore's radius of the head's run, three by three
-on an axis, the floor it rides on kept, and, following a way, of the tube round the
-way's next cells laid into the head's face, so a bend is cut as a bend rather than
-leaving its outer corner standing for the head to step up onto; the nearest cells
-first, at most thirty-two a strike) is cut to air (`DigWorld`; loud with particles
+(`domain/Tunnel`: the cells within the bore's radius of the head's run -- six tenths of
+the body's width, so five wide and four tall on an axis for the Face-Stealer -- the
+floor it rides on kept, and, following a way, of the tube round the way's next cells
+laid into the head's face, so a bend is cut as a bend rather than leaving its outer
+corner standing for the head to step up onto; the nearest cells first, at most a
+straight section's worth a strike, eighty-two for the Face-Stealer, so the tube round a
+bend takes two) is cut to air (`DigWorld`; loud with particles
 and a game event, or quiet). Rock is only ever cut when nothing hard or wet is beside
 it, so a tunnel never breaches water, lava, bedrock or a chest. A wish to go through
 its face bores when it may dig; a wish off its face -- through it without digging, or
@@ -270,9 +279,14 @@ when there is none in reach. Axis faces only: exact, six cases, enumerable; a sl
 reads as corners, as it does to a centipede. The face it clings to rides synced data as its up, and its box is
 centred on its axis, so a client draws it on the wall it is on.
 
-A way to a point is planned by `domain/Burrow`: A* over cells, six-connected, air by a
-face cheap, air with none dearer, rock at the cost of digging it (cheap hunting, dear
-stalking), hard and fluid never, bounded by a budget; cut off by water or bedrock, it
+A way to a point is planned by `domain/Burrow` for the body's measures (`Crawl.Rules`):
+A* over cells, six-connected, air within the body's hold of a face cheap (a face within
+three cells along an axis for the Face-Stealer, whose axis rides the third cell over a
+floor, so a bore wider than three is planned down its middle and not along its walls),
+air with none dearer, rock at the cost of digging it (cheap hunting, dear stalking),
+hard and fluid never -- nor any rock within the bore's reach of them, two cells for the
+Face-Stealer, so the bore that follows never breaches bedrock or water -- bounded by a
+budget; cut off by water or bedrock, it
 takes the way to the nearest reachable cell instead, never a straight line a pool would
 hold it on. The search knows how deep in rock the target lies (the taxicab distance to
 the nearest air, looked for up to eight cells out) and charges every way that many cells
@@ -280,7 +294,9 @@ of rock in its bound, so the open air about a buried target is not flooded befor
 search commits to the rock; it reads each cell from the level once, into a table that
 also holds the search's own state, and expands a cell with a few probes and no
 allocation, so a plan is a millisecond or two; a cell in a chunk that is not loaded reads as
-hard, so no plan ever loads a chunk. The entity follows it waypoint by waypoint, cutting rock only while the way
+hard, so no plan ever loads a chunk. The entity follows it waypoint by waypoint (a
+waypoint, or the target, under its feet on the face it rides counts as reached, since
+its axis rides its clearance over a player's feet or a sound in the floor), cutting rock only while the way
 itself runs through rock within a strike's reach -- a way that climbs a wall does not dig
 its foot, while in its own bore it keeps cutting the bends wide -- and plans again every
 twenty ticks, or within five of a refusal (a search a tick is more than a server can

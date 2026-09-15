@@ -43,8 +43,10 @@ public final class Habitat {
 
     /** The Face-Stealer's: between -58 and 0, pitch dark, none within 128 blocks, six to a level. */
     public static final Rules FACE_STEALER = new Rules(-58, 0, 0, 128, 6);
-    /** A site is bored this deep into the wall, blocks. */
-    public static final int SITE_DEPTH = 6;
+    /** A pocket reaches this far from its centre in every direction: five cells across, room for a head 3.75 wide. */
+    public static final int POCKET_RADIUS = 2;
+    /** A site is bored this deep into the wall, blocks: the pocket's far side, leaving four of rock between the cave and the pocket. */
+    public static final int SITE_DEPTH = 7;
     /** A cave wider than this is not crossed to reach its wall, blocks. */
     public static final int MAX_CAVE = 12;
 
@@ -53,11 +55,11 @@ public final class Habitat {
         return y >= rules.yMin() && y <= rules.yMax() && sky <= rules.maxLight() && block <= rules.maxLight();
     }
 
-    /** effects: returns whether every cell within one of {@code centre} in every direction is rock: a pocket may be bored there */
+    /** effects: returns whether every cell within {@link #POCKET_RADIUS} of {@code centre} in every direction is rock: a pocket may be bored there */
     public static boolean pocketOfRock(Cells cells, Cell centre) {
-        for (int dx = -1; dx <= 1; dx++) {
-            for (int dy = -1; dy <= 1; dy++) {
-                for (int dz = -1; dz <= 1; dz++) {
+        for (int dx = -POCKET_RADIUS; dx <= POCKET_RADIUS; dx++) {
+            for (int dy = -POCKET_RADIUS; dy <= POCKET_RADIUS; dy++) {
+                for (int dz = -POCKET_RADIUS; dz <= POCKET_RADIUS; dz++) {
                     if (cells.at(centre.x() + dx, centre.y() + dy, centre.z() + dz) != Cells.Kind.ROCK) {
                         return false;
                     }
@@ -72,8 +74,8 @@ public final class Habitat {
      * cave's wall from {@code floor} (a cell of the cave, one over its
      * floor) along the first of +X, -X, +Z, -Z: the cave's air is crossed
      * (at most {@link #MAX_CAVE} cells of it), then every cell of the next
-     * {@code depth} must be rock, and the last a pocket of rock; nothing
-     * when no wall is thick enough
+     * {@code depth} must be rock, and the last the centre of a pocket of
+     * rock ({@link #pocketOfRock}); nothing when no wall is thick enough
      */
     public static Optional<Cell> siteInWall(Cells cells, Cell floor, int depth) {
         int[][] dirs = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};

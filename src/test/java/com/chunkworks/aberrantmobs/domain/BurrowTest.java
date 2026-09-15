@@ -37,7 +37,8 @@ import org.junit.jupiter.api.Test;
  * Partitions. Through open air along a floor: the straight line, its
  * length the taxicab distance. A wall of rock in the way: through it when
  * digging is cheap enough, around it when it is dear and a way round
- * exists. A hard wall: always around; sealed in hard: nothing. Air with
+ * exists. A hard wall: always around; sealed in hard: nothing; the way
+ * keeps its margin of cells from hard, one or two, and none without. Air with
  * no face costs more than air by one. The budget ends a hopeless search.
  * Bad arguments refused. A target deep in a hill under open sky is
  * planned within the budget, and the way is the cheapest: in through
@@ -50,10 +51,12 @@ import org.junit.jupiter.api.Test;
  */
 final class BurrowTest {
     private static final Cells FLOOR = Cells.floor(-1);
+    /** A body a sixteenth a unit: its bore reaches the cell beside (a margin of one), its axis rides the second cell over a face (a hold of two). */
+    private static final Crawl.Rules ONE = new Crawl.Rules(23.3 / 16.0, 1.5, 1.6);
 
     @Test
     void openAirIsTheStraightLine() {
-        Optional<List<Cell>> p = Burrow.plan(FLOOR, new Cell(0, 0, 0), new Cell(6, 0, 0), Burrow.HUNT, Burrow.BUDGET);
+        Optional<List<Cell>> p = Burrow.plan(FLOOR, new Cell(0, 0, 0), new Cell(6, 0, 0), Burrow.HUNT, ONE, Burrow.BUDGET);
         assertTrue(p.isPresent());
         assertEquals(7, p.get().size());
         assertEquals(new Cell(0, 0, 0), p.get().get(0));
@@ -67,9 +70,9 @@ final class BurrowTest {
     void aWallIsDugThroughWhenCheapAndGoneRoundWhenDear() {
         // A wall at x = 5, three high, from z = -3 to 3; open floor beyond.
         Cells wall = (x, y, z) -> y <= -1 || (x == 5 && y <= 2 && Math.abs(z) <= 3) ? Cells.Kind.ROCK : Cells.Kind.AIR;
-        List<Cell> hunt = Burrow.plan(wall, new Cell(0, 0, 0), new Cell(10, 0, 0), Burrow.HUNT, Burrow.BUDGET).orElseThrow();
+        List<Cell> hunt = Burrow.plan(wall, new Cell(0, 0, 0), new Cell(10, 0, 0), Burrow.HUNT, ONE, Burrow.BUDGET).orElseThrow();
         assertTrue(hunt.contains(new Cell(5, 0, 0)), "hunting digs straight through: " + hunt);
-        List<Cell> stalk = Burrow.plan(wall, new Cell(0, 0, 0), new Cell(10, 0, 0), Burrow.STALK, Burrow.BUDGET).orElseThrow();
+        List<Cell> stalk = Burrow.plan(wall, new Cell(0, 0, 0), new Cell(10, 0, 0), Burrow.STALK, ONE, Burrow.BUDGET).orElseThrow();
         boolean through = false;
         for (Cell c : stalk) {
             through |= wall.at(c) == Cells.Kind.ROCK;
@@ -81,30 +84,57 @@ final class BurrowTest {
     @Test
     void hardRockIsNeverPassedAndASealedTargetIsNothing() {
         Cells hard = (x, y, z) -> y <= -1 ? Cells.Kind.ROCK : (x == 5 && y <= 2 && Math.abs(z) <= 3) ? Cells.Kind.HARD : Cells.Kind.AIR;
-        List<Cell> p = Burrow.plan(hard, new Cell(0, 0, 0), new Cell(10, 0, 0), Burrow.HUNT, Burrow.BUDGET).orElseThrow();
+        List<Cell> p = Burrow.plan(hard, new Cell(0, 0, 0), new Cell(10, 0, 0), Burrow.HUNT, ONE, Burrow.BUDGET).orElseThrow();
         for (Cell c : p) {
             assertFalse(hard.at(c) == Cells.Kind.HARD, "round the hard wall: " + c);
         }
         // Rock beside bedrock is never cut: a way through rock keeps a cell clear of it.
         Cells seam = (x, y, z) -> y <= -1 ? Cells.Kind.ROCK : (x == 5 && y == 0 && z == 0) ? Cells.Kind.HARD : x >= 3 && x <= 7 ? Cells.Kind.ROCK : Cells.Kind.AIR;
-        List<Cell> q = Burrow.plan(seam, new Cell(0, 0, 0), new Cell(10, 0, 0), Burrow.HUNT, Burrow.BUDGET).orElseThrow();
+        List<Cell> q = Burrow.plan(seam, new Cell(0, 0, 0), new Cell(10, 0, 0), Burrow.HUNT, ONE, Burrow.BUDGET).orElseThrow();
         for (Cell c : q) {
             if (seam.at(c) == Cells.Kind.ROCK) {
-                assertTrue(Burrow.clearAbout(seam, c), "dug rock is clear of the bedrock: " + c);
+                assertTrue(Burrow.clearAbout(seam, c, 1), "dug rock is clear of the bedrock: " + c);
             }
         }
         Cells sealed = (x, y, z) -> (x == 10 && y == 0 && z == 0) ? Cells.Kind.AIR : (Math.abs(x - 10) <= 1 && Math.abs(y) <= 1 && Math.abs(z) <= 1) ? Cells.Kind.HARD : FLOOR.at(x, y, z);
-        assertTrue(Burrow.plan(sealed, new Cell(0, 0, 0), new Cell(10, 0, 0), Burrow.HUNT, Burrow.BUDGET).isEmpty());
+        assertTrue(Burrow.plan(sealed, new Cell(0, 0, 0), new Cell(10, 0, 0), Burrow.HUNT, ONE, Burrow.BUDGET).isEmpty());
+    }
+
+    @Test
+    void theWayKeepsTheBodysMarginFromBedrock() {
+        // A wall of rock five thick (x = 3..7, every height, every z) bars the straight way, and a column of bedrock
+        // stands in it at x = 5 from the floor up to y = 3: the bore through the rock must keep its margin from
+        // the column. (Air beside bedrock is passed at any margin: nothing is cut there.)
+        Cells column = (x, y, z) -> x == 5 && z == 0 && y >= -1 && y <= 3 ? Cells.Kind.HARD : (x >= 3 && x <= 7) || y <= -1 ? Cells.Kind.ROCK : Cells.Kind.AIR;
+        List<Cell> one = Burrow.plan(column, new Cell(0, 0, 0), new Cell(10, 0, 0), Burrow.HUNT, ONE, Burrow.BUDGET).orElseThrow();
+        List<Cell> two = Burrow.plan(column, new Cell(0, 0, 0), new Cell(10, 0, 0), Burrow.HUNT, Crawl.FACE_STEALER, Burrow.BUDGET).orElseThrow();
+        List<Cell> none = Burrow.plan(column, new Cell(0, 0, 0), new Cell(10, 0, 0), Burrow.HUNT, new Crawl.Rules(1.0, 0.5, 1.0), Burrow.BUDGET).orElseThrow();
+        for (Cell c : one) {
+            assertTrue(fromColumn(c) >= 2, "a margin of one keeps a cell between the way and the bedrock: " + c);
+        }
+        for (Cell c : two) {
+            assertTrue(fromColumn(c) >= 3, "a margin of two keeps two: " + c);
+        }
+        assertTrue(one.stream().anyMatch(c -> fromColumn(c) == 2), "and goes no wider than it must");
+        assertTrue(two.stream().anyMatch(c -> fromColumn(c) == 3));
+        assertTrue(none.stream().anyMatch(c -> fromColumn(c) == 1), "no margin: right past it");
+        assertTrue(two.size() > one.size() && one.size() > none.size(), "each cell of margin costs the way a detour");
+    }
+
+    /** effects: returns how many cells {@code c} is from the column at x = 5, z = 0, y in -1..3, in every direction at most */
+    private static int fromColumn(Cell c) {
+        int dy = c.y() > 3 ? c.y() - 3 : c.y() < -1 ? -1 - c.y() : 0;
+        return Math.max(Math.max(Math.abs(c.x() - 5), Math.abs(c.z())), dy);
     }
 
     @Test
     void airByAFaceIsPreferredToAirWithNone() {
         // From the floor to a point 4 up and 4 over: hugging the floor then a column of rock beats a diagonal through the void.
         Cells column = (x, y, z) -> y <= -1 || (x == 6 && y <= 8) ? Cells.Kind.ROCK : Cells.Kind.AIR;
-        List<Cell> p = Burrow.plan(column, new Cell(0, 0, 0), new Cell(5, 4, 0), Burrow.STALK, Burrow.BUDGET).orElseThrow();
+        List<Cell> p = Burrow.plan(column, new Cell(0, 0, 0), new Cell(5, 4, 0), Burrow.STALK, ONE, Burrow.BUDGET).orElseThrow();
         int unsupported = 0;
         for (Cell c : p) {
-            if (column.at(c) == Cells.Kind.AIR && !Burrow.supported(column, c)) {
+            if (column.at(c) == Cells.Kind.AIR && !Burrow.supported(column, c, ONE.hold())) {
                 unsupported++;
             }
         }
@@ -115,25 +145,25 @@ final class BurrowTest {
     void cutOffItGoesAsNearAsItCan() {
         // A pool of water across the whole way at x = 5..6: the target beyond it cannot be reached, and rock beside it is never cut.
         Cells pool = (x, y, z) -> (x == 5 || x == 6) ? Cells.Kind.FLUID : y <= -1 ? Cells.Kind.ROCK : Cells.Kind.AIR;
-        assertTrue(Burrow.plan(pool, new Cell(0, 0, 0), new Cell(10, 0, 0), Burrow.HUNT, Burrow.BUDGET).isEmpty(), "no way through");
-        List<Cell> near = Burrow.planNearest(pool, new Cell(0, 0, 0), new Cell(10, 0, 0), Burrow.HUNT, Burrow.BUDGET).orElseThrow();
+        assertTrue(Burrow.plan(pool, new Cell(0, 0, 0), new Cell(10, 0, 0), Burrow.HUNT, ONE, Burrow.BUDGET).isEmpty(), "no way through");
+        List<Cell> near = Burrow.planNearest(pool, new Cell(0, 0, 0), new Cell(10, 0, 0), Burrow.HUNT, ONE, Burrow.BUDGET).orElseThrow();
         Cell end = near.get(near.size() - 1);
         assertEquals(new Cell(0, 0, 0), near.get(0));
         assertTrue(end.x() >= 3 && end.x() <= 4, "as near the pool as it may go: " + end);
         for (Cell c : near) {
             assertTrue(pool.at(c) != Cells.Kind.FLUID, "never through the water: " + c);
         }
-        assertTrue(Burrow.planNearest(pool, new Cell(0, 0, 0), new Cell(0, 0, 0), Burrow.HUNT, Burrow.BUDGET).isPresent(), "already there");
+        assertTrue(Burrow.planNearest(pool, new Cell(0, 0, 0), new Cell(0, 0, 0), Burrow.HUNT, ONE, Burrow.BUDGET).isPresent(), "already there");
         Cells sealed = (x, y, z) -> (x == 0 && y == 0 && z == 0) ? Cells.Kind.AIR : Cells.Kind.HARD;
-        assertTrue(Burrow.planNearest(sealed, new Cell(0, 0, 0), new Cell(5, 0, 0), Burrow.HUNT, Burrow.BUDGET).isEmpty(), "sealed in: nowhere to go");
-        List<Cell> budgeted = Burrow.planNearest(Cells.EMPTY, new Cell(0, 0, 0), new Cell(60, 0, 0), Burrow.HUNT, 50).orElseThrow();
+        assertTrue(Burrow.planNearest(sealed, new Cell(0, 0, 0), new Cell(5, 0, 0), Burrow.HUNT, ONE, Burrow.BUDGET).isEmpty(), "sealed in: nowhere to go");
+        List<Cell> budgeted = Burrow.planNearest(Cells.EMPTY, new Cell(0, 0, 0), new Cell(60, 0, 0), Burrow.HUNT, ONE, 50).orElseThrow();
         assertTrue(budgeted.get(budgeted.size() - 1).x() > 0, "the budget spent, the nearest seen: " + budgeted.get(budgeted.size() - 1));
     }
 
     @Test
     void theBudgetEndsAHopelessSearchAndBadArgumentsAreRefused() {
-        assertTrue(Burrow.plan(Cells.EMPTY, new Cell(0, 0, 0), new Cell(60, 0, 0), Burrow.HUNT, 50).isEmpty());
-        assertThrows(IllegalArgumentException.class, () -> Burrow.plan(Cells.EMPTY, new Cell(0, 0, 0), new Cell(1, 0, 0), Burrow.HUNT, 0));
+        assertTrue(Burrow.plan(Cells.EMPTY, new Cell(0, 0, 0), new Cell(60, 0, 0), Burrow.HUNT, ONE, 50).isEmpty());
+        assertThrows(IllegalArgumentException.class, () -> Burrow.plan(Cells.EMPTY, new Cell(0, 0, 0), new Cell(1, 0, 0), Burrow.HUNT, ONE, 0));
         assertThrows(IllegalArgumentException.class, () -> new Burrow.Costs(1, 0, 1));
     }
 
@@ -148,7 +178,7 @@ final class BurrowTest {
         // The booth's dig: from six blocks short of the hill to a point ten and a half in, at head height. Before the
         // rock-depth heuristic this found nothing in budget (it needed 8000 in the open, 16000 under a ceiling).
         Cell from = new Cell(54, -59, 0), to = new Cell(70, -59, 0);
-        List<Cell> in = Burrow.plan(hill(12, 8), from, to, Burrow.HUNT, Burrow.BUDGET).orElseThrow();
+        List<Cell> in = Burrow.plan(hill(12, 8), from, to, Burrow.HUNT, ONE, Burrow.BUDGET).orElseThrow();
         assertEquals(to, in.get(in.size() - 1));
         int rock = 0;
         for (Cell c : in) {
@@ -160,7 +190,7 @@ final class BurrowTest {
         }
         assertEquals(11, rock, "eleven cells of rock cut: " + in);
         // A low hill, six high and thirteen wide: over the top and four down costs less than eleven through, so the way goes over.
-        List<Cell> over = Burrow.plan(hill(6, 6), from, to, Burrow.HUNT, Burrow.BUDGET).orElseThrow();
+        List<Cell> over = Burrow.plan(hill(6, 6), from, to, Burrow.HUNT, ONE, Burrow.BUDGET).orElseThrow();
         int highest = Integer.MIN_VALUE;
         rock = 0;
         for (Cell c : over) {
@@ -173,7 +203,7 @@ final class BurrowTest {
         assertTrue(rock < 11, "and less rock than through: " + rock);
         // The same hill under a ceiling three above the ground, as a cave would give.
         Cells cave = (x, y, z) -> y >= -56 ? Cells.Kind.ROCK : hill(12, 8).at(x, y, z);
-        assertTrue(Burrow.plan(cave, from, to, Burrow.HUNT, Burrow.BUDGET).isPresent(), "planned under a ceiling too");
+        assertTrue(Burrow.plan(cave, from, to, Burrow.HUNT, ONE, Burrow.BUDGET).isPresent(), "planned under a ceiling too");
     }
 
     @Test
@@ -216,7 +246,7 @@ final class BurrowTest {
                 return dist.get(c);
             }
             for (Cell n : c.neighbours()) {
-                double cost = Burrow.passage(cells, n).cost(costs);
+                double cost = Burrow.passage(cells, n, 1, 2).cost(costs);
                 if (Double.isInfinite(cost) || done.contains(n)) {
                     continue;
                 }
@@ -234,7 +264,7 @@ final class BurrowTest {
     private static double costOf(Cells cells, List<Cell> path, Burrow.Costs costs) {
         double sum = 0;
         for (int i = 1; i < path.size(); i++) {
-            sum += Burrow.passage(cells, path.get(i)).cost(costs);
+            sum += Burrow.passage(cells, path.get(i), 1, 2).cost(costs);
         }
         return sum;
     }
@@ -265,7 +295,7 @@ final class BurrowTest {
             assertTrue(Burrow.rockDepth(cells, to, 8) >= 2, "buried");
             for (Burrow.Costs costs : List.of(Burrow.HUNT, Burrow.STALK)) {
                 double plain = cheapest(cells, from, to, costs);
-                Optional<List<Cell>> p = Burrow.plan(cells, from, to, costs, Burrow.BUDGET);
+                Optional<List<Cell>> p = Burrow.plan(cells, from, to, costs, ONE, Burrow.BUDGET);
                 assertEquals(!Double.isNaN(plain), p.isPresent(), "both find a way or neither, world " + world);
                 if (p.isPresent()) {
                     assertEquals(plain, costOf(cells, p.get(), costs), 1e-9, "the cheapest, world " + world + ": " + p.get());
@@ -287,7 +317,7 @@ final class BurrowTest {
             reads[0]++;
             return FLOOR.at(x, y, z);
         };
-        Burrow.Table table = new Burrow.Table(counted);
+        Burrow.Table table = new Burrow.Table(counted, 1, 2);
         assertEquals(Cells.Kind.AIR, table.at(3, 0, 3));
         assertEquals(Cells.Kind.ROCK, table.at(3, -1, 3));
         assertEquals(Cells.Kind.AIR, table.at(3, 0, 3));
@@ -301,11 +331,11 @@ final class BurrowTest {
         assertEquals(Burrow.Passage.AIR_ALONE, table.passage(key(3, 5, 3)));
         assertEquals(Burrow.Passage.ROCK, table.passage(key(3, -1, 3)));
         Cells seam = (x, y, z) -> y == -5 ? Cells.Kind.HARD : FLOOR.at(x, y, z);
-        assertEquals(Burrow.Passage.NEVER, new Burrow.Table(seam).passage(key(0, -4, 0)), "rock beside hard");
-        assertEquals(Burrow.Passage.NEVER, new Burrow.Table(seam).passage(key(0, -5, 0)), "hard itself");
+        assertEquals(Burrow.Passage.NEVER, new Burrow.Table(seam, 1, 2).passage(key(0, -4, 0)), "rock beside hard");
+        assertEquals(Burrow.Passage.NEVER, new Burrow.Table(seam, 1, 2).passage(key(0, -5, 0)), "hard itself");
         // Far more cells than the first table holds, in every kind, with negative coordinates: the same answers after growing.
         Cells varied = (x, y, z) -> Cells.Kind.values()[Math.floorMod(x * 31 + y * 17 + z * 7, 4)];
-        Burrow.Table big = new Burrow.Table(varied);
+        Burrow.Table big = new Burrow.Table(varied, 1, 2);
         int n = 0;
         for (int x = -40; x < 40; x++) {
             for (int z = -40; z < 40; z++) {
@@ -316,10 +346,10 @@ final class BurrowTest {
             }
         }
         assertEquals(n, big.reads(), "each read once");
-        for (int x = -39; x < 39; x += 7) {   // inside the read region by one, so a passage's neighbours were all read
-            for (int z = -39; z < 39; z += 5) {
+        for (int x = -38; x < 38; x += 7) {   // inside the read region by the hold of two, so a passage's neighbours were all read
+            for (int z = -38; z < 38; z += 5) {
                 assertEquals(varied.at(x, 0, z), big.at(x, 0, z));
-                assertEquals(Burrow.passage(varied, new Cell(x, 0, z)), big.passage(key(x, 0, z)));
+                assertEquals(Burrow.passage(varied, new Cell(x, 0, z), 1, 2), big.passage(key(x, 0, z)));
             }
         }
         assertEquals(n, big.reads(), "nothing read twice");

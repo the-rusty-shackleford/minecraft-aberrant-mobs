@@ -37,7 +37,8 @@ import org.junit.jupiter.api.Test;
  * higher gives a lift. Bad arguments refused.
  */
 final class LegsTest {
-    private static final LegGait GAIT = LegGait.FACE_STEALER;
+    /** The gait of a body a sixteenth a unit -- the size the synthetic bodies here are built at: feet 1.2 out and 1.3 down, at height 1.5. */
+    private static final LegGait GAIT = new LegGait(22.0, 12.0, 1.6, 0.35 * 2 * Math.PI, 0.3, 0.55, 1.6, 0.35, 1.2);
     private static final Undulation NONE = new Undulation(0, 0, 5.5, 0.35, 0.02, 0);
 
     /** A straight body along +X at height 1.5 with n segments 0.7 apart, on a trail. */
@@ -134,7 +135,7 @@ final class LegsTest {
         double peak = 0;
         int ticks = 0;
         while (feet[i].swinging()) {
-            peak = Math.max(peak, feet[i].at(rest, Vec.Y).y() - feet[i].anchor().y());
+            peak = Math.max(peak, feet[i].at(rest, Vec.Y, GAIT.lift()).y() - feet[i].anchor().y());
             feet = Legs.step(floor, chain, legs, feet, GAIT, 0.0, 0.3, Vec.X);
             ticks++;
         }
@@ -224,10 +225,11 @@ final class LegsTest {
         assertEquals(4, Legs.swingTicks(0.0));
         assertEquals(3, Legs.swingTicks(0.2));
         assertEquals(2, Legs.swingTicks(0.45));
-        assertEquals(0.0, Legs.lead(0.0, 26, 10), 1e-12);
+        assertEquals(0.0, Legs.lead(0.0, 26, 10, GAIT.lead()), 1e-12);
         // 26 legs, 10 swinging, 2-tick swings: a foot stands 5.2 ticks; at 0.3 a tick that is 1.56 blocks, half of it ahead.
-        assertEquals(0.3 * 26.0 / 10 * 2 / 2, Legs.lead(0.3, 26, 10), 1e-12);
-        assertEquals(Legs.MAX_LEAD, Legs.lead(5.0, 26, 10), 1e-12, "capped");
+        assertEquals(0.3 * 26.0 / 10 * 2 / 2, Legs.lead(0.3, 26, 10, GAIT.lead()), 1e-12);
+        assertEquals(GAIT.lead(), Legs.lead(5.0, 26, 10, GAIT.lead()), 1e-12, "capped by the gait's lead");
+        assertEquals(1.8, Legs.lead(5.0, 26, 10, 1.8), 1e-12, "a bigger body's cap");
     }
 
     @Test

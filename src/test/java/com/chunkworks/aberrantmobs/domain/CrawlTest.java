@@ -37,7 +37,15 @@ import org.junit.jupiter.api.Test;
  * on a floor that comes. A wish through the floor: bores with digging,
  * blocked without; a wish away from the face: the nearest other face the
  * wish lies along if one is in reach (a wall-clinger steps onto the
- * floor), else blocked. Bad arguments refused; the normal nearest a
+ * floor), else blocked; a wish into the face with no other face in reach
+ * and no digging: on along what of it lies in the face (up the last of a
+ * wall toward a way that goes over its edge), blocked only straight in.
+ * Reaching a point: within reach outright; under
+ * the head's feet, on or just in the face it stands on, yes; too deep
+ * under, or on the face but not under it, or above it, or airborne, no;
+ * a point on a wall it clings to. A strike's budget: a straight section's
+ * count, the first release's thirty-two at the model's own size, eighty-two
+ * at one and a half. Bad arguments refused; the normal nearest a
  * direction.
  */
 final class CrawlTest {
@@ -66,6 +74,58 @@ final class CrawlTest {
         // Holding stays put.
         Crawl.Step held = Crawl.step(FLOOR, onFloor(3.0), Vec.ZERO, 0.4, R, false);
         assertTrue(held.pose().centre().near(new Vec(3.0, 1.5, 0.5), 1e-6));
+    }
+
+    @Test
+    void aWishIntoTheFaceWithSomeOfItAlongTheFaceIsFollowedAlongIt() {
+        // A wall from x = 8 on, ten high; the head clings to its west face half a block under the top, heading up,
+        // wishing at a point over the top and well into the wall (the way's next cell over the edge): it climbs on.
+        Cells wall = (x, y, z) -> x >= 8 && y < 10 ? Cells.Kind.ROCK : y < 0 ? Cells.Kind.ROCK : Cells.Kind.AIR;
+        Crawl.Pose nearTop = new Crawl.Pose(new Vec(6.5, 9.5, 0.5), Vec.Y, Crawl.Normal.WEST);
+        Crawl.Step on = Crawl.step(wall, nearTop, new Vec(3.7, 0.8, 0.0), 0.4, R, false);
+        assertFalse(on.blocked(), "not blocked short of the edge");
+        assertTrue(on.pose().centre().y() > 9.5 + 0.3, "climbing on: " + on.pose().centre());
+        assertEquals(Crawl.Normal.WEST, on.pose().normal(), "still on the wall");
+        // Straight into the wall, nothing of the wish along it: blocked where it is.
+        Crawl.Step straight = Crawl.step(wall, nearTop, new Vec(3.7, 0.0, 0.0), 0.4, R, false);
+        assertTrue(straight.blocked());
+        assertTrue(straight.pose().centre().near(nearTop.centre(), 0.02), "held where it was, within the snap's tolerance: " + straight.pose().centre());
+        // On a floor wanting a point far below and a little ahead, no digging: it walks toward the point's column.
+        Crawl.Step toward = Crawl.step(FLOOR, onFloor(3.0), new Vec(0.5, -4.0, 0.0), 0.4, R, false);
+        assertFalse(toward.blocked());
+        assertTrue(toward.pose().centre().x() > 3.0 + 0.3, "on toward it: " + toward.pose().centre());
+        assertTrue(Crawl.step(FLOOR, onFloor(3.0), new Vec(0.0, -4.0, 0.0), 0.4, R, false).blocked(), "straight down: blocked");
+    }
+
+    @Test
+    void aPointWithinReachOrUnderItsFeetIsReached() {
+        Crawl.Pose p = onFloor(3.0);   // the axis at (3, 1.5, 0.5), its clearance 1.5 over the floor's top at y = 0
+        assertTrue(Crawl.reaches(p, R, new Vec(3.8, 1.5, 0.5), 1.2), "within reach outright");
+        assertTrue(Crawl.reaches(p, R, new Vec(3.5, 0.0, 0.5), 1.2), "a point on the floor under its feet: a player's feet");
+        assertTrue(Crawl.reaches(p, R, new Vec(3.0, -0.5, 0.5), 1.2), "a block's centre in the floor: a sound");
+        assertTrue(Crawl.reaches(p, R, new Vec(3.0, 0.8, 0.5), 1.2), "between the axis and its feet");
+        assertFalse(Crawl.reaches(p, R, new Vec(3.0, -1.6, 0.5), 1.2), "too deep under the floor: a ledge it has not gone over");
+        assertFalse(Crawl.reaches(p, R, new Vec(4.5, 0.0, 0.5), 1.2), "on the floor but not under it");
+        assertFalse(Crawl.reaches(p, R, new Vec(3.0, 3.0, 0.5), 1.2), "above it: not toward its face");
+        Crawl.Pose air = new Crawl.Pose(new Vec(3.0, 5.0, 0.5), Vec.X, Crawl.Normal.NONE);
+        assertTrue(Crawl.reaches(air, R, new Vec(3.5, 5.0, 0.5), 1.2));
+        assertFalse(Crawl.reaches(air, R, new Vec(3.0, 3.5, 0.5), 1.2), "airborne, nothing is underfoot");
+        Crawl.Pose wall = new Crawl.Pose(new Vec(1.5, 4.0, 0.5), Vec.Y, Crawl.Normal.WEST);   // clinging to a wall whose face, at x = 3, looks west
+        assertTrue(Crawl.reaches(wall, R, new Vec(3.0, 4.5, 0.5), 1.2), "a point on the wall it clings to");
+        assertFalse(Crawl.reaches(wall, R, new Vec(3.0, 6.0, 0.5), 1.2), "up the wall, out of reach");
+    }
+
+    @Test
+    void aStrikeCutsAStraightSectionsWorthAtMost() {
+        assertEquals(Crawl.section(new Crawl.Pose(new Vec(0.0, 1.5, 0.5), Vec.X, Crawl.Normal.UP), R).size(), Crawl.strikeBudget(R));
+        assertEquals(32, Crawl.strikeBudget(new Crawl.Rules(23.3 / 16.0, 1.5, 1.6)), "at the model's own size, the first release's thirty-two");
+        assertEquals(82, Crawl.strikeBudget(Crawl.FACE_STEALER), "at one and a half");
+        assertEquals(2, Crawl.FACE_STEALER.margin(), "its bore reaches two cells from its axis");
+        assertEquals(1, new Crawl.Rules(23.3 / 16.0, 1.5, 1.6).margin(), "one and a half reached the cell beside");
+        assertEquals(0, new Crawl.Rules(1.0, 0.5, 1.0).margin(), "half a block reaches only its own cell");
+        assertEquals(3, Crawl.FACE_STEALER.hold(), "an axis 2.18 over its feet rides the third cell over the floor");
+        assertEquals(2, new Crawl.Rules(23.3 / 16.0, 1.5, 1.6).hold(), "at 1.46, the second");
+        assertEquals(1, new Crawl.Rules(0.5, 0.5, 1.0).hold(), "under a block: the cell beside a face");
     }
 
     @Test

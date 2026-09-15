@@ -105,8 +105,11 @@ public record CreatureProfile(ResourceLocation model, double scale, RigSpec rig,
     /**
      * The bones of the body by name: the head, the chain of segments behind
      * it tail-ward, the leg pairs by the prefix their left and right bones
-     * share, the writhe and the gait the body moves with, and the cube of
-     * the head whose front wears a stolen face (none by default).
+     * share, the writhe and the gait the body moves with (the gait's
+     * {@code stride}, {@code reach}, {@code lift} and {@code lead} are the
+     * feet's measures, blocks, so a bigger body takes bigger steps), and the
+     * cube of the head whose front wears a stolen face (none by default).
+     * Every measure in blocks defaults to the Face-Stealer's at its size.
      */
     public record RigSpec(String head, List<String> chain, List<String> legs, String left, String right, Undulation undulation, LegGait gait, String mask) {
         private static final Codec<Undulation> UNDULATION = RecordCodecBuilder.create(i -> i.group(
@@ -122,7 +125,11 @@ public record CreatureProfile(ResourceLocation model, double scale, RigSpec rig,
                 Codec.DOUBLE.optionalFieldOf("lift_deg", LegGait.FACE_STEALER.liftDeg()).forGetter(LegGait::liftDeg),
                 Codec.DOUBLE.optionalFieldOf("cycle_blocks", LegGait.FACE_STEALER.cycleBlocks()).forGetter(LegGait::cycleBlocks),
                 Codec.DOUBLE.optionalFieldOf("wave", LegGait.FACE_STEALER.waveRad()).forGetter(LegGait::waveRad),
-                Codec.DOUBLE.optionalFieldOf("speed_ref", LegGait.FACE_STEALER.speedRef()).forGetter(LegGait::speedRef)
+                Codec.DOUBLE.optionalFieldOf("speed_ref", LegGait.FACE_STEALER.speedRef()).forGetter(LegGait::speedRef),
+                Codec.DOUBLE.optionalFieldOf("stride", LegGait.FACE_STEALER.stride()).forGetter(LegGait::stride),
+                Codec.DOUBLE.optionalFieldOf("reach", LegGait.FACE_STEALER.reach()).forGetter(LegGait::reach),
+                Codec.DOUBLE.optionalFieldOf("lift", LegGait.FACE_STEALER.lift()).forGetter(LegGait::lift),
+                Codec.DOUBLE.optionalFieldOf("lead", LegGait.FACE_STEALER.lead()).forGetter(LegGait::lead)
         ).apply(i, LegGait::new));
         public static final Codec<RigSpec> CODEC = RecordCodecBuilder.create(i -> i.group(
                 Codec.STRING.fieldOf("head").forGetter(RigSpec::head),

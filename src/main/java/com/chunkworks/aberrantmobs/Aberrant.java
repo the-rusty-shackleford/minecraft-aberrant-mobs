@@ -165,9 +165,9 @@ public class Aberrant extends Monster {
     private static final EntityDataAccessor<String> DATA_FACE_NAME = SynchedEntityData.defineId(Aberrant.class, EntityDataSerializers.STRING);
     private static final EntityDataAccessor<String> DATA_FACE_ID = SynchedEntityData.defineId(Aberrant.class, EntityDataSerializers.STRING);
 
-    /** How far beyond its box a creature is still drawn: a body eleven blocks long trails well past its head. */
-    private static final double CULL_REACH = 12.0;
-    /** Trail samples kept: a body of eleven blocks at the slowest crawl, and then some. */
+    /** How far beyond its box a creature is still drawn: a body sixteen blocks long trails well past its head. */
+    private static final double CULL_REACH = 18.0;
+    /** Trail samples kept: a body of sixteen blocks at the slowest crawl (a sample every twentieth of a block along ten and a half of spine is two hundred and ten), and then some. */
     private static final int TRAIL_CAPACITY = 256;
     /** A head that moved further than this in a tick was moved, not walked: the body is laid afresh behind it. */
     private static final double TELEPORT = 4.0;
@@ -181,24 +181,27 @@ public class Aberrant extends Monster {
     private static final int REPLAN = 20;
     /** A refused crawl brings the next plan forward to within this many ticks -- not to now: a search a tick is more than a server can spare, and the same cell plans the same way. */
     private static final int BLOCKED_REPLAN = 5;
-    /** A waypoint this near is passed; a target this near is reached. */
+    /** A waypoint this near is passed and a target this near is reached: outright, or across the head's face while under it ({@link Crawl#reaches}), since the axis rides its clearance over what lies on the face. */
     private static final double WAYPOINT_REACH = 1.2;
     private static final double TARGET_REACH = 1.5;
-    /** A strike cuts at most this many blocks. */
-    private static final int STRIKE_BUDGET = 32;
     /** A target within this of the last one keeps the way already planned, blocks. */
     private static final double SAME_TARGET = 4.0;
     /** Old sounds are forgotten this often, ticks. */
     private static final int FORGET_EVERY = 200;
     /** A blow this hard is a hard one, unless the tree's {@code flinch_at} says. */
     private static final double FLINCH_AT = 10.0;
-    /** The pincers reach this far from the head's axis, blocks. */
-    public static final double GRAB_REACH = 3.0;
+    /** The pincers reach this far from the head's axis, blocks: at the Face-Stealer's size, twice the maw's reach and a little. */
+    public static final double GRAB_REACH = 4.5;
     /** The pinch as the pincers close, and the bite: finite, beyond any absorption, through the pipeline. */
     public static final float PINCH = 2.0f;
     public static final float DEVOUR = 1.0e6f;
-    /** Where the held one hangs: the maw's centre from the head's pivot, in the head's frame, blocks (the file's units over sixteen). */
-    private static final Vec MAW = new Vec(0.0, -11.1 / 16.0, 22.8 / 16.0);
+    /**
+     * Where the held one hangs, from the head's pivot in the head's frame, in the model's own units (times the
+     * profile's scale for blocks): at the height of the maw cube's centre, against the mask's front plane -- half
+     * their own width further forward, so they hang in the pincers before the face, not inside the head's front
+     * cube, where a box centred on the maw put a player's eyes at either size.
+     */
+    private static final Vec HOLD_UNITS = new Vec(0.0, -11.1, 27.0);
     /** The chance the face it wore drops when it dies. */
     public static final float FACE_DROP_CHANCE = 0.15f;
     /** Experience for the kill. */
@@ -592,15 +595,16 @@ public class Aberrant extends Monster {
             LevelCells cells = new LevelCells(server);
             Habitat.siteInWall(cells, Cell.containing(new Vec(getX(), getY(), getZ())), Habitat.SITE_DEPTH).ifPresent(site -> {
                 List<Cell> pocket = new java.util.ArrayList<>();
-                for (int dx = -1; dx <= 1; dx++) {
-                    for (int dy = -1; dy <= 1; dy++) {
-                        for (int dz = -1; dz <= 1; dz++) {
+                int r = Habitat.POCKET_RADIUS;
+                for (int dx = -r; dx <= r; dx++) {
+                    for (int dy = -r; dy <= r; dy++) {
+                        for (int dz = -r; dz <= r; dz++) {
                             pocket.add(site.plus(dx, dy, dz));
                         }
                     }
                 }
                 blocksDug += DigWorld.dig(server, this, pocket, false);
-                setPos(site.x() + 0.5, site.y() - 1.0 + 0.2, site.z() + 0.5);
+                setPos(site.x() + 0.5, site.y() - r + 0.2, site.z() + 0.5);   // its feet on the pocket's floor
                 resetCrawl();
             });
         }
@@ -860,7 +864,7 @@ public class Aberrant extends Monster {
         if (flight != null) {
             fly(cells, rules);
         } else {
-            Vec wish = wish(cells);
+            Vec wish = wish(cells, rules);
             boolean dig = mayDig && wayThroughRock(cells, Crawl.DIG_AHEAD + rules.bore());
             Crawl.Step step = Crawl.step(cells, crawl, wish, wish.equals(Vec.ZERO) ? 0.0 : crawlSpeed, rules, dig);
             crawl = step.pose();
@@ -929,8 +933,14 @@ public class Aberrant extends Monster {
         return false;
     }
 
-    /** effects: returns this tick's wish: the scripted walk's direction while it lies in the face and its heading after, the way toward the target, or nothing */
-    private Vec wish(LevelCells cells) {
+    /**
+     * effects: returns this tick's wish: the scripted walk's direction while
+     * it lies in the face and its heading after, the way toward the target
+     * (a waypoint, or the target, under the head's feet on the face it rides
+     * counts as reached, {@link Crawl#reaches}: the axis rides its clearance
+     * over a player's feet or a sound in the floor), or nothing
+     */
+    private Vec wish(LevelCells cells, Crawl.Rules rules) {
         if (crawlTicks > 0) {
             crawlTicks--;
             if (!desired.equals(Vec.ZERO)) {
@@ -947,7 +957,7 @@ public class Aberrant extends Monster {
             return Vec.ZERO;
         }
         Vec centre = crawl.centre();
-        if (target.minus(centre).length() < TARGET_REACH) {
+        if (Crawl.reaches(crawl, rules, target, TARGET_REACH)) {
             target = null;
             path = null;
             return Vec.ZERO;
@@ -958,7 +968,7 @@ public class Aberrant extends Monster {
         if (path == null || --replanIn <= 0) {
             // The way, or the nearest it can get when the target is cut off; never the straight line, which a wall or a pool would hold it on forever.
             long began = System.nanoTime();
-            path = Burrow.planNearest(cells, Cell.containing(centre), Cell.containing(target), Burrow.HUNT, Burrow.BUDGET).orElse(null);
+            path = Burrow.planNearest(cells, Cell.containing(centre), Cell.containing(target), Burrow.HUNT, rules, Burrow.BUDGET).orElse(null);
             pathAt = 0;
             replanIn = REPLAN;
             if (LOG.isDebugEnabled()) {
@@ -968,13 +978,20 @@ public class Aberrant extends Monster {
         if (path == null) {
             return Vec.ZERO;
         }
-        while (pathAt < path.size() - 1 && path.get(pathAt).centre().minus(centre).length() < WAYPOINT_REACH) {
+        while (pathAt < path.size() - 1 && Crawl.reaches(crawl, rules, path.get(pathAt).centre(), WAYPOINT_REACH)) {
             pathAt++;
         }
         return path.get(pathAt).centre().minus(centre);
     }
 
-    /** effects: one tick of a leap: moved by the flight, the flight bent by gravity; landed on the first face it flies into, or when the flight has gone on too long */
+    /**
+     * effects: one tick of a leap: moved by the flight, the flight bent by
+     * gravity; landed on the first face it comes down to its riding height
+     * over -- a face it moves toward within its clearance and this tick's
+     * approach, so a leap aimed at a spot ends its clearance over that
+     * spot, neither short of it nor past it -- or when the flight has gone
+     * on too long
+     */
     private void fly(LevelCells cells, Crawl.Rules rules) {
         Vec centre = crawl.centre().plus(flight);
         Vec heading = crawl.heading();
@@ -990,7 +1007,7 @@ public class Aberrant extends Monster {
                 if (n == Crawl.Normal.NONE || flight.dot(n.dir) >= -1e-6) {
                     continue;
                 }
-                Vec face = cells.face(centre, n.dir.times(-1), flight.length() + 0.3);
+                Vec face = cells.face(centre, n.dir.times(-1), rules.clearance() - flight.dot(n.dir));
                 if (face != null && face.minus(centre).length() < best) {
                     best = face.minus(centre).length();
                     Vec h = heading.minus(n.dir.times(heading.dot(n.dir)));
@@ -1353,8 +1370,12 @@ public class Aberrant extends Monster {
         }
     }
 
-    /** effects: returns the head's orientation this tick: along the trail's newest sample, or the yaw and the up before the body is known */
-    private net.minecraft.world.phys.Vec3 mawPoint() {
+    /**
+     * effects: returns where {@code passenger}'s middle hangs in the jaws: {@link #HOLD_UNITS} at the profile's
+     * scale and half the passenger's width forward, in the head's frame this tick -- along the trail's newest
+     * sample, or the yaw and the up before the body is known
+     */
+    private net.minecraft.world.phys.Vec3 jaws(Entity passenger) {
         Vec forward = facing();
         Vec up = up();
         if (trail != null) {
@@ -1362,13 +1383,15 @@ public class Aberrant extends Monster {
             forward = s.forward();
             up = s.up();
         }
-        Vec maw;
+        CreatureProfile p = profile();
+        Vec offset = HOLD_UNITS.times(p == null ? 1.0 / 16.0 : p.scale()).plus(new Vec(0.0, 0.0, passenger.getBbWidth() / 2.0));
+        Vec at;
         try {
-            maw = axis().plus(com.chunkworks.aberrantmobs.domain.Quat.lookAlong(forward, up).rotate(MAW));
+            at = axis().plus(com.chunkworks.aberrantmobs.domain.Quat.lookAlong(forward, up).rotate(offset));
         } catch (IllegalArgumentException e) {
-            maw = axis().plus(forward.times(MAW.z()));
+            at = axis().plus(forward.times(offset.z()));
         }
-        return new net.minecraft.world.phys.Vec3(maw.x(), maw.y(), maw.z());
+        return new net.minecraft.world.phys.Vec3(at.x(), at.y(), at.z());
     }
 
     @Override
@@ -1381,13 +1404,13 @@ public class Aberrant extends Monster {
     }
 
     /**
-     * effects: returns where the held one's middle hangs: at the maw when the
-     * maw is in air, else at the head's own axis, which the crawl keeps out
-     * of rock -- a head that has just surfaced through a wall must not hold
-     * its prey inside it
+     * effects: returns where the held one's middle hangs: in the jaws when
+     * the jaws are in air, else at the head's own axis, which the crawl keeps
+     * out of rock -- a head that has just surfaced through a wall must not
+     * hold its prey inside it
      */
     private net.minecraft.world.phys.Vec3 holdPoint(Entity passenger) {
-        net.minecraft.world.phys.Vec3 maw = mawPoint();
+        net.minecraft.world.phys.Vec3 maw = jaws(passenger);
         double half = passenger.getBbHeight() / 2.0;
         AABB body = new AABB(maw.x - 0.3, maw.y - half, maw.z - 0.3, maw.x + 0.3, maw.y + half, maw.z + 0.3);
         if (level().noCollision(passenger, body)) {
@@ -1479,7 +1502,10 @@ public class Aberrant extends Monster {
         }
         if (FaceStealerClips.CUE_STRIKE.equals(cue) && pendingDig != null && level() instanceof ServerLevel server) {
             List<Cell> rock = Tunnel.cuttable(cells(), pendingDig);
-            int cut = DigWorld.dig(server, this, rock.size() > STRIKE_BUDGET ? rock.subList(0, STRIKE_BUDGET) : rock, !quiet);
+            Body body = body();
+            CreatureProfile p = profile();
+            int budget = body == null || p == null ? rock.size() : Crawl.strikeBudget(rules(body, p));   // a straight section's worth
+            int cut = DigWorld.dig(server, this, rock.size() > budget ? rock.subList(0, budget) : rock, !quiet);
             blocksDug += cut;
             if (LOG.isDebugEnabled()) {
                 LOG.debug("{} struck: {} of {} rock cut, head {} heading {}", getId(), cut, rock.size(), crawl == null ? null : crawl.centre(), crawl == null ? null : crawl.heading());

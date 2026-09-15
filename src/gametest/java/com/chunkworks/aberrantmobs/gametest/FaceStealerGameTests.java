@@ -57,19 +57,29 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  * creature whole on the lit surface; killed, it drops its chitin and its
  * cracked plate and experience.
  *
- * <p>The arena template is 15 by 9 by 15, the tall one 15 by 16 by 15; a
- * floor of stone is laid on them.
+ * <p>The arena template is 15 by 9 by 15, the tall one 15 by 16 by 15, and
+ * the long one 31 by 9 by 15 (a body sixteen blocks long, walked); a floor
+ * of stone is laid on them.
  */
 @GameTestHolder(com.chunkworks.aberrantmobs.AberrantMobsMod.MOD_ID)
 @PrefixGameTestTemplate(false)
 public final class FaceStealerGameTests {
     static final ResourceLocation FACE_STEALER = AberrantMobs.id("face_stealer");
+    /** The Face-Stealer's model unit, blocks: a sixteenth and a half. */
+    static final double UNIT = 1.5 / 16.0;
+    /** Its axis over its feet: 23.3 units. */
+    static final double AXIS = 23.3 * UNIT;
     private static final int FLOOR = 4;
 
     public FaceStealerGameTests() {}
 
     private static void layFloor(GameTestHelper helper) {
-        for (int x = 0; x < 15; x++) {
+        layFloor(helper, 15);
+    }
+
+    /** effects: lays the floor over a template {@code width} along X */
+    private static void layFloor(GameTestHelper helper, int width) {
+        for (int x = 0; x < width; x++) {
             for (int z = 0; z < 15; z++) {
                 for (int y = 0; y < FLOOR; y++) {
                     helper.setBlock(new BlockPos(x, y, z), Blocks.STONE);
@@ -84,7 +94,7 @@ public final class FaceStealerGameTests {
         helper.assertTrue(p.isPresent(), "aberrantmobs:face_stealer is in the creature registry");
         CreatureProfile profile = p.get().value();
         helper.assertValueEqual(profile.model(), AberrantMobs.id("face_stealer"), "its model");
-        helper.assertTrue(Math.abs(profile.scale() - 1.0 / 16.0) < 1e-12, "a sixteenth of a block a unit");
+        helper.assertTrue(Math.abs(profile.scale() - UNIT) < 1e-12, "a sixteenth and a half of a block a unit");
         helper.assertTrue(Math.abs(profile.stats().health() - 84.0) < 1e-9, "84 health");
         layFloor(helper);
         Vec3 at = helper.absoluteVec(new Vec3(7.5, FLOOR, 7.5));
@@ -92,22 +102,23 @@ public final class FaceStealerGameTests {
         helper.assertTrue(a != null, "the creature is made");
         helper.getLevel().addFreshEntity(a);
         a.setNoAi(true);   // moved by the test, not by its mind
-        helper.assertTrue(Math.abs(a.getBbWidth() - 2.5f) < 1e-5 && Math.abs(a.getBbHeight() - 2.5f) < 1e-5, "sized by the profile: " + a.getBbWidth() + " x " + a.getBbHeight());
+        helper.assertTrue(Math.abs(a.getBbWidth() - 3.75f) < 1e-5 && Math.abs(a.getBbHeight() - 3.75f) < 1e-5, "sized by the profile: " + a.getBbWidth() + " x " + a.getBbHeight());
         helper.assertTrue(Math.abs(a.getMaxHealth() - 84.0f) < 1e-5 && Math.abs(a.getHealth() - 84.0f) < 1e-5, "healthy as the profile says: " + a.getHealth());
         helper.assertValueEqual(a.getName().getString(), "Face-Stealer", "named by its profile");
         helper.assertValueEqual(a.profileId(), FACE_STEALER, "and knows its profile");
         helper.assertTrue(Aberrant.create(helper.getLevel(), AberrantMobs.id("nothing"), at.x, at.y, at.z, 0.0f) == null, "no creature without a profile");
         helper.runAtTickTime(5, () -> {
             helper.assertTrue(a.isAlive() && a.profile() != null, "still itself five ticks on");
-            helper.assertTrue(a.getBoundingBoxForCulling().getXsize() > 20.0, "drawn from well beyond its box: " + a.getBoundingBoxForCulling().getXsize());
+            helper.assertTrue(a.getBoundingBoxForCulling().getXsize() > 30.0, "drawn from well beyond its box: " + a.getBoundingBoxForCulling().getXsize());
             helper.succeed();
         });
     }
 
-    @GameTest(template = "arena", timeoutTicks = 80)
+    @GameTest(template = "long", timeoutTicks = 80)
     public void thePartsLieAlongTheBodyAndFollowItsWalk(GameTestHelper helper) {
-        layFloor(helper);
-        Vec3 at = helper.absoluteVec(new Vec3(2.5, FLOOR, 7.5));
+        // The long arena: the body is laid ten blocks behind the head, then walked nine east.
+        layFloor(helper, 31);
+        Vec3 at = helper.absoluteVec(new Vec3(17.5, FLOOR, 7.5));
         Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, -90.0f);
         helper.assertTrue(a != null, "the creature is made");
         helper.getLevel().addFreshEntity(a);
@@ -120,9 +131,9 @@ public final class FaceStealerGameTests {
             helper.assertValueEqual(parts.length, Aberrant.MAX_PARTS, "born with its parts");
             double headX = parts[0].getX(), tailX = parts[11].getX();
             helper.assertTrue(Math.abs(headX - a.getX()) < 0.05, "the head part is on the head: " + (headX - a.getX()));
-            helper.assertTrue(headX - tailX > 6.0 && headX - tailX < 7.5, "the tail part trails the body's length west: " + (headX - tailX));
-            helper.assertTrue(parts[5].getBbWidth() > 2.0f && parts[12].getBbWidth() < 0.05f, "segments have boxes, the spare parts are specks");
-            helper.assertTrue(parts[5].getBoundingBox().minY < a.getY() + 0.5 && parts[5].getBoundingBox().maxY > a.getY() + 1.5, "a segment's box sits on the body's axis");
+            helper.assertTrue(headX - tailX > 9.0 && headX - tailX < 11.25, "the tail part trails the body's length west (110 units): " + (headX - tailX));
+            helper.assertTrue(parts[5].getBbWidth() > 3.0f && parts[12].getBbWidth() < 0.05f, "segments have boxes, the spare parts are specks");
+            helper.assertTrue(parts[5].getBoundingBox().minY < a.getY() + 0.75 && parts[5].getBoundingBox().maxY > a.getY() + 2.25, "a segment's box sits on the body's axis");
             helper.succeed();
         });
     }
@@ -154,10 +165,10 @@ public final class FaceStealerGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = "arena", timeoutTicks = 80)
+    @GameTest(template = "long", timeoutTicks = 80)
     public void mostFeetStandOnTheFloorWhileItWalks(GameTestHelper helper) {
-        layFloor(helper);
-        Vec3 at = helper.absoluteVec(new Vec3(2.5, FLOOR, 7.5));
+        layFloor(helper, 31);   // the long arena: floor under the whole body
+        Vec3 at = helper.absoluteVec(new Vec3(17.5, FLOOR, 7.5));
         Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, -90.0f);
         helper.assertTrue(a != null, "the creature is made");
         helper.getLevel().addFreshEntity(a);
@@ -237,14 +248,16 @@ public final class FaceStealerGameTests {
                 }
             });
         }
-        helper.runAtTickTime(40, () -> {
+        // At 0.3 a tick it meets the wall (its lookahead 2.4 from the face at 12) by tick 24 and the ceiling at 13 by
+        // tick 39: on the wall at 32, under the ceiling by 65.
+        helper.runAtTickTime(32, () -> {
             helper.assertTrue(a.crawlPose() != null && a.crawlPose().normal() == com.chunkworks.aberrantmobs.domain.Crawl.Normal.WEST, "on the wall, whose face looks west: " + a.crawlPose());
-            helper.assertTrue(a.getY() - at.y > 2.0, "and up it: " + (a.getY() - at.y));
-            helper.assertTrue(Math.abs(a.getX() - (at.x + 12.0 - 2.5 - 23.3 / 16.0)) < 0.3, "its clearance off the wall: " + (a.getX() - at.x));
+            helper.assertTrue(a.getY() - at.y > 1.5, "and up it: " + (a.getY() - at.y));
+            helper.assertTrue(Math.abs(a.getX() - (at.x + 12.0 - 2.5 - AXIS)) < 0.3, "its clearance off the wall: " + (a.getX() - at.x));
         });
         helper.runAtTickTime(65, () -> {
             helper.assertTrue(a.crawlPose() != null && a.crawlPose().normal() == com.chunkworks.aberrantmobs.domain.Crawl.Normal.DOWN, "under the ceiling, whose face looks down: " + a.crawlPose());
-            helper.assertTrue(a.getY() - at.y > 6.0, "hanging high: " + (a.getY() - at.y));
+            helper.assertTrue(a.getY() - at.y > 4.5, "hanging high (its axis its clearance under the ceiling, its box centred on it): " + (a.getY() - at.y));
             helper.assertTrue(a.crawlPose().heading().x() < -0.9, "heading back west along it: " + a.crawlPose().heading());
         });
         helper.runAtTickTime(180, () -> {
@@ -264,7 +277,7 @@ public final class FaceStealerGameTests {
         helper.assertTrue(a != null, "the creature is made");
         helper.getLevel().addFreshEntity(a);
         a.setNoAi(true);   // moved by the test, not by its mind
-        Vec3 goal = helper.absoluteVec(new Vec3(13.5, FLOOR + 23.3 / 16.0, 7.5));
+        Vec3 goal = helper.absoluteVec(new Vec3(13.5, FLOOR + AXIS, 7.5));
         a.setCrawlTarget(new com.chunkworks.aberrantmobs.domain.Vec(goal.x, goal.y, goal.z), true, 0.45);
         helper.runAtTickTime(240, () -> {
             helper.assertTrue(a.getX() - at.x > 9.0, "it went in nine blocks and more: " + (a.getX() - at.x));
@@ -289,17 +302,19 @@ public final class FaceStealerGameTests {
     @GameTest(template = "tall", timeoutTicks = 260)
     public void sentOverAThickWallItClimbsItRatherThanCuttingIt(GameTestHelper helper) {
         layFloor(helper);
-        // A wall across its way, seven thick and seven high: at hunting costs the way over it is cheaper than
-        // the way through it, so the way climbs. Digging is allowed, and must not be used on the wall the way
-        // climbs -- the booth found the creature cutting the foot of a hill its way went over, then standing
-        // blocked for good with no wall left to take.
-        fill(helper, 6, FLOOR, 0, 12, FLOOR + 6, 14, Blocks.STONE);
+        // A wall across its way, seven thick (x = 5..11) and seven high, with three of air beyond it: a head riding
+        // 2.18 off its far face needs that much before the template's barrier. The head starts 2.5 from the wall
+        // and from the barrier behind it, so the floor, 1.875 under its axis, is the face it attaches to. At
+        // hunting costs the way over the wall is cheaper than the way through it, so the way climbs. Digging is
+        // allowed, and must not be used on the wall the way climbs -- the booth found the creature cutting the
+        // foot of a hill its way went over, then standing blocked for good with no wall left to take.
+        fill(helper, 5, FLOOR, 0, 11, FLOOR + 6, 14, Blocks.STONE);
         Vec3 at = helper.absoluteVec(new Vec3(2.5, FLOOR, 7.5));
         Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, -90.0f);
         helper.assertTrue(a != null, "the creature is made");
         helper.getLevel().addFreshEntity(a);
         a.setNoAi(true);   // moved by the test, not by its mind
-        Vec3 goal = helper.absoluteVec(new Vec3(13.5, FLOOR + 23.3 / 16.0, 7.5));
+        Vec3 goal = helper.absoluteVec(new Vec3(13.5, FLOOR + AXIS, 7.5));
         a.setCrawlTarget(new com.chunkworks.aberrantmobs.domain.Vec(goal.x, goal.y, goal.z), true, 0.45);
         double[] highest = {0.0};
         for (int t = 2; t < 240; t += 2) {
@@ -311,7 +326,7 @@ public final class FaceStealerGameTests {
         }
         helper.runAtTickTime(240, () -> {
             helper.assertTrue(a.blocksDug() == 0, "the wall it climbs is not cut: " + a.blocksDug() + " blocks dug");
-            helper.assertBlockPresent(Blocks.STONE, new BlockPos(6, FLOOR + 1, 7));
+            helper.assertBlockPresent(Blocks.STONE, new BlockPos(5, FLOOR + 1, 7));
             helper.assertTrue(highest[0] > 7.5, "its head went over the top: highest " + highest[0]);
             helper.assertTrue(!a.crawling(), "and it arrived: at x " + (a.getX() - at.x) + ", " + (a.crawling() ? "still under way" : "done"));
             helper.assertTrue(a.getX() - at.x > 10.0, "beyond the wall: " + (a.getX() - at.x));
@@ -455,9 +470,10 @@ public final class FaceStealerGameTests {
         });
         helper.runAtTickTime(SPAWN_PROTECTION + 6, () -> {
             helper.assertTrue(p.getVehicle() == a && a.holding() && a.held() == p, "held: riding the creature");
-            com.chunkworks.aberrantmobs.domain.Vec maw = a.axis().plus(a.facing().times(22.8 / 16.0));
-            double off = new com.chunkworks.aberrantmobs.domain.Vec(p.getX(), p.getY() + p.getBbHeight() / 2.0, p.getZ()).minus(maw).length();
-            helper.assertTrue(off < 1.5, "at the maw: " + off);
+            // In the jaws: against the mask's front (27 units ahead of the axis) and half their width more, at the maw's height (11.1 units under it).
+            com.chunkworks.aberrantmobs.domain.Vec jaws = a.axis().plus(a.facing().times(27.0 * UNIT + p.getBbWidth() / 2.0)).plus(new com.chunkworks.aberrantmobs.domain.Vec(0, -11.1 * UNIT, 0));
+            double off = new com.chunkworks.aberrantmobs.domain.Vec(p.getX(), p.getY() + p.getBbHeight() / 2.0, p.getZ()).minus(jaws).length();
+            helper.assertTrue(off < 0.5, "in the jaws, before the mask at the maw's height: " + off);
             p.stopRiding();
             helper.assertTrue(p.getVehicle() == a, "and cannot climb off");
         });
@@ -525,25 +541,25 @@ public final class FaceStealerGameTests {
         BlockPos lit = helper.absolutePos(new BlockPos(7, FLOOR, 7));
         helper.assertTrue(!net.minecraft.world.entity.SpawnPlacements.checkSpawnRules(com.chunkworks.aberrantmobs.ModContent.ABERRANT.get(), helper.getLevel(), net.minecraft.world.entity.MobSpawnType.NATURAL, lit, helper.getLevel().getRandom()), "not on the lit surface");
         fill(helper, 0, FLOOR, 0, 14, 15, 14, Blocks.STONE);   // the whole template rock
-        fill(helper, 7, 5, 7, 7, 7, 7, Blocks.AIR);            // a chimney of cave in the middle, dark, seven of rock each way
-        BlockPos pocket = helper.absolutePos(new BlockPos(7, 5, 7));
+        fill(helper, 5, 5, 7, 5, 7, 7, Blocks.AIR);            // a chimney of cave, dark, nine of rock to the east: seven for the site and two for its pocket's far side
+        BlockPos pocket = helper.absolutePos(new BlockPos(5, 5, 7));
         // The light engine works off the server thread and the gametest server does not pace its ticks, so the
         // pocket goes dark after a wall-clock delay, not a tick count: wait for it.
         helper.startSequence().thenWaitUntil(() -> helper.assertTrue(helper.getLevel().getBrightness(net.minecraft.world.level.LightLayer.SKY, pocket) == 0,
                 "dark: sky " + helper.getLevel().getBrightness(net.minecraft.world.level.LightLayer.SKY, pocket))).thenExecute(() -> {
-            helper.assertTrue(com.chunkworks.aberrantmobs.SpawnRules.siteBeside(helper.getLevel(), pocket), "a wall six thick lies beside it");
+            helper.assertTrue(com.chunkworks.aberrantmobs.SpawnRules.siteBeside(helper.getLevel(), pocket), "a wall seven thick lies beside it");
             helper.assertTrue(net.minecraft.world.entity.SpawnPlacements.checkSpawnRules(com.chunkworks.aberrantmobs.ModContent.ABERRANT.get(), helper.getLevel(), net.minecraft.world.entity.MobSpawnType.NATURAL, pocket, helper.getLevel().getRandom()), "a dark pocket by thick rock will do");
             helper.assertTrue(net.minecraft.world.entity.SpawnPlacements.checkSpawnRules(com.chunkworks.aberrantmobs.ModContent.ABERRANT.get(), helper.getLevel(), net.minecraft.world.entity.MobSpawnType.COMMAND, lit, helper.getLevel().getRandom()), "a command puts it anywhere");
-            // Come into the world there: it takes the Face-Stealer's profile and bores its pocket six into the wall.
+            // Come into the world there: it takes the Face-Stealer's profile and bores its pocket seven into the wall.
             Aberrant a = com.chunkworks.aberrantmobs.ModContent.ABERRANT.get().create(helper.getLevel());
             a.setPos(pocket.getX() + 0.5, pocket.getY(), pocket.getZ() + 0.5);
             a.finalizeSpawn(helper.getLevel(), helper.getLevel().getCurrentDifficultyAt(pocket), net.minecraft.world.entity.MobSpawnType.NATURAL, null);
             helper.getLevel().addFreshEntity(a);
             helper.assertValueEqual(a.profileId(), FACE_STEALER, "the profile whose habitat fits");
-            helper.assertTrue(Math.abs(a.getX() - pocket.getX() - 0.5) > 5.5 || Math.abs(a.getZ() - pocket.getZ() - 0.5) > 5.5, "in the wall, six blocks off: " + (a.getX() - pocket.getX()) + ", " + (a.getZ() - pocket.getZ()));
+            helper.assertTrue(Math.abs(a.getX() - pocket.getX() - 0.5) > 6.5 || Math.abs(a.getZ() - pocket.getZ() - 0.5) > 6.5, "in the wall, seven blocks off: " + (a.getX() - pocket.getX()) + ", " + (a.getZ() - pocket.getZ()));
             BlockPos inside = BlockPos.containing(a.getX(), a.getY() + 1.0, a.getZ());
             helper.assertTrue(helper.getLevel().getBlockState(inside).isAir(), "in a pocket it bored: " + inside);
-            helper.assertTrue(a.blocksDug() >= 20, "the pocket's rock cut: " + a.blocksDug());
+            helper.assertTrue(a.blocksDug() >= 100, "the pocket's hundred and twenty-five cut: " + a.blocksDug());
         }).thenSucceed();
     }
 
@@ -570,7 +586,7 @@ public final class FaceStealerGameTests {
         helper.assertTrue(spawned != null && !spawned.isRemoved(), "the egg spawns it on the surface");
         helper.assertValueEqual(spawned.profileId(), FACE_STEALER, "the egg's profile");
         helper.assertTrue(Math.abs(spawned.getMaxHealth() - 84.0) < 1e-6 && Math.abs(spawned.getHealth() - 84.0) < 1e-6, "the profile's health, full: " + spawned.getMaxHealth() + " / " + spawned.getHealth());
-        helper.assertTrue(spawned.getBbWidth() > 2.0, "the profile's size: " + spawned.getBbWidth());
+        helper.assertTrue(spawned.getBbWidth() > 3.0, "the profile's size: " + spawned.getBbWidth());
         // And /summon with only a profile, the documented way, is the same creature whole.
         net.minecraft.nbt.CompoundTag tag = new net.minecraft.nbt.CompoundTag();
         tag.putString("id", AberrantMobs.id("aberrant").toString());

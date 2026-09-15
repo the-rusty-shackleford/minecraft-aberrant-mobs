@@ -88,6 +88,8 @@ public final class PhotoBooth {
     private static int tick = 0;
     private static List<Step> steps;
     private static UUID creature;
+    /** The x of the dig hill's face, for the dig's verdict. */
+    private static double hillFace;
 
     @SubscribeEvent
     public static void onClientTick(ClientTickEvent.Post event) {
@@ -159,8 +161,8 @@ public final class PhotoBooth {
         creature = a.getUUID();
         sp.getAbilities().flying = true;
         sp.onUpdateAbilities();
-        sp.teleportTo(level, X - 2.0, y + 4.0, Z - 16.0, 0.0f, 12.0f);
-        sp.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(X - 2.0, y + 1.0, Z));
+        sp.teleportTo(level, X - 3.0, y + 6.0, Z - 24.0, 0.0f, 12.0f);
+        sp.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(X - 3.0, y + 1.5, Z));
     }
 
     private static List<Step> plan(Minecraft mc) {
@@ -178,8 +180,8 @@ public final class PhotoBooth {
         // The front quarter: ahead of the head and to its right, looking back at it.
         s.add(new Step(t += 2, () -> onServer(mc, sp -> {
             double y = sp.serverLevel().getMinBuildHeight() + 4;
-            sp.teleportTo(sp.serverLevel(), X + 12.0, y + 5.0, Z + 9.0, 0.0f, 0.0f);
-            sp.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(X - 1.0, y + 1.2, Z));
+            sp.teleportTo(sp.serverLevel(), X + 18.0, y + 7.5, Z + 13.5, 0.0f, 0.0f);
+            sp.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(X - 1.5, y + 1.8, Z));
         })));
         s.add(new Step(t += SETTLE / 2, () -> {
             int drawn = count(mc, PhotoBooth::creature);
@@ -189,8 +191,8 @@ public final class PhotoBooth {
         // The face, from three blocks ahead of the head at its eye height.
         s.add(new Step(t += 2, () -> onServer(mc, sp -> {
             double y = sp.serverLevel().getMinBuildHeight() + 4;
-            sp.teleportTo(sp.serverLevel(), X + 6.5, y + 1.3, Z, 0.0f, 0.0f);
-            sp.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(X + 2.0, y + 1.4, Z));
+            sp.teleportTo(sp.serverLevel(), X + 9.75, y + 1.95, Z, 0.0f, 0.0f);
+            sp.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(X + 3.0, y + 2.1, Z));
         })));
         s.add(new Step(t += SETTLE / 2, () -> {
             int drawn = count(mc, PhotoBooth::creature);
@@ -201,8 +203,8 @@ public final class PhotoBooth {
         // navigation, a frame every twenty ticks -- the chain along its trail, the writhe, the legs.
         s.add(new Step(t += 2, () -> onServer(mc, sp -> {
             double y = sp.serverLevel().getMinBuildHeight() + 4;
-            sp.teleportTo(sp.serverLevel(), X + 8.0, y + 5.0, Z - 18.0, 0.0f, 0.0f);
-            sp.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(X + 8.0, y + 1.0, Z));
+            sp.teleportTo(sp.serverLevel(), X + 12.0, y + 7.5, Z - 27.0, 0.0f, 0.0f);
+            sp.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(X + 12.0, y + 1.5, Z));
             for (var e : sp.serverLevel().getEntities().getAll()) {
                 if (e instanceof Aberrant a && a.getUUID().equals(creature)) {
                     a.setScriptedWalk(new Vec(0.3, 0.0, 0.0), 90);
@@ -227,7 +229,7 @@ public final class PhotoBooth {
             double y = sp.serverLevel().getMinBuildHeight() + 4;
             for (var e : sp.serverLevel().getEntities().getAll()) {
                 if (e instanceof Aberrant a && a.getUUID().equals(creature)) {
-                    sp.teleportTo(sp.serverLevel(), a.getX() + 2.0, y + 14.0, Z + 0.01, 0.0f, 90.0f);
+                    sp.teleportTo(sp.serverLevel(), a.getX() + 3.0, y + 21.0, Z + 0.01, 0.0f, 90.0f);
                 }
             }
         })));
@@ -262,8 +264,8 @@ public final class PhotoBooth {
         s.add(new Step(t += 2, () -> onServer(mc, sp -> onCreature(sp, a -> {
             double y = sp.serverLevel().getMinBuildHeight() + 4;
             a.setFace(sp.getGameProfile());
-            sp.teleportTo(sp.serverLevel(), a.getX() + 6.5, y + 1.3, Z, 0.0f, 0.0f);
-            sp.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(a.getX() + 2.0, y + 1.4, Z));
+            sp.teleportTo(sp.serverLevel(), a.getX() + 9.75, y + 1.95, Z, 0.0f, 0.0f);
+            sp.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(a.getX() + 3.0, y + 2.1, Z));
         }))));
         s.add(new Step(t += 30, () -> {
             shoot(mc, "booth-face-stolen");
@@ -274,12 +276,12 @@ public final class PhotoBooth {
             double y = sp.serverLevel().getMinBuildHeight() + 4;
             sp.getAbilities().flying = false;
             sp.onUpdateAbilities();
-            sp.teleportTo(sp.serverLevel(), a.getX() + 2.0, y, Z, 90.0f, 0.0f);   // within the pincers' reach
-            verdict("the pincers take the booth player", () -> a.grab(sp) ? null : "the grab was refused at " + (a.getX() + 2.0));
+            sp.teleportTo(sp.serverLevel(), a.getX() + 3.0, y, Z, 90.0f, 0.0f);   // within the pincers' reach, clear of the head's box
+            verdict("the pincers take the booth player", () -> a.grab(sp) ? null : "the grab was refused at " + (a.getX() + 3.0));
         }))));
         s.add(new Step(t += 4, () -> onServer(mc, sp -> onCreature(sp, a -> {
             double y = sp.serverLevel().getMinBuildHeight() + 4;
-            sp.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(a.getX() + 1.0, y + 2.2, Z));
+            sp.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(a.getX() + 1.5, y + 3.3, Z));
         }))));
         s.add(new Step(t += 8, () -> {
             shoot(mc, "booth-grab-held");
@@ -290,47 +292,53 @@ public final class PhotoBooth {
             sp.getAbilities().flying = true;
             sp.onUpdateAbilities();
         }))));
-        // The climb: a wall of stone across its way, ten high and three thick; it walks into it, up it and over it.
+        // The climb: a wall of stone across its way, fifteen high and five thick; it walks into it, up it and over it.
+        // At 0.3 a tick it meets the wall (its lookahead 2.4 from the face ten off) by tick 26 and is over the top by
+        // about tick 76.
         s.add(new Step(t += 2, () -> onServer(mc, sp -> onCreature(sp, a -> {
             double y = sp.serverLevel().getMinBuildHeight() + 4;
-            int wx = (int) Math.floor(a.getX()) + 7;
-            fill(sp, wx, (int) y, (int) Z - 4, wx + 2, (int) y + 9, (int) Z + 4, Blocks.STONE);
-            a.setScriptedWalk(new Vec(0.3, 0.0, 0.0), 120);
-            sp.teleportTo(sp.serverLevel(), wx - 1.0, y + 6.0, Z - 17.0, 0.0f, 0.0f);
-            sp.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(wx - 1.0, y + 4.0, Z));
+            int wx = (int) Math.floor(a.getX()) + 10;
+            fill(sp, wx, (int) y, (int) Z - 6, wx + 4, (int) y + 14, (int) Z + 6, Blocks.STONE);
+            a.setScriptedWalk(new Vec(0.3, 0.0, 0.0), 160);
+            sp.teleportTo(sp.serverLevel(), wx - 1.5, y + 9.0, Z - 25.5, 0.0f, 0.0f);
+            sp.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(wx - 1.5, y + 6.0, Z));
         }))));
-        s.add(new Step(t += 26, () -> shoot(mc, "booth-climb-1")));
+        s.add(new Step(t += 30, () -> shoot(mc, "booth-climb-1")));
         s.add(new Step(t += 14, () -> {
             shoot(mc, "booth-climb-2");
             Aberrant a = find(mc);
             verdict("it is on the wall", () -> a != null && a.syncedNormal() == Crawl.Normal.WEST ? null : "its face is " + (a == null ? null : a.syncedNormal()));
         }));
-        s.add(new Step(t += 24, () -> shoot(mc, "booth-climb-3")));
-        s.add(new Step(t += 20, () -> shoot(mc, "booth-climb-4")));
+        s.add(new Step(t += 26, () -> shoot(mc, "booth-climb-3")));
+        s.add(new Step(t += 26, () -> shoot(mc, "booth-climb-4")));
         // The dig: set down on the ground before a hill of stone, sent to a point inside it, digging. The hill is
-        // twelve high and seventeen wide so that boring in through its face is the cheapest way to the point: over
-        // the top or in from a side, at hunting costs, would be dearer, and the creature takes the cheapest way.
+        // eighteen high and twenty-five wide so that boring in through its face (sixteen cells of rock at hunting
+        // costs) is the cheapest way to the point: over the top or in from a side would be dearer, and the creature
+        // takes the cheapest way.
         s.add(new Step(t += 2, () -> onServer(mc, sp -> onCreature(sp, a -> {
             double y = sp.serverLevel().getMinBuildHeight() + 4;
-            double px = Math.floor(a.getX()) + 12.0;
-            int hx = (int) px + 6;
-            fill(sp, hx, (int) y, (int) Z - 8, hx + 14, (int) y + 11, (int) Z + 8, Blocks.STONE);
+            double px = Math.floor(a.getX()) + 18.0;
+            int hx = (int) px + 9;
+            hillFace = hx;
+            fill(sp, hx, (int) y, (int) Z - 12, hx + 21, (int) y + 17, (int) Z + 12, Blocks.STONE);
             a.moveTo(px, y, Z, -90.0f, 0.0f);
             a.resetCrawl();
-            a.setCrawlTarget(new Vec(hx + 10.5, y + 23.3 / 16.0, Z), true, 0.45);
-            sp.teleportTo(sp.serverLevel(), hx - 1.0, y + 4.0, Z - 14.0, 0.0f, 0.0f);
-            sp.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(hx - 1.0, y + 1.5, Z));
+            a.setCrawlTarget(new Vec(hx + 15.5, y + 23.3 * 1.5 / 16.0, Z), true, 0.45);
+            sp.teleportTo(sp.serverLevel(), hx - 1.5, y + 6.0, Z - 21.0, 0.0f, 0.0f);
+            sp.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(hx - 1.5, y + 2.25, Z));
         }))));
         s.add(new Step(t += 40, () -> shoot(mc, "booth-dig-1")));
         s.add(new Step(t += 60, () -> onServer(mc, sp -> onCreature(sp, a -> {
             // From the tunnel's mouth, looking in after it.
             double y = sp.serverLevel().getMinBuildHeight() + 4;
-            sp.teleportTo(sp.serverLevel(), a.getX() - 9.0, y + 1.4, Z, 0.0f, 0.0f);
-            sp.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(a.getX(), y + 1.2, Z));
+            sp.teleportTo(sp.serverLevel(), a.getX() - 13.5, y + 2.1, Z, 0.0f, 0.0f);
+            sp.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(a.getX(), y + 1.8, Z));
         }))));
         s.add(new Step(t += 10, () -> {
             shoot(mc, "booth-dig-2");
-            onServer(mc, sp -> onCreature(sp, a -> verdict("it dug its way in", () -> a.blocksDug() > 20 ? null : "dug " + a.blocksDug() + " blocks, at x " + a.getX())));
+            // More than one strike's worth cut (a straight section is 82), and its head inside the hill.
+            onServer(mc, sp -> onCreature(sp, a -> verdict("it dug its way in", () -> a.blocksDug() > 82 && a.getX() > hillFace + 2.0 ? null
+                    : "dug " + a.blocksDug() + " blocks, at x " + a.getX() + " with the hill's face at " + hillFace)));
         }));
         // The chitin armour: the booth player in the full set, set down before a wall and walked into it;
         // from its own eyes the world rolls, from behind it stands on the wall.
@@ -385,11 +393,11 @@ public final class PhotoBooth {
     private static void frame(ServerPlayer sp, Aberrant a, boolean quarter) {
         double y = sp.serverLevel().getMinBuildHeight() + 4;
         if (quarter) {
-            sp.teleportTo(sp.serverLevel(), a.getX() + 8.0, y + 4.0, Z + 6.5, 0.0f, 0.0f);
-            sp.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(a.getX() - 0.5, y + 1.4, Z));
+            sp.teleportTo(sp.serverLevel(), a.getX() + 12.0, y + 6.0, Z + 9.75, 0.0f, 0.0f);
+            sp.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(a.getX() - 0.75, y + 2.1, Z));
         } else {
-            sp.teleportTo(sp.serverLevel(), a.getX() - 2.5, y + 4.0, Z - 13.0, 0.0f, 0.0f);
-            sp.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(a.getX() - 2.5, y + 1.2, Z));
+            sp.teleportTo(sp.serverLevel(), a.getX() - 3.75, y + 6.0, Z - 19.5, 0.0f, 0.0f);
+            sp.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(a.getX() - 3.75, y + 1.8, Z));
         }
     }
 

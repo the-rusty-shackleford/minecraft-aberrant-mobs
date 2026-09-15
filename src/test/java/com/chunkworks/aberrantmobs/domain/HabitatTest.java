@@ -54,6 +54,10 @@ final class HabitatTest {
         assertTrue(Habitat.pocketOfRock(rock, new Cell(0, 0, 0)));
         Cells holed = (x, y, z) -> x == 1 && y == 1 && z == 1 ? Cells.Kind.AIR : Cells.Kind.ROCK;
         assertFalse(Habitat.pocketOfRock(holed, new Cell(0, 0, 0)), "a corner of air");
+        Cells farHole = (x, y, z) -> x == 2 && y == -2 && z == 2 ? Cells.Kind.AIR : Cells.Kind.ROCK;
+        assertFalse(Habitat.pocketOfRock(farHole, new Cell(0, 0, 0)), "the pocket reaches two each way: air at its far corner");
+        Cells beyond = (x, y, z) -> x == 3 ? Cells.Kind.AIR : Cells.Kind.ROCK;
+        assertTrue(Habitat.pocketOfRock(beyond, new Cell(0, 0, 0)), "air three away is outside it");
         Cells bedrock = (x, y, z) -> y == -1 ? Cells.Kind.HARD : Cells.Kind.ROCK;
         assertFalse(Habitat.pocketOfRock(bedrock, new Cell(0, 0, 0)), "bedrock below");
     }
@@ -63,16 +67,16 @@ final class HabitatTest {
         // A cave one cell wide at x = 0, rock to the east from x = 1 on, and to the west only three cells.
         Cells cave = (x, y, z) -> x == 0 || x < -3 ? Cells.Kind.AIR : Cells.Kind.ROCK;
         Optional<Cell> site = Habitat.siteInWall(cave, new Cell(0, 5, 0), Habitat.SITE_DEPTH);
-        assertEquals(Optional.of(new Cell(6, 5, 0)), site, "six into the east wall");
-        Cells thin = (x, y, z) -> x == 0 || Math.abs(x) > 4 ? Cells.Kind.AIR : Cells.Kind.ROCK;
-        assertTrue(Habitat.siteInWall(thin, new Cell(0, 5, 0), Habitat.SITE_DEPTH).isEmpty(), "a wall four thick each way is too thin");
+        assertEquals(Optional.of(new Cell(7, 5, 0)), site, "seven into the east wall: four of rock, then the pocket's five");
+        Cells thin = (x, y, z) -> x == 0 || Math.abs(x) > 6 ? Cells.Kind.AIR : Cells.Kind.ROCK;
+        assertTrue(Habitat.siteInWall(thin, new Cell(0, 5, 0), Habitat.SITE_DEPTH).isEmpty(), "a wall six thick each way is too thin");
         Cells seam = (x, y, z) -> x == 0 && z == 0 ? Cells.Kind.AIR : Math.abs(x) == 3 || Math.abs(z) == 3 ? Cells.Kind.HARD : Cells.Kind.ROCK;
         assertTrue(Habitat.siteInWall(seam, new Cell(0, 5, 0), Habitat.SITE_DEPTH).isEmpty(), "bedrock in every way");
         Cells north = (x, y, z) -> z < 0 ? Cells.Kind.ROCK : Cells.Kind.AIR;   // rock only to the north
-        assertEquals(Optional.of(new Cell(0, 5, -6)), Habitat.siteInWall(north, new Cell(0, 5, 0), Habitat.SITE_DEPTH), "the last direction tried, north");
+        assertEquals(Optional.of(new Cell(0, 5, -7)), Habitat.siteInWall(north, new Cell(0, 5, 0), Habitat.SITE_DEPTH), "the last direction tried, north");
         // A cave four wide is crossed first; the wall past it is what counts.
         Cells wide = (x, y, z) -> x >= 0 && x <= 3 ? Cells.Kind.AIR : Cells.Kind.ROCK;
-        assertEquals(Optional.of(new Cell(9, 5, 0)), Habitat.siteInWall(wide, new Cell(0, 5, 0), Habitat.SITE_DEPTH), "six into the wall beyond the cave");
+        assertEquals(Optional.of(new Cell(10, 5, 0)), Habitat.siteInWall(wide, new Cell(0, 5, 0), Habitat.SITE_DEPTH), "seven into the wall beyond the cave");
         Cells cavern = (x, y, z) -> Math.abs(x) <= 20 && Math.abs(z) <= 20 ? Cells.Kind.AIR : Cells.Kind.ROCK;
         assertTrue(Habitat.siteInWall(cavern, new Cell(0, 5, 0), Habitat.SITE_DEPTH).isEmpty(), "a cavern too wide to cross");
     }

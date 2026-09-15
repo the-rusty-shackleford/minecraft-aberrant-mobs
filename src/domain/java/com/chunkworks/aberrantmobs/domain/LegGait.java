@@ -18,28 +18,45 @@
 package com.chunkworks.aberrantmobs.domain;
 
 /**
- * The skitter: how each leg swings and lifts as the body travels. A
- * metachronal gait -- each pair a little behind the pair before it, the
- * right leg of a pair half a cycle from the left -- driven by distance
- * travelled, so legs step faster the faster the body goes and stand still
- * when it stops, eased in by speed so a start does not snap. Immutable
- * parameters.
+ * The skitter: how each leg swings and lifts as the body travels, and how
+ * its foot is planted. A metachronal gait -- each pair a little behind the
+ * pair before it, the right leg of a pair half a cycle from the left --
+ * driven by distance travelled, so legs step faster the faster the body
+ * goes and stand still when it stops, eased in by speed so a start does
+ * not snap. The planting ({@link Legs}) is measured here too, in blocks,
+ * since they are the body's own measures and a bigger body takes bigger
+ * steps: how far a planted foot's anchor may drift from its rest point
+ * before it steps, how far under the rest point a surface is looked for,
+ * how high a step lifts, and how far ahead of the rest point a step may
+ * be aimed. Immutable parameters.
  *
  * <p>RI: {@code strideDeg}, {@code liftDeg} not negative; {@code cycleBlocks}
- *     and {@code speedRef} positive; {@code waveRad} finite.
+ *     and {@code speedRef} positive; {@code waveRad} finite; {@code stride}
+ *     and {@code reach} positive; {@code lift} and {@code lead} not negative.
  * AF: "a leg swings {@code strideDeg} either way and lifts {@code liftDeg}
  *     once per {@code cycleBlocks} of travel, pair i lagging pair 0 by
- *     {@code i * waveRad}, at full stride from {@code speedRef} up".
+ *     {@code i * waveRad}, at full stride from {@code speedRef} up; its
+ *     foot stays planted until its anchor is {@code stride} from its rest
+ *     point, finds its ground within {@code reach} under that point, rises
+ *     {@code lift} mid-step and lands at most {@code lead} ahead".
  */
-public record LegGait(double strideDeg, double liftDeg, double cycleBlocks, double waveRad, double speedRef) {
-    /** The Face-Stealer's: twenty-two degrees of swing, twelve of lift, a step every 1.6 blocks, the pairs a fifth of a turn apart. */
-    public static final LegGait FACE_STEALER = new LegGait(22.0, 12.0, 1.6, 0.35 * 2 * Math.PI, 0.3);
+public record LegGait(double strideDeg, double liftDeg, double cycleBlocks, double waveRad, double speedRef,
+                      double stride, double reach, double lift, double lead) {
+    /**
+     * The Face-Stealer's, at its size (a model unit is a sixteenth and a
+     * half): twenty-two degrees of swing, twelve of lift, a step every 2.4
+     * blocks, the pairs a fifth of a turn apart; a foot drifts 0.825 before
+     * it steps, looks 2.4 under its rest point for ground, lifts 0.525 and
+     * lands at most 1.8 ahead.
+     */
+    public static final LegGait FACE_STEALER = new LegGait(22.0, 12.0, 2.4, 0.35 * 2 * Math.PI, 0.3, 0.825, 2.4, 0.525, 1.8);
 
     /** One leg: its swing about the coxa (degrees, forward positive) and its lift (degrees, up positive). */
     public record LegPose(double swingDeg, double liftDeg) {}
 
     public LegGait {
-        if (strideDeg < 0 || liftDeg < 0 || !(cycleBlocks > 0) || !(speedRef > 0) || !Double.isFinite(waveRad)) {
+        if (strideDeg < 0 || liftDeg < 0 || !(cycleBlocks > 0) || !(speedRef > 0) || !Double.isFinite(waveRad)
+                || !(stride > 0) || !(reach > 0) || lift < 0 || lead < 0) {
             throw new IllegalArgumentException("bad gait parameters");
         }
     }
