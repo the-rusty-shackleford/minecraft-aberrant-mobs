@@ -20,3 +20,4 @@ type: index
 | D-0010 | The way's search stays exact A*; it is made cheap by a rock-depth bound, a per-search table and primitives, not by a bigger budget or a looser search |
 | D-0011 | The creature's size is the profile's: every number tied to the body scales with it, in data or from the rules, never as a constant beside it |
 | D-0012 | The crawl follows the way's shape: it climbs only where the way rises, and lets go of a face it cannot follow the way from |
+| D-0013 | Hard to kill by count, not by health: the profile caps what one blow takes |

@@ -75,7 +75,7 @@ public final class AberrantPart extends PartEntity<Aberrant> {
 
     @Override
     public boolean hurt(DamageSource source, float amount) {
-        return isInvulnerableTo(source) ? false : getParent().hurtSegment(index, source, amount);
+        return isInvulnerableTo(source) ? false : getParent().hurtAimed(index, source, amount);
     }
 
     @Override

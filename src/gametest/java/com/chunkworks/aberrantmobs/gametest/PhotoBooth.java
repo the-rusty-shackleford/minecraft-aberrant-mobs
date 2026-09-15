@@ -18,6 +18,7 @@
 package com.chunkworks.aberrantmobs.gametest;
 
 import com.chunkworks.aberrantmobs.Aberrant;
+import com.chunkworks.aberrantmobs.AberrantPart;
 import com.chunkworks.aberrantmobs.domain.Clip;
 import com.chunkworks.aberrantmobs.domain.Crawl;
 import com.chunkworks.aberrantmobs.domain.FaceStealerClips;
@@ -236,6 +237,47 @@ public final class PhotoBooth {
             }
         })));
         s.add(new Step(t += 12, () -> shoot(mc, "booth-walk-top")));
+        // The crack under a sword (Rusty's report: the glowing segment only clanged; dynamite worked): once the walk
+        // is over and the body stands still, the booth player, within a sword's reach north of the cracked segment,
+        // aims at it; the client's crosshair must find a part of the body, and a blow on it must take health --
+        // the server judges the segment from the attacker's look. (Aimed while the body still walked, the blow
+        // landed three segments behind the crack, where the crack had been: the scene, not the rule.)
+        s.add(new Step(t += 20, () -> onServer(mc, sp -> onCreature(sp, a -> {
+            net.neoforged.neoforge.entity.PartEntity<?> crack = a.getParts()[a.weakSegment()];
+            double middle = crack.getY() + crack.getBbHeight() / 2.0;
+            sp.teleportTo(sp.serverLevel(), crack.getX(), middle - 1.62, crack.getZ() - crack.getBbWidth() / 2.0 - 2.0, 0.0f, 0.0f);
+            sp.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(crack.getX(), middle, crack.getZ()));
+        }))));
+        s.add(new Step(t += 10, () -> {
+            Aberrant a = find(mc);
+            shoot(mc, "booth-crack-aim");
+            verdict("the client's cracked part stands on the body", () -> a != null && a.getParts()[a.weakSegment()].position().distanceTo(a.position()) < 12.0 ? null
+                    : "the part is at " + (a == null ? null : a.getParts()[a.weakSegment()].position()) + ", the creature at " + (a == null ? null : a.position()));
+            // The parts' boxes overlap along the body, so the box the crosshair names may be a neighbour's: the server
+            // judges the segment from the attacker's look, and the blow's landing is the test of that.
+            verdict("aiming at the crack, the crosshair finds a part of the body", () -> mc.hitResult instanceof net.minecraft.world.phys.EntityHitResult e && e.getEntity() instanceof AberrantPart ? null
+                    : "the crosshair is on " + (mc.hitResult instanceof net.minecraft.world.phys.EntityHitResult e ? e.getEntity() : mc.hitResult));
+            verdict("the client's parts are numbered from the creature's id", () -> {
+                if (a == null) {
+                    return "no creature";
+                }
+                for (int i = 0; i < a.getParts().length; i++) {
+                    if (a.getParts()[i].getId() != a.getId() + i + 1) {
+                        return "part " + i + " has id " + a.getParts()[i].getId() + " under creature " + a.getId();
+                    }
+                }
+                return null;
+            });
+            if (mc.hitResult instanceof net.minecraft.world.phys.EntityHitResult e && mc.gameMode != null && mc.player != null) {
+                LOG.info("booth: the client attacks entity {} ({}) from {} looking {}", e.getEntity().getId(), e.getEntity(), mc.player.getEyePosition(), mc.player.getLookAngle());
+                mc.gameMode.attack(mc.player, e.getEntity());
+                mc.player.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
+            }
+        }));
+        s.add(new Step(t += 10, () -> {
+            Aberrant a = find(mc);
+            verdict("and a blow on the crack takes health", () -> a != null && a.getHealth() < a.getMaxHealth() ? null : "health " + (a == null ? null : a.getHealth() + " of " + a.getMaxHealth()));
+        }));
         // The clips: each played on the server where the walk left the creature, shot at its key frames --
         // the coil, the bite, the flinch and the death from the side, the pincers' clips from the front quarter.
         record Shot(Clip clip, boolean quarter, int... at) {}

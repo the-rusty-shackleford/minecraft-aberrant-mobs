@@ -115,9 +115,10 @@ import org.slf4j.LoggerFactory;
  * appeared or was moved has a whole body. Each side also keeps the feet:
  * every leg's foot planted on the world, stepped by {@link Legs} from the
  * level's own blocks, so the legs stand where there is something to stand
- * on. The server lays an {@link AberrantPart} on every chain segment each
- * tick, where the world meets and hits it; the carapace says what a hit
- * comes to.
+ * on. Both sides lay an {@link AberrantPart} on every chain segment each
+ * tick, where the world meets and hits it (a sword picks its target on
+ * the client, from these boxes); the carapace says what a hit comes to,
+ * and never more than the profile's share of the health from one blow.
  *
  * <p>An authored {@link Clip} plays on the server's say: its name and a
  * serial ride synced data, so every client starts the same clip within a
@@ -289,9 +290,29 @@ public class Aberrant extends Monster {
         for (int i = 0; i < MAX_PARTS; i++) {
             parts[i] = new AberrantPart(this, i);
         }
+        setId(getId());   // number the parts from this id, now that they exist
         setNoGravity(true);
         noPhysics = true;
         xpReward = XP;
+    }
+
+    /**
+     * effects: gives this creature id {@code id} and its parts the ids after
+     * it, {@code id + 1} on: the game numbers a multipart entity's parts
+     * from its parent's id and nowhere else (the dragon does it itself),
+     * and a client attacking a part sends that part's id, which the server
+     * resolves among its own -- numbered by its entity counter at birth,
+     * they matched nothing the client sent, and no sword ever landed on a
+     * segment
+     */
+    @Override
+    public void setId(int id) {
+        super.setId(id);
+        if (parts != null) {
+            for (int i = 0; i < parts.length; i++) {
+                parts[i].setId(id + i + 1);
+            }
+        }
     }
 
     /**
@@ -479,8 +500,18 @@ public class Aberrant extends Monster {
             return;
         }
         int[] candidates = candidates(body, p);
-        carapace = Carapace.fresh(body.chain().length, candidates, roll);
+        carapace = Carapace.fresh(body.chain().length, candidates, roll, blowCap(p));
         entityData.set(DATA_WEAK, carapace.weak());
+    }
+
+    /**
+     * effects: returns the most a blow takes from a creature of profile
+     * {@code p}: its health over its {@code stats.blows}, and a hundredth
+     * over, so that the last of the blows takes the last of the health in
+     * the game's float arithmetic; no cap for one blow
+     */
+    private static double blowCap(CreatureProfile p) {
+        return p.stats().blows() <= 1 ? Carapace.UNCAPPED : p.stats().health() / p.stats().blows() + 0.01;
     }
 
     private static int[] candidates(Body body, CreatureProfile p) {
@@ -501,19 +532,71 @@ public class Aberrant extends Monster {
         return entityData.get(DATA_WEAK);
     }
 
-    /** effects: returns the carapace as the synced crack says; rebuilt when the crack moved under it */
+    /** effects: returns the carapace as the synced crack and the profile say; rebuilt when the crack moved under it */
     private Carapace carapace(int segments) {
         int weak = entityData.get(DATA_WEAK);
-        if (carapace == null || carapace.weak() != weak || carapace.segments() != segments) {
-            carapace = new Carapace(segments, Math.max(0, Math.min(segments - 1, weak)), Carapace.EXPLOSION_SHARE);
+        CreatureProfile p = profile();
+        double cap = p == null ? Carapace.UNCAPPED : blowCap(p);
+        if (carapace == null || carapace.weak() != weak || carapace.segments() != segments || carapace.blowCap() != cap) {
+            carapace = new Carapace(segments, Math.max(0, Math.min(segments - 1, weak)), Carapace.EXPLOSION_SHARE, cap);
         }
         return carapace;
     }
 
     /**
+     * effects: takes a blow the world landed on segment {@code hit}'s box
+     * (the head's own 0) on the segment it was aimed at, as
+     * {@link #hurtSegment} does: judged from the blow's own geometry -- a
+     * melee attacker's look, a projectile's flight, a blast's centre --
+     * since the segments' boxes overlap along the body and the box the
+     * game's pick named may be a neighbour's; {@code hit} itself when the
+     * source has no geometry or aims at none; returns whether the body was
+     * hurt
+     */
+    public boolean hurtAimed(int hit, DamageSource source, float amount) {
+        int aimed = aimedSegment(hit, source);
+        boolean landed = hurtSegment(aimed, source, amount);
+        if (!level().isClientSide() && LOG.isDebugEnabled()) {
+            LOG.debug("{} blow of {} by {} on part {} aimed at segment {} (the crack {}): {}", getId(), amount, source.getMsgId(), hit, aimed, weakSegment(), landed ? "landed, health " + getHealth() : "clang");
+        }
+        return landed;
+    }
+
+    /** effects: returns the segment {@code source} was aimed at, see {@link #hurtAimed}; {@code hit} without geometry or a body */
+    private int aimedSegment(int hit, DamageSource source) {
+        Body body = body();
+        CreatureProfile p = profile();
+        if (body == null || p == null) {
+            return hit;
+        }
+        int n = Math.min(MAX_PARTS, body.chain().length);
+        Vec[] centres = new Vec[n];
+        for (int k = 0; k < n; k++) {
+            centres[k] = new Vec(parts[k].getX(), parts[k].getY() + parts[k].getBbHeight() / 2.0, parts[k].getZ());
+        }
+        double reach = p.body().segment().width();
+        Entity direct = source.getDirectEntity();
+        int aimed = -1;
+        if (direct instanceof Projectile shot) {
+            Vec3 flight = shot.getDeltaMovement();
+            aimed = flight.lengthSqr() > 1e-8 ? Carapace.aimed(vec(shot.position()), vec(flight), centres, reach) : Carapace.nearest(vec(shot.position()), centres);
+        } else if (direct instanceof LivingEntity attacker) {
+            aimed = Carapace.aimed(vec(attacker.getEyePosition()), vec(attacker.getLookAngle()), centres, reach);
+        } else if (source.getSourcePosition() != null) {
+            aimed = Carapace.nearest(vec(source.getSourcePosition()), centres);
+        }
+        return aimed >= 0 ? aimed : hit;
+    }
+
+    private static Vec vec(Vec3 v) {
+        return new Vec(v.x, v.y, v.z);
+    }
+
+    /**
      * effects: takes a blow on segment {@code index} (the head 0) as the
      * carapace routes it: the whole of it on the crack, half an explosion
-     * anywhere, a clang otherwise; returns whether the body was hurt
+     * anywhere, a clang otherwise, and never more than the profile's share
+     * of the health; returns whether the body was hurt
      */
     public boolean hurtSegment(int index, DamageSource source, float amount) {
         if (source.is(DamageTypeTags.BYPASSES_INVULNERABILITY)) {
@@ -670,8 +753,8 @@ public class Aberrant extends Monster {
 
     @Override
     public boolean hurt(DamageSource source, float amount) {
-        // A blow on the body's own box is a blow on the head: plating, unless the source cares nothing for plating.
-        return hurtSegment(0, source, amount);
+        // A blow on the body's own box is a blow on the head, unless it was aimed along the body at a segment.
+        return hurtAimed(0, source, amount);
     }
 
     @Override
@@ -1113,9 +1196,10 @@ public class Aberrant extends Monster {
             t.push(axis(), up());
             ChainPose chain = ChainPose.of(t, body.arcBack(), p.rig().undulation(), wave);
             stepFeet(body, p, chain);
-            if (!level().isClientSide()) {
-                placeParts(chain);
-            }
+            // On both sides: a sword picks its target on the client, from the parts' boxes as the client places them.
+            // Placed on the server alone, a client's parts sat at the world's origin and a sword aimed at the crack
+            // only ever met the head's box, and clanged; a blast, applied on the server, landed.
+            placeParts(chain);
         }
         for (String cue : animator.advance()) {
             onCue(cue);

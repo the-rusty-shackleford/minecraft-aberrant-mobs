@@ -18,7 +18,8 @@
   },
   "stats": {
     "health": 84,
-    "speed": 0.45
+    "speed": 0.45,
+    "blows": 5
   },
   "habitat": {"y_min": -58, "y_max": 0, "max_light": 0, "weight": 2, "exclusion": 128, "cap": 6},
   "loot": "aberrantmobs:creature/face_stealer",

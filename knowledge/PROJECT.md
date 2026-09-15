@@ -181,10 +181,12 @@ accept a dark chimney by thick rock where it bores its pocket, the creative tab 
 mod and its egg or a summon puts the creature whole on the lit surface, killed it drops
 chitin and its plate and experience, a full set walked into a wall takes it and climbs and lets
 go without the helmet and lands, water lets go and the undressed stop at the wall),
-`runPhotoBooth` (37 checks: every sound event resolves, side,
+`runPhotoBooth` (41 checks: every sound event resolves, side,
 quarter, face, a walking strip, from above, each clip playing on the client at its key
 frames, drawn after the death, the stolen face known to the client, the client held at
-the maw, on the wall, dug in, past an oak and past a lone pillar upright, the client in
+the maw, the client's parts numbered from the creature's id and standing on the body, its
+crosshair on the crack finding a part and a blow on it taking health, on the wall, dug
+in, past an oak and past a lone pillar upright, the client in
 the chitin set standing on a wall from its own eyes and from behind). The booth world is
 normal difficulty with spawning off: a
 monster is discarded in peaceful.
@@ -269,9 +271,22 @@ and a one-block pillar and fixed as D-0012: the crawl climbed a post the way wen
 went over it and hung refused on the far side wanting the ground 2.8 blocks below; now it
 climbs only where the way rises and lets go of a wall or a ceiling it cannot follow the way
 from, falling to the floor; the breath is a low one at odds of one in three hundred a tick
-while still. The oak and the pillar are booth scenes now (37 checks). The 1.2.0 queue also
-holds (b) the item and armour art redrawn in vanilla's family and (c) scarier recordings,
-the breath's among them.
+while still. The oak and the pillar are booth scenes now. Rusty's second report, the same
+evening: a sword on the glowing segment only clanged, dynamite worked. Reproduced in the
+booth (the `booth-crack-*` scene: the client's cracked part sat at the world's origin, the
+crosshair on the crack found the ground behind it): the parts were placed on the server
+alone, and a sword's target is picked on the client from the parts' boxes; both sides place
+them now. Two more layers under it, each found by the booth's next run: the boxes overlap
+along the body, so the box the pick names may be a neighbour's, and the server now judges
+the segment from the blow's own geometry (`Aberrant.hurtAimed`, `Carapace.aimed`); and the
+parts' ids were each side's own counter's, so the id a client sent named nothing on the
+server -- they are numbered from the creature's id on both sides now (`Aberrant.setId`, as
+the dragon does; the game does not do it for a mod's parts). No sword had ever landed on a
+segment since 1.0.0. And Rusty's call that it be hard to kill, "at least five hearty hits even with a
+hard-hitting weapon": the profile's `stats.blows` (5) caps every blow at that share of the
+health, explosions included (`Carapace.blowCap`, D-0013); the loot gametest kills it with
+five blows of a million. Booth 40 checks. The 1.2.0 queue also holds (b) the item and
+armour art redrawn in vanilla's family and (c) scarier recordings, the breath's among them.
 
 ## Next
 

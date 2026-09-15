@@ -43,7 +43,7 @@ player, but only a survival or adventure player is prey.
   "model": "aberrantmobs:face_stealer",      // assets/<ns>/aberrantmobs/model/<name>.bbmodel, saved as it is
   "scale": 0.09375,                           // model units to blocks (optional, a sixteenth; the Face-Stealer's is one and a half)
   "body": {"width": 3.75, "height": 3.75, "eye_height": 2.4},   // the box the world collides with, blocks
-  "stats": {"health": 84, "speed": 0.45}
+  "stats": {"health": 84, "speed": 0.45, "blows": 5}   // no blow takes more than a fifth of it: five to kill, however hard the weapon
 }
 ```
 
@@ -327,12 +327,25 @@ turn after its own, bones it does not name untouched. The server starts a clip
 the same clip within a tick; both sides advance their own animator, the server acting on
 the cues (for now remembering them; the sounds and the dig come with their phases).
 
-On the server every chain segment is a part (`AberrantPart`, the game's multipart
+On both sides every chain segment is a part (`AberrantPart`, the game's multipart
 entities) standing where the chain puts it, so a sword or an arrow meets the segment it
-aims at. The carapace (`domain/Carapace`) says what the blow comes to: a random segment
+aims at: a sword's target is picked on the client, from the parts' boxes as the client
+places them, and sent as the part's id, which the server resolves among its own parts --
+so the parts are numbered from the creature's id on both sides (`Aberrant.setId`, as the
+dragon numbers its own; the game does not do it for a mod's parts). Until 1.2.0 the
+parts were placed on the server alone, so a client's sat at the world's origin, and were
+numbered by each side's own counter: a sword aimed at the crack only ever met the head's
+box and clanged, or named a part the server did not know, while a blast, applied on the
+server, landed. The boxes are as wide as the body on a spine spaced about a block,
+so they overlap, and the box the game's pick names may be a neighbour's: the server judges
+the segment a blow was aimed at from the blow's own geometry (`Aberrant.hurtAimed`,
+`Carapace.aimed`: the segment whose centre lies nearest the attacker's look or the arrow's
+flight; a blast, the segment nearest its centre). The carapace (`domain/Carapace`) says what the blow comes to: a random segment
 among the profile's candidates is cracked at birth (synced, saved); a blow on it lands
 whole and the body flinches; a blow anywhere else, the head's own box included, rings
-off the plating and does nothing; an explosion lands half wherever it goes. The cracked
+off the plating and does nothing; an explosion lands half wherever it goes; and no blow,
+however hard, takes more than the profile's share (`stats.blows`: five blows at the least
+to kill the Face-Stealer, a fifth of its health each at most, explosions included). The cracked
 segment's glowing cubes (the profile's `weak_spot.glow`, a glob on cube names) are drawn
 full bright in a pulsing ember. The server reads the model from the mod jar
 (`RigStore`) for the segment spacing; a resource pack cannot move what the world hits.

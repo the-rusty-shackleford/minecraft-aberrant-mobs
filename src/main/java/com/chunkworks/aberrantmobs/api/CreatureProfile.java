@@ -219,17 +219,22 @@ public record CreatureProfile(ResourceLocation model, double scale, RigSpec rig,
         }
     }
 
-    /** What the creature is made of: its health, and how fast it goes. */
-    public record Stats(double health, double speed) {
-        public static final Stats DEFAULT = new Stats(20.0, 0.3);
+    /**
+     * What the creature is made of: its health, how fast it goes, and how
+     * many blows it takes to kill at the least -- no blow, however hard,
+     * takes more than {@code health / blows} of it (one: no cap).
+     */
+    public record Stats(double health, double speed, int blows) {
+        public static final Stats DEFAULT = new Stats(20.0, 0.3, 1);
         public static final Codec<Stats> CODEC = RecordCodecBuilder.create(i -> i.group(
                 Codec.DOUBLE.optionalFieldOf("health", 20.0).forGetter(Stats::health),
-                Codec.DOUBLE.optionalFieldOf("speed", 0.3).forGetter(Stats::speed)
+                Codec.DOUBLE.optionalFieldOf("speed", 0.3).forGetter(Stats::speed),
+                Codec.INT.optionalFieldOf("blows", 1).forGetter(Stats::blows)
         ).apply(i, Stats::new));
 
         public Stats {
-            if (!(health > 0.0) || !(speed >= 0.0)) {
-                throw new IllegalArgumentException("health is positive and speed not negative: " + health + ", " + speed);
+            if (!(health > 0.0) || !(speed >= 0.0) || blows < 1) {
+                throw new IllegalArgumentException("health is positive, speed not negative, blows at least one: " + health + ", " + speed + ", " + blows);
             }
         }
     }

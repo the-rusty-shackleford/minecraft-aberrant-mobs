@@ -151,18 +151,36 @@ public final class FaceStealerGameTests {
         net.minecraft.world.entity.player.Player p = helper.makeMockPlayer(net.minecraft.world.level.GameType.SURVIVAL);
         p.setPos(a.getX(), a.getY(), a.getZ() - 5.0);
         net.neoforged.neoforge.entity.PartEntity<?>[] parts = a.getParts();
-        float full = a.getHealth();
-        helper.assertTrue(!parts[weak == 5 ? 6 : 5].hurt(helper.getLevel().damageSources().playerAttack(p), 7.0f), "a plate rings");
-        helper.assertValueEqual(a.getHealth(), full, "and nothing is lost");
-        helper.assertTrue(!a.hurt(helper.getLevel().damageSources().playerAttack(p), 7.0f), "the head's own box is plating too");
-        helper.assertValueEqual(a.getHealth(), full, "still whole");
-        a.invulnerableTime = 0;
-        helper.assertTrue(parts[weak].hurt(helper.getLevel().damageSources().playerAttack(p), 7.0f), "the crack takes the blow");
-        helper.assertTrue(Math.abs(a.getHealth() - (full - 7.0f)) < 1e-4, "seven off: " + a.getHealth());
-        a.invulnerableTime = 0;
-        helper.assertTrue(parts[3 == weak ? 4 : 3].hurt(helper.getLevel().damageSources().explosion(null, null), 10.0f), "an explosion lands anywhere");
-        helper.assertTrue(Math.abs(a.getHealth() - (full - 12.0f)) < 1e-4, "at half: " + a.getHealth());
-        helper.succeed();
+        for (int i = 0; i < parts.length; i++) {
+            helper.assertValueEqual(parts[i].getId(), a.getId() + i + 1, "part " + i + " numbered from the creature's id, as a client numbers them");
+        }
+        // After a tick, so the parts stand on the body: a blow lands on the segment the attacker's look aims at,
+        // whichever overlapping box the game named.
+        helper.runAtTickTime(2, () -> {
+            float full = a.getHealth();
+            aim(p, parts[weak == 5 ? 6 : 5]);
+            helper.assertTrue(!parts[weak == 5 ? 6 : 5].hurt(helper.getLevel().damageSources().playerAttack(p), 7.0f), "a plate rings");
+            helper.assertValueEqual(a.getHealth(), full, "and nothing is lost");
+            aim(p, parts[0]);
+            helper.assertTrue(!a.hurt(helper.getLevel().damageSources().playerAttack(p), 7.0f), "the head's own box is plating too");
+            helper.assertValueEqual(a.getHealth(), full, "still whole");
+            a.invulnerableTime = 0;
+            aim(p, parts[weak]);
+            helper.assertTrue(parts[weak].hurt(helper.getLevel().damageSources().playerAttack(p), 7.0f), "the crack takes the blow");
+            helper.assertTrue(Math.abs(a.getHealth() - (full - 7.0f)) < 1e-4, "seven off: " + a.getHealth());
+            a.invulnerableTime = 0;
+            helper.assertTrue(parts[weak == 5 ? 6 : 5].hurt(helper.getLevel().damageSources().playerAttack(p), 7.0f), "aimed at the crack, a neighbour's box still lands it on the crack");
+            helper.assertTrue(Math.abs(a.getHealth() - (full - 14.0f)) < 1e-4, "fourteen off: " + a.getHealth());
+            a.invulnerableTime = 0;
+            helper.assertTrue(parts[3 == weak ? 4 : 3].hurt(helper.getLevel().damageSources().explosion(null, null), 10.0f), "an explosion lands anywhere");
+            helper.assertTrue(Math.abs(a.getHealth() - (full - 19.0f)) < 1e-4, "at half: " + a.getHealth());
+            helper.succeed();
+        });
+    }
+
+    /** effects: turns {@code p}'s eyes on the middle of {@code part}'s box */
+    private static void aim(net.minecraft.world.entity.player.Player p, net.neoforged.neoforge.entity.PartEntity<?> part) {
+        p.lookAt(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES, new Vec3(part.getX(), part.getY() + part.getBbHeight() / 2.0, part.getZ()));
     }
 
     @GameTest(template = "long", timeoutTicks = 80)
@@ -606,7 +624,7 @@ public final class FaceStealerGameTests {
     }
 
     @GameTest(template = "arena", timeoutTicks = 100, batch = "loot")
-    public void killedItDropsItsChitinItsCrackedPlateAndSometimesTheFace(GameTestHelper helper) {
+    public void killedByFiveBlowsHoweverHardItDropsItsChitinItsCrackedPlateAndSometimesTheFace(GameTestHelper helper) {
         layFloor(helper);
         Vec3 at = helper.absoluteVec(new Vec3(7.5, FLOOR, 7.5));
         Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, -90.0f);
@@ -617,9 +635,18 @@ public final class FaceStealerGameTests {
         net.minecraft.world.item.ItemStack trophy = com.chunkworks.aberrantmobs.StolenFaceItem.of(new com.mojang.authlib.GameProfile(java.util.UUID.randomUUID(), "nfx"));
         helper.assertValueEqual(com.chunkworks.aberrantmobs.StolenFaceItem.whose(trophy), "nfx", "a stolen face names its owner");
         net.minecraft.world.entity.player.Player killer = helper.makeMockPlayer(net.minecraft.world.level.GameType.SURVIVAL);
+        killer.setPos(a.getX(), a.getY(), a.getZ() - 5.0);
         helper.runAtTickTime(2, () -> {
-            helper.assertTrue(a.getParts()[a.weakSegment()].hurt(helper.getLevel().damageSources().playerAttack(killer), 1.0e6f), "a player's killing blow on the crack");
-            helper.assertTrue(a.isDeadOrDying(), "dying");
+            // Five blows however hard: no blow takes more than a fifth of its health (the profile's stats.blows).
+            for (int blow = 1; blow <= 5; blow++) {
+                a.invulnerableTime = 0;
+                aim(killer, a.getParts()[a.weakSegment()]);
+                helper.assertTrue(a.getParts()[a.weakSegment()].hurt(helper.getLevel().damageSources().playerAttack(killer), 1.0e6f), "a player's blow " + blow + " on the crack lands");
+                if (blow < 5) {
+                    helper.assertTrue(a.isAlive() && a.getHealth() > 0.0f, "and it lives through blow " + blow + ": " + a.getHealth());
+                }
+            }
+            helper.assertTrue(a.isDeadOrDying(), "dying on the fifth: " + a.getHealth());
             helper.assertValueEqual(a.clipPlaying(), "death", "the death clip plays");
         });
         helper.runAtTickTime(60, () -> {
