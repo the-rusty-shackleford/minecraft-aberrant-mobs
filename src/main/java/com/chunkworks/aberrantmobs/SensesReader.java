@@ -18,6 +18,7 @@
 package com.chunkworks.aberrantmobs;
 
 import com.chunkworks.aberrantmobs.domain.Crawl;
+import com.chunkworks.aberrantmobs.domain.Gaze;
 import com.chunkworks.aberrantmobs.domain.Hearing;
 import com.chunkworks.aberrantmobs.domain.Vec;
 import com.chunkworks.aberrantmobs.domain.mind.Memory;
@@ -78,7 +79,7 @@ public final class SensesReader {
             Vec toTarget = pos.minus(head);
             boolean eyes = inSight && angle(look, toHead) <= tree.tunable("eye_cone_deg", EYE_CONE_DEG)
                     && angle(a.facing(), new Vec(toTarget.x(), 0, toTarget.z())) <= tree.tunable("face_cone_deg", FACE_CONE_DEG);
-            s.flag("target.eye_contact", eyes);
+            s.flag("target.eye_contact", a.gazeNoting(eyes));   // a stare, not a glance: eight of the last ten ticks
             s.flag("target.underground", !level.canSeeSky(target.blockPosition()));
             memory = memory.withPoint("target.last_pos", pos).withTimer("seen", (int) tree.tunable("memory", KNOWN_TICKS));
         }
@@ -90,6 +91,9 @@ public final class SensesReader {
             if (!seen) {
                 s.number("target.distance", last.minus(head).length());
             }
+        }
+        if (!seen) {
+            a.gazeNoting(false);
         }
         s.flag("target.blessed", false);
         s.flag("grab.held", a.holding());

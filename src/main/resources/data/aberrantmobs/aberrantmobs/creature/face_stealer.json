@@ -37,8 +37,10 @@
         {"when": "!heard.any || heard.age > 2400", "then": {"enter": "roam"}},
         {"act": "approach", "target": "heard.bearing", "quiet": true, "dig": true}]},
       "stalk": {"select": [
-        {"when": "hurt || target.eye_contact", "then": {"enter": "hunt"}},
+        {"when": "grab.held || hurt || target.eye_contact", "then": {"enter": "hunt"}},
         {"when": "!target.known", "then": {"wait": "patience", "ticks": 1200, "then": {"enter": "roam"}}},
+        {"when": "target.in_sight && blocked", "then": {"enter": "hunt"}},
+        {"when": "target.in_sight", "then": {"wait": "watched", "ticks": 200, "then": {"enter": "hunt"}}},
         {"when": "target.in_sight && target.distance > 6", "then": {"act": "climb", "away_from": "target.look"}},
         {"when": "target.distance < 4 && !target.in_sight", "then": {"act": "grab"}},
         {"act": "approach", "target": "target.last_pos", "quiet": true, "dig": true}]},

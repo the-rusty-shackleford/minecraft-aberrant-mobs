@@ -63,6 +63,22 @@ public final class Burrow {
      * spends more than {@code budget} expansions
      */
     public static Optional<List<Cell>> plan(Cells cells, Cell from, Cell to, Costs costs, int budget) {
+        return search(cells, from, to, costs, budget, false);
+    }
+
+    /**
+     * requires: {@code budget > 0}
+     * effects: returns the path {@link #plan} would, or, when {@code to}
+     * cannot be reached or the budget runs out, the cheapest path to the
+     * reachable cell nearest {@code to} (by taxicab distance) that the
+     * search saw -- the best a creature cut off by water or bedrock can do;
+     * nothing only when {@code from} itself cannot be left
+     */
+    public static Optional<List<Cell>> planNearest(Cells cells, Cell from, Cell to, Costs costs, int budget) {
+        return search(cells, from, to, costs, budget, true);
+    }
+
+    private static Optional<List<Cell>> search(Cells cells, Cell from, Cell to, Costs costs, int budget, boolean nearest) {
         if (budget <= 0) {
             throw new IllegalArgumentException("a budget of expansions");
         }
@@ -73,6 +89,8 @@ public final class Burrow {
         g.put(from, 0.0);
         open.add(new Node(from, 0.0, from.manhattan(to) * costs.air()));
         int expansions = 0;
+        Cell best = from;
+        int bestDistance = from.manhattan(to);
         while (!open.isEmpty()) {
             Node node = open.poll();
             if (!closed.add(node.cell())) {
@@ -81,8 +99,13 @@ public final class Burrow {
             if (node.cell().equals(to)) {
                 return Optional.of(unwind(came, to));
             }
+            int distance = node.cell().manhattan(to);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = node.cell();
+            }
             if (++expansions > budget) {
-                return Optional.empty();
+                return nearest && !best.equals(from) ? Optional.of(unwind(came, best)) : Optional.empty();
             }
             for (Cell next : node.cell().neighbours()) {
                 if (closed.contains(next)) {
@@ -101,7 +124,7 @@ public final class Burrow {
                 }
             }
         }
-        return Optional.empty();
+        return nearest && !best.equals(from) ? Optional.of(unwind(came, best)) : Optional.empty();
     }
 
     /**

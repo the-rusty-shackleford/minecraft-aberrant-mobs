@@ -28,6 +28,7 @@ import com.chunkworks.aberrantmobs.domain.ChainPose;
 import com.chunkworks.aberrantmobs.domain.Clip;
 import com.chunkworks.aberrantmobs.domain.Crawl;
 import com.chunkworks.aberrantmobs.domain.FaceStealerClips;
+import com.chunkworks.aberrantmobs.domain.Gaze;
 import com.chunkworks.aberrantmobs.domain.Habitat;
 import com.chunkworks.aberrantmobs.domain.Hearing;
 import com.chunkworks.aberrantmobs.domain.Leap;
@@ -263,6 +264,7 @@ public class Aberrant extends Monster {
     private boolean releasing;
     private boolean grabSurvived;
     private boolean biting;
+    private Gaze gaze = Gaze.NONE;
 
     public Aberrant(EntityType<? extends Aberrant> type, Level level) {
         super(type, level);
@@ -859,13 +861,14 @@ public class Aberrant extends Monster {
             path = null;
             return Vec.ZERO;
         }
-        if (path == null || --replanIn <= 0) {
-            path = Burrow.plan(cells, Cell.containing(centre), Cell.containing(target), Burrow.HUNT, Burrow.BUDGET).orElse(null);
+        if (path == null || --replanIn <= 0 || lastBlocked) {
+            // The way, or the nearest it can get when the target is cut off; never the straight line, which a wall or a pool would hold it on forever.
+            path = Burrow.planNearest(cells, Cell.containing(centre), Cell.containing(target), Burrow.HUNT, Burrow.BUDGET).orElse(null);
             pathAt = 0;
             replanIn = REPLAN;
         }
         if (path == null) {
-            return target.minus(centre);
+            return Vec.ZERO;
         }
         while (pathAt < path.size() - 1 && path.get(pathAt).centre().minus(centre).length() < WAYPOINT_REACH) {
             pathAt++;
@@ -1047,6 +1050,12 @@ public class Aberrant extends Monster {
         return lastBlocked;
     }
 
+    /** effects: notes whether the target met its eyes this tick; returns whether the target is staring (eight of the last ten) */
+    public boolean gazeNoting(boolean met) {
+        gaze = gaze.noting(met);
+        return gaze.locked();
+    }
+
     /** effects: returns and clears whether a blow landed since last asked, and whether a hard one did */
     public boolean[] takeHurt() {
         boolean[] out = {hurtFlag, hurtHard};
@@ -1120,13 +1129,15 @@ public class Aberrant extends Monster {
         return true;
     }
 
-    /** effects: opens the pincers: the held one is let go where it hangs; nothing is held afterwards */
+    /** effects: opens the pincers: the held one is let go where it hangs, in air; nothing is held afterwards */
     public void release() {
         Entity passenger = getFirstPassenger();
         releasing = true;
         try {
             if (passenger != null) {
+                net.minecraft.world.phys.Vec3 at = holdPoint(passenger);
                 passenger.stopRiding();
+                passenger.setPos(at.x, at.y - passenger.getBbHeight() / 2.0, at.z);
             }
         } finally {
             releasing = false;
@@ -1238,8 +1249,25 @@ public class Aberrant extends Monster {
         if (!hasPassenger(passenger)) {
             return;
         }
+        net.minecraft.world.phys.Vec3 at = holdPoint(passenger);
+        move.accept(passenger, at.x, at.y - passenger.getBbHeight() / 2.0, at.z);
+    }
+
+    /**
+     * effects: returns where the held one's middle hangs: at the maw when the
+     * maw is in air, else at the head's own axis, which the crawl keeps out
+     * of rock -- a head that has just surfaced through a wall must not hold
+     * its prey inside it
+     */
+    private net.minecraft.world.phys.Vec3 holdPoint(Entity passenger) {
         net.minecraft.world.phys.Vec3 maw = mawPoint();
-        move.accept(passenger, maw.x, maw.y - passenger.getBbHeight() / 2.0, maw.z);
+        double half = passenger.getBbHeight() / 2.0;
+        AABB body = new AABB(maw.x - 0.3, maw.y - half, maw.z - 0.3, maw.x + 0.3, maw.y + half, maw.z + 0.3);
+        if (level().noCollision(passenger, body)) {
+            return maw;
+        }
+        Vec axis = axis();
+        return new net.minecraft.world.phys.Vec3(axis.x(), axis.y(), axis.z());
     }
 
     // --- the feet -------------------------------------------------------

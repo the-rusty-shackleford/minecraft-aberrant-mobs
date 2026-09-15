@@ -144,7 +144,11 @@ public final class Crawl {
      * <li>a wish mostly along the normal: into the face with digging, turns
      *     to bore straight in (heading along -normal, its feet on the face
      *     nearest behind it) and holds for the dig if the section is
-     *     diggable; otherwise blocked, settled;
+     *     diggable; away from the face, or into it without digging, takes
+     *     the nearest other face within {@link #ATTACH_REACH} the wish
+     *     lies along (half of it in that face at least) -- a creature on a
+     *     wall wanting what is out on the floor steps down onto the floor;
+     *     with none, blocked, settled;
      * <li>otherwise turns toward the wish within the face by at most
      *     {@link #TURN_RATE}; with rock within the lookahead ahead: digging,
      *     holds for the dig (blocked if the section is not diggable); else
@@ -175,7 +179,13 @@ public final class Crawl {
         if (inFace.length() < IN_FACE_SHARE * wish) {
             if (desired.dot(n) < 0 && mayDig) {
                 Pose bore = new Pose(pose.centre(), n.times(-1), Normal.nearest(h.times(-1)));
-                return Tunnel.diggable(cells, section(bore, rules)) ? new Step(bore, true, false, true) : new Step(pose, false, true, false);
+                if (Tunnel.diggable(cells, section(bore, rules))) {
+                    return new Step(bore, true, false, true);
+                }
+            }
+            Pose other = attachAlong(cells, pose.centre(), desired, pose.normal(), rules, ATTACH_REACH);
+            if (other != null) {
+                return new Step(snapOr(cells, other, rules), false, false, true);
             }
             return settle(cells, pose, rules, true);
         }
@@ -257,6 +267,49 @@ public final class Crawl {
             h = Math.abs(best.dir.x()) < 0.5 ? Vec.X : Vec.Z;
         }
         return new Pose(bestFace.plus(best.dir.times(rules.clearance())), h.normalized(), best);
+    }
+
+    /**
+     * effects: returns the pose clinging to the face within {@code reach} of
+     * {@code centre}, other than {@code except}, along which {@code wish}
+     * lies best (at least half of it in the face), heading along the wish
+     * laid into that face; null when no such face is in reach
+     */
+    public static Pose attachAlong(Cells cells, Vec centre, Vec wish, Normal except, Rules rules, double reach) {
+        double length = wish.length();
+        if (length < 1e-9) {
+            return null;
+        }
+        Normal best = null;
+        Vec bestFace = null;
+        double bestShare = 0.5;
+        for (Normal n : Normal.values()) {
+            if (n == Normal.NONE || n == except) {
+                continue;
+            }
+            Vec inFace = wish.minus(n.dir.times(wish.dot(n.dir)));
+            double share = inFace.length() / length;
+            if (share < bestShare) {
+                continue;
+            }
+            Vec face = cells.face(centre, n.dir.times(-1), reach);
+            if (face != null) {
+                bestShare = share;
+                best = n;
+                bestFace = face;
+            }
+        }
+        if (best == null) {
+            return null;
+        }
+        Vec h = wish.minus(best.dir.times(wish.dot(best.dir))).normalized();
+        return new Pose(bestFace.plus(best.dir.times(rules.clearance())), h, best);
+    }
+
+    /** effects: returns {@code pose} snapped to its face, or as it is when the face is not found from there */
+    private static Pose snapOr(Cells cells, Pose pose, Rules rules) {
+        Pose snapped = snap(cells, pose, rules);
+        return snapped == null ? pose : snapped;
     }
 
     /**

@@ -73,15 +73,19 @@ bite; another mod may register its own before the profiles load).
 Each server tick the creature reads its senses (`SensesReader`: the nearest survival or
 adventure player within `sight`, in sight by the mob's own line-of-sight sensing, known
 for `memory` ticks after with its last position remembered, eye contact when the
-target's look is within `eye_cone_deg` of the head and the head faces them), the mind
+target's look is within `eye_cone_deg` of the head and the head faces them, for eight of the last ten
+ticks: a stare, not a glance), the mind
 decides, and the verb is begun, ticked or ended. The memory (mode, timers, points, seed)
 is saved with the entity, so a reload does not forget a hunt.
 
 ## The grab, the bite, the face
 
 Within reach, the pincers close (`Aberrant.grab`): the target rides the creature, held
-at the maw of nfx's head, never steering it, and the grip (`Grip`) refuses their
-dismount until the creature lets go; the grab clip pinches on its cue. The bite
+at the maw of nfx's head (or at the head's own axis when the maw has just surfaced
+inside rock, so the held one never hangs in a wall), never steering it, and the grip
+(`Grip`) refuses their dismount until the creature lets go, in air; the grab clip
+pinches on its cue. A stalker that takes its prey from behind hands over to the hunt,
+where the bite lives. The bite
 (`Aberrant.bite`) plays its clip and on the cue hurts the held one by
 `aberrantmobs:devoured`, a finite million points through the ordinary damage pipeline,
 bypassing armour, enchantments, shields, effects and the hurt cooldown but never
@@ -137,7 +141,8 @@ enough takes it (`Transition.intoWall`: the wall becomes the floor, the feet on 
 if the wearer's box fits there); walking off an edge wraps onto the ledge's face
 (`Transition.overEdge`); taking the set off, water, lava, flying, riding, gliding,
 sleeping or spectating lets go to the world's own down by the least way out that fits
-(`Transition.release`). The server decides every tick after the player moved
+(`Transition.release`). A knockback or a push lands in the wearer's frame. The server
+decides every tick after the player moved
 (`wallwalk/WallWalk` on `PlayerTickEvent.Post`, the pure rules over
 `level.noCollision`); the client runs the same rule on its own player a tick ahead, so
 the two agree within the game's tolerance and no packet is added -- the frame rides the
@@ -221,15 +226,19 @@ the head holds, the strike clip plays, and on the strike's cue the section ahead
 on an axis, the floor it rides on kept) is cut to air (`DigWorld`; loud with particles
 and a game event, or quiet). Rock is only ever cut when nothing hard or wet is beside
 it, so a tunnel never breaches water, lava, bedrock or a chest. A wish to go through
-its face bores when it may dig and is refused otherwise; a wish away from it is
-refused. Axis faces only: exact, six cases, enumerable; a slope reads as corners, as it
-does to a centipede. The face it clings to rides synced data as its up, and its box is
+its face bores when it may dig; a wish off its face -- through it without digging, or
+away from it -- takes the nearest other face the wish lies along, so a creature on a
+wall wanting what is out on the floor steps down onto the floor, and is refused only
+when there is none in reach. Axis faces only: exact, six cases, enumerable; a slope
+reads as corners, as it does to a centipede. The face it clings to rides synced data as its up, and its box is
 centred on its axis, so a client draws it on the wall it is on.
 
 A way to a point is planned by `domain/Burrow`: A* over cells, six-connected, air by a
 face cheap, air with none dearer, rock at the cost of digging it (cheap hunting, dear
-stalking), hard and fluid never, bounded by a budget; the entity follows it waypoint by
-waypoint and plans again every twenty ticks. A pounce (`domain/Leap`) is a launch
+stalking), hard and fluid never, bounded by a budget; cut off by water or bedrock, it
+takes the way to the nearest reachable cell instead, never a straight line a pool would
+hold it on. The entity follows it waypoint by waypoint and plans again every twenty
+ticks, or at once when its crawl was refused. A pounce (`domain/Leap`) is a launch
 velocity that lands the head exactly on a spot under the game's own integration, within
 a top speed; in flight the head lands on the first face it flies into. The blocks are
 read through `domain/Cells` (`LevelCells`: a fluid is fluid, no collision is air,
@@ -269,6 +278,7 @@ tests until the crawl arrives.
 export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 PATH="$JAVA_HOME/bin:$PATH"
 ./gradlew test                   # JUnit on the pure layer: the rig, the body, the feet, the clips, the crawl, the mind, the ears
 ./gradlew check                  # plus the gametests and the photo booth (needs a display; -PskipBooth, -PskipGameTests)
+./gradlew runPlaytest            # the dread in a real cave: the log's numbers first, then the frames (needs a display)
 ```
 
 The domain layer is compiled against the JDK alone; `net.minecraft` there is a compile
@@ -292,6 +302,11 @@ clip at its key frames, wearing the booth player's face, holding them at its maw
 their own eyes), climbing a wall and digging into a hill, and the booth player in the
 chitin set standing on a wall from its own eyes and from behind, silent from its first
 tick; its `booth: PASS/FAIL` lines are the assertion, and the frames are looked at.
+The playtest (same display) makes a real world, sets the survival player down in a dark
+cave, blessed so a bite does not end the run, brings a Face-Stealer into the world in the
+rock by another cave thirty to fifty blocks off, has the player break a block, and logs
+what the creature does every ten ticks with a frame every eighty; its verdicts are that
+it heard, dug, came near and stalked or hunted.
 
 ## Licence
 

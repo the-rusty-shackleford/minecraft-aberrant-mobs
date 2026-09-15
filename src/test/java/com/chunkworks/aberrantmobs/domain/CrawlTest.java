@@ -35,8 +35,10 @@ import org.junit.jupiter.api.Test;
  * takes the ceiling. An edge: it wraps over onto the ledge's face heading
  * down. Nothing under it and nothing in reach: airborne, falling, landing
  * on a floor that comes. A wish through the floor: bores with digging,
- * blocked without; a wish away from the floor: blocked. Bad arguments
- * refused; the normal nearest a direction.
+ * blocked without; a wish away from the face: the nearest other face the
+ * wish lies along if one is in reach (a wall-clinger steps onto the
+ * floor), else blocked. Bad arguments refused; the normal nearest a
+ * direction.
  */
 final class CrawlTest {
     private static final Crawl.Rules R = new Crawl.Rules(1.5, 1.5, 1.6);
@@ -176,7 +178,29 @@ final class CrawlTest {
         assertTrue(no.blocked() && !no.digNeeded());
         assertTrue(no.pose().centre().near(onFloor(3.0).centre(), 1e-6), "and it stays");
         Crawl.Step up = Crawl.step(FLOOR, onFloor(3.0), Vec.Y, 0.3, R, true);
-        assertTrue(up.blocked(), "it cannot leave its face upward");
+        assertTrue(up.blocked(), "it cannot leave its face upward with nothing else to cling to");
+    }
+
+    @Test
+    void aWishOffItsFaceTakesTheFaceTheWishLiesAlong() {
+        // On a wall to the west (its face looks east) at floor level, wanting east across the floor: it steps onto the floor.
+        Cells corner = (x, y, z) -> y <= -1 || x <= -1 ? Cells.Kind.ROCK : Cells.Kind.AIR;
+        Crawl.Pose onWall = new Crawl.Pose(new Vec(1.5, 1.0, 0.5), Vec.Y, Crawl.Normal.EAST);
+        Crawl.Step s = Crawl.step(corner, onWall, Vec.X, 0.3, R, true);
+        assertEquals(Crawl.Normal.UP, s.pose().normal(), "the floor, along which east lies");
+        assertTrue(s.pose().heading().near(Vec.X, 1e-9), "heading east on it");
+        assertEquals(1.5, s.pose().centre().y(), 0.02, "at its clearance over the floor");
+        assertTrue(s.turned() && !s.blocked());
+        // Wanting straight out from the wall with no floor in reach: blocked, as before.
+        Crawl.Pose high = new Crawl.Pose(new Vec(1.5, 8.0, 0.5), Vec.Y, Crawl.Normal.EAST);
+        assertTrue(Crawl.step(corner, high, Vec.X, 0.3, R, false).blocked(), "nothing else to cling to");
+        assertEquals(Crawl.Normal.EAST, Crawl.step(corner, high, Vec.X, 0.3, R, false).pose().normal());
+        // On the floor wanting up with a wall in reach: takes the wall, heading up it.
+        Crawl.Pose byWall = new Crawl.Pose(new Vec(1.0, 1.5, 0.5), Vec.X.times(-1), Crawl.Normal.UP);
+        Crawl.Step up = Crawl.step(corner, byWall, Vec.Y, 0.3, R, false);
+        assertEquals(Crawl.Normal.EAST, up.pose().normal(), "the wall, along which up lies");
+        assertTrue(up.pose().heading().near(Vec.Y, 1e-9));
+        assertTrue(Crawl.attachAlong(Cells.EMPTY, Vec.ZERO, Vec.Y, Crawl.Normal.UP, R, 2.0) == null);
     }
 
     @Test

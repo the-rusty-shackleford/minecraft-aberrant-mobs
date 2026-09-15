@@ -99,6 +99,25 @@ final class BurrowTest {
     }
 
     @Test
+    void cutOffItGoesAsNearAsItCan() {
+        // A pool of water across the whole way at x = 5..6: the target beyond it cannot be reached, and rock beside it is never cut.
+        Cells pool = (x, y, z) -> (x == 5 || x == 6) ? Cells.Kind.FLUID : y <= -1 ? Cells.Kind.ROCK : Cells.Kind.AIR;
+        assertTrue(Burrow.plan(pool, new Cell(0, 0, 0), new Cell(10, 0, 0), Burrow.HUNT, Burrow.BUDGET).isEmpty(), "no way through");
+        List<Cell> near = Burrow.planNearest(pool, new Cell(0, 0, 0), new Cell(10, 0, 0), Burrow.HUNT, Burrow.BUDGET).orElseThrow();
+        Cell end = near.get(near.size() - 1);
+        assertEquals(new Cell(0, 0, 0), near.get(0));
+        assertTrue(end.x() >= 3 && end.x() <= 4, "as near the pool as it may go: " + end);
+        for (Cell c : near) {
+            assertTrue(pool.at(c) != Cells.Kind.FLUID, "never through the water: " + c);
+        }
+        assertTrue(Burrow.planNearest(pool, new Cell(0, 0, 0), new Cell(0, 0, 0), Burrow.HUNT, Burrow.BUDGET).isPresent(), "already there");
+        Cells sealed = (x, y, z) -> (x == 0 && y == 0 && z == 0) ? Cells.Kind.AIR : Cells.Kind.HARD;
+        assertTrue(Burrow.planNearest(sealed, new Cell(0, 0, 0), new Cell(5, 0, 0), Burrow.HUNT, Burrow.BUDGET).isEmpty(), "sealed in: nowhere to go");
+        List<Cell> budgeted = Burrow.planNearest(Cells.EMPTY, new Cell(0, 0, 0), new Cell(60, 0, 0), Burrow.HUNT, 50).orElseThrow();
+        assertTrue(budgeted.get(budgeted.size() - 1).x() > 0, "the budget spent, the nearest seen: " + budgeted.get(budgeted.size() - 1));
+    }
+
+    @Test
     void theBudgetEndsAHopelessSearchAndBadArgumentsAreRefused() {
         assertTrue(Burrow.plan(Cells.EMPTY, new Cell(0, 0, 0), new Cell(60, 0, 0), Burrow.HUNT, 50).isEmpty());
         assertThrows(IllegalArgumentException.class, () -> Burrow.plan(Cells.EMPTY, new Cell(0, 0, 0), new Cell(1, 0, 0), Burrow.HUNT, 0));

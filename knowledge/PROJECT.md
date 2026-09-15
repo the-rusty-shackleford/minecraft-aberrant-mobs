@@ -48,12 +48,17 @@ on cues (recorded for now; sounds and the dig's blocks hang on them later).
 Phase 3 (done): crawl and dig. `Cell`; `Cells.face` (a bisected cast to a face);
 `Crawl` (the head an axis point held its clearance off the axis face it clings to:
 turns within the face at 25 degrees a tick, climbs a wall it meets, wraps over an edge
-onto the ledge's face, bores into rock when it may dig, holds for the dig, falls and
-attaches when it has nothing; `Rules(clearance, bore, lookahead)`); `Tunnel` (the
+onto the ledge's face, bores into rock when it may dig, holds for the dig, takes the
+nearest other face a wish off its face lies along (the playtest found it held on a wall
+four blocks from the player, wanting what was out on the floor), falls and attaches
+when it has nothing; `Rules(clearance, bore, lookahead)`); `Tunnel` (the
 section within the bore's radius of the head's run, rock only, never beside hard or
 fluid); `Burrow` (A* over cells, air 1, unsupported air 4, rock 5 hunting or 14
 stalking, hard and fluid and rock beside them never, a 4000-expansion budget); `Leap`
-(a launch velocity landing exactly under the game's integration). In main: the entity
+(a launch velocity landing exactly under the game's integration); `Burrow.planNearest`
+gives the way to the nearest reachable cell when the target is cut off, and the entity
+never falls back to a straight line (the playtest found it held on a pool for good). In
+main: the entity
 runs on the crawl with no gravity, no physics, no pushing, its box centred on the axis,
 its face synced as its up; the scripted walk crawls on along whatever face after a
 corner; `setCrawlTarget` follows a burrowed way, replanned every 20 ticks; the strike
@@ -75,8 +80,10 @@ chase, flee, dig, climb, pounce; grab/release/bite named for phase 5), `SensesRe
 sensing, known 600 ticks, eye contact by cones, underground = no sky), `Ears`
 (`VanillaGameEvent` → sounds: step 1, sprint 2, block 6, blast 20, sneaking 0, other
 mobs and its own digging nothing), the entity's `think` (senses → mind → verb begun,
-ticked, ended; the mode synced; the memory in NBT). The Face-Stealer's tree: roam,
-prowl, stalk, hunt, flee.
+ticked, ended; the mode synced; the memory in NBT). The Face-Stealer's tree: roam, prowl, stalk, hunt, flee. The playtest taught the stalk three more lines: a
+stalker seen and blocked (its tunnel a dead end) turns to the hunt, one watched for two
+hundred ticks does too, and one that has grabbed its prey from behind (the ambush the
+stalk was made for) hands over to the hunt, where the bite lives.
 
 Phase 5 (done): grab, bite, the coil before the pounce, the face. The target rides the
 creature at the maw (`positionRider`, never a driver; `Grip` cancels a dismount while
@@ -126,12 +133,24 @@ block, on-pos), LivingEntity (travel's move calls turned local to world), Player
 carrier), ServerPlayer (the fall check along the frame), LocalPlayer (no nudge out of
 edges), Camera (the eye), LivingEntityRenderer (the model stands along the frame); the
 camera angles event composes the frame's blend with the look and hands back yaw, pitch
-and roll. Not built (plan phase C beyond the edge): knockback and projectiles into the
-frame, placement facing, the shadow and nameplate.
+and roll. Of the plan's phase C: a knockback (given in the world's horizontal) and an
+entity push land in the wearer's frame (`LivingEntityMixin.knockback`,
+`EntityMixin.push`); not built: block placement facing on a wall, the shadow and
+nameplate, the third-person back camera (see Next). Eye contact is a stare, not a
+glance: `domain/Gaze` counts eight of the last ten ticks.
+
+The playtest (`./gradlew runPlaytest`, `gametest/Playtest`): a real world (seed
+20260915, normal generation), the survival player set down in a dark cave below y -8 and
+blessed at the miracle's door, a Face-Stealer come into the world on its own in the rock
+by another cave thirty to fifty blocks off; the player breaks a block at tick 80; the
+server logs mode, verb, distance, sight and blocks dug every ten ticks for a thousand,
+a frame every eighty with the player looking the creature's way; verdicts: it came, it
+prowled at the noise, it dug beyond its pocket, it came within sixteen, it stalked or
+hunted.
 
 ## How it is verified
 
-`./gradlew test` (100 JUnit tests, the reader proved against the saved file),
+`./gradlew test` (101 JUnit tests, the reader proved against the saved file),
 `runGameTestServer` (19 gametests: the profile and the creature, the parts along the body
 after a walk, only the crack takes a blow, most feet on the floor mid-walk, a clip's
 cues on their ticks, a scripted walk, floor-wall-ceiling, a coherent tunnel round
@@ -156,10 +175,9 @@ See `decisions/`.
 
 ## Next
 
-Rusty's vetting of the whole, then a GitHub remote and a release on their go. Open: a
-playtest through real caves for the dread (distance cues, the first sight, a chase),
-read from the log then the frames; the armour's phase C (knockback and projectiles into
-the frame, placement facing on a wall, the shadow and nameplate, and the third-person
-back camera: on a wall it backs off down into the ground and the game's clip parks it on
-the surface, so the booth uses the front camera); the wall-walk under Iris in the booth
-from a second client; the eye-contact gaze (eight of ten ticks) the plan sketched.
+Rusty's vetting of the whole, then a GitHub remote and a release on their go. Open: the
+armour's remaining phase C (block placement facing on a wall, the shadow and nameplate,
+explosions into the frame, and the third-person back camera: on a wall it backs off
+down into the ground and the game's clip parks it on the surface, so the booth uses the
+front camera); the wall-walk under Iris in the booth from a second client; whatever the
+playtest's frames say about the dread.

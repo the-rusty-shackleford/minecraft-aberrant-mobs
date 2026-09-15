@@ -121,6 +121,18 @@ public abstract class EntityMixin {
         c.aberrantmobs$setLastWall(normal, pos);
     }
 
+    @Inject(method = "push(DDD)V", at = @At("HEAD"), cancellable = true)
+    private void aberrantmobs$pushInFrame(double x, double y, double z, CallbackInfo ci) {
+        Entity self = (Entity) (Object) this;
+        if (!WallWalk.bent(self)) {
+            return;
+        }
+        ci.cancel();
+        Vec local = WallWalk.frameOf(self).toLocal(new Vec(x, y, z));
+        self.setDeltaMovement(self.getDeltaMovement().add(local.x(), local.y(), local.z()));
+        self.hasImpulse = true;
+    }
+
     @Inject(method = "checkSupportingBlock", at = @At("HEAD"), cancellable = true)
     private void aberrantmobs$supporting(boolean onGround, Vec3 movement, CallbackInfo ci) {
         Entity self = (Entity) (Object) this;
