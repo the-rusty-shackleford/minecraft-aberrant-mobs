@@ -205,14 +205,22 @@ public final class Crawl {
         return section(new Pose(new Vec(0.0, rules.clearance(), 0.5), Vec.X, Normal.UP), rules).size();
     }
 
+    /** effects: as {@link #step(Cells, Pose, Vec, double, Rules, boolean, boolean)} with climbing allowed: a walk with no way climbs whatever it meets */
+    public static Step step(Cells cells, Pose pose, Vec desired, double speed, Rules rules, boolean mayDig) {
+        return step(cells, pose, desired, speed, rules, mayDig, true);
+    }
+
     /**
      * requires: {@code speed >= 0}
      * effects: returns the head one tick on from {@code pose}, wanting to go
      * along {@code desired} (any length; zero to hold) at {@code speed}
-     * blocks a tick under {@code rules}, digging when {@code mayDig}:
+     * blocks a tick under {@code rules}, digging when {@code mayDig},
+     * climbing what is ahead when {@code mayClimb}:
      * <ul>
-     * <li>airborne: falls {@link #FALL} and attaches to the nearest face
-     *     within {@link #ATTACH_REACH} if any;
+     * <li>airborne: falls {@link #FALL} and lands on a floor it has come
+     *     down to -- one within its clearance and the fall of it -- keeping
+     *     its heading laid flat; never a wall on the way down, so a head
+     *     that let go of one is not back on it next tick;
      * <li>holding (no speed or no wish): settles on its face;
      * <li>a wish mostly along the normal: into the face with digging, turns
      *     to bore straight in (heading along -normal, its feet on the face
@@ -221,34 +229,45 @@ public final class Crawl {
      *     the nearest other face within {@link #ATTACH_REACH} the wish
      *     lies along (half of it in that face at least) -- a creature on a
      *     wall wanting what is out on the floor steps down onto the floor;
-     *     with none: into the face, with {@link #ALONG_SHARE} of the wish
-     *     in the face at all, crawls on along that part, as below -- toward
-     *     the point's column, or to the edge that leads down to it, since a
-     *     head near the top of a wall whose way goes over the edge would
-     *     otherwise stand blocked half a block short of it -- else blocked,
-     *     settled;
+     *     with none: away from a floor, blocked, settled (it cannot fly);
+     *     away from a wall or a ceiling, lets go -- airborne, to fall to
+     *     what is below, rather than hanging refused on the far side of a
+     *     post or under a canopy wanting the ground just out of reach;
+     *     into the face, with {@link #ALONG_SHARE} of the wish in the face
+     *     at all, crawls on along that part, as below -- toward the point's
+     *     column, or to the edge that leads down to it, since a head near
+     *     the top of a wall whose way goes over the edge would otherwise
+     *     stand blocked half a block short of it -- else blocked, settled;
      * <li>otherwise turns toward the wish within the face by at most
      *     {@link #TURN_RATE}; with rock within the lookahead ahead: digging,
-     *     holds for the dig (blocked if the section is not diggable); else
-     *     climbs -- the wall ahead becomes its face, its heading the old up
-     *     -- or is blocked when rock is above too; else moves {@code speed}
-     *     scaled by how far round it has come (the cosine of what is left
-     *     of the turn, none for a wish beside or behind it: it pivots, and
-     *     never orbits a point inside its turning circle) and settles:
-     *     snapped to its clearance; over an edge, wrapped onto the ledge's
-     *     face heading down it; with nothing under it, attached to any face
-     *     in reach, or airborne.
+     *     holds for the dig (blocked if the section is not diggable); not
+     *     climbing, turns where it stands -- what is ahead is something the
+     *     way goes round -- and is blocked only once it faces the wish with
+     *     the rock still ahead; else climbs -- the wall ahead becomes its
+     *     face, its heading the old up -- or is blocked when rock is above
+     *     too; else moves {@code speed} scaled by how far round it has come
+     *     (the cosine of what is left of the turn, none for a wish beside
+     *     or behind it: it pivots, and never orbits a point inside its
+     *     turning circle) and settles: snapped to its clearance; over an
+     *     edge, wrapped onto the ledge's face heading down it; with nothing
+     *     under it, attached to any face in reach, or airborne.
      * </ul>
      */
-    public static Step step(Cells cells, Pose pose, Vec desired, double speed, Rules rules, boolean mayDig) {
+    public static Step step(Cells cells, Pose pose, Vec desired, double speed, Rules rules, boolean mayDig, boolean mayClimb) {
         if (!(speed >= 0)) {
             throw new IllegalArgumentException("speed is not negative");
         }
         if (pose.airborne()) {
             Vec fallen = pose.centre().plus(new Vec(0, -FALL, 0));
-            Pose landed = attach(cells, fallen, pose.heading(), rules, ATTACH_REACH);
-            return landed == null ? new Step(new Pose(fallen, pose.heading(), Normal.NONE), false, false, false)
-                    : new Step(landed, false, false, true);
+            Vec floor = cells.face(fallen, Vec.Y.times(-1), rules.clearance() + FALL);
+            if (floor == null) {
+                return new Step(new Pose(fallen, pose.heading(), Normal.NONE), false, false, false);
+            }
+            Vec flat = pose.heading().minus(Vec.Y.times(pose.heading().y()));
+            if (flat.length() < 1e-6) {
+                flat = Vec.X;
+            }
+            return new Step(new Pose(floor.plus(Vec.Y.times(rules.clearance())), flat.normalized(), Normal.UP), false, false, true);
         }
         Vec n = pose.normal().dir;
         Vec h = pose.heading();
@@ -268,7 +287,13 @@ public final class Crawl {
             if (other != null) {
                 return new Step(snapOr(cells, other, rules), false, false, true);
             }
-            if (!(desired.dot(n) < 0) || inFace.length() < ALONG_SHARE * wish) {
+            if (desired.dot(n) > 0) {
+                // Away from the face with nothing along the wish in reach: a floor holds it, since it cannot fly; a wall
+                // or a ceiling is let go of, to fall to what is below.
+                return pose.normal() == Normal.UP ? settle(cells, pose, rules, true)
+                        : new Step(new Pose(pose.centre(), h, Normal.NONE), false, false, true);
+            }
+            if (inFace.length() < ALONG_SHARE * wish) {
                 return settle(cells, pose, rules, true);
             }
             // Into the face, no digging, no other face in reach: on along what little of the wish lies in the face.
@@ -278,6 +303,11 @@ public final class Crawl {
         if (cells.solidAt(pose.centre().plus(h2.times(rules.lookahead())))) {
             if (mayDig) {
                 return Tunnel.diggable(cells, section(turned, rules)) ? new Step(turned, true, false, false) : new Step(turned, false, true, false);
+            }
+            if (!mayClimb) {
+                // Something the way goes round: turn toward the wish where it stands; blocked only facing the wish with rock still ahead.
+                boolean facing = h2.minus(inFace.normalized()).length() < 1e-9;
+                return settle(cells, turned, rules, facing);
             }
             if (cells.solidAt(pose.centre().plus(n.times(rules.lookahead())))) {
                 return new Step(turned, false, true, false);

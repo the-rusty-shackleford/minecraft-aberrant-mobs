@@ -196,8 +196,9 @@ newer, is where they are now taken to be, exact within 24 blocks and erred beyon
 ## What you hear
 
 It skitters every six ticks under way (1.3 when hunting, 1.0 otherwise, 0.5 stalking,
-where a sound over one carries past sixteen blocks) and breathes every ninety ticks
-when still. Its cues play the click, hiss and screech of the coil and pounce, the grab,
+where a sound over one carries past sixteen blocks) and, standing still, breathes about
+once in fifteen seconds, low and quiet, never on a beat (every ninety ticks it panted like
+a dog at whoever it stood beside). Its cues play the click, hiss and screech of the coil and pounce, the grab,
 the bite, the crack of its plate and the scrape of its digging (loud or quiet). When it
 begins to stalk you it hisses once; when the hunt begins it screeches (1.6: twenty-five
 blocks); while it stalks or hunts, about every three and a half seconds, it clicks its
@@ -260,8 +261,11 @@ pushing. Its head is a point (`domain/Crawl`) held a fixed clearance off the axi
 it clings to -- floor, wall or ceiling, one of six -- and each server tick it turns
 within that face toward what it wants (25 degrees a tick at most), moves, and settles:
 snapped to its clearance; over an edge, wrapped onto the ledge's face heading down it;
-with nothing under it, attached to any face in reach, else falling. Rock ahead is
-climbed (the wall becomes its face, the old up its heading) or, when it may dig, bored:
+with nothing under it, attached to any face in reach, else falling, and a fall lands only
+on a floor it has come down to. Rock ahead is climbed (the wall becomes its face, the old
+up its heading) when the way it follows rises there -- a post or a trunk the way goes
+round, it turns round where it stands instead, since a head that climbed a pillar in its
+way went over the top and hung refused on the far side -- or, when it may dig, bored:
 the head holds, the strike clip plays, and on the strike's cue the section ahead
 (`domain/Tunnel`: the cells within the bore's radius of the head's run -- six tenths of
 the body's width, so five wide and four tall on an axis for the Face-Stealer -- the
@@ -274,8 +278,9 @@ and a game event, or quiet). Rock is only ever cut when nothing hard or wet is b
 it, so a tunnel never breaches water, lava, bedrock or a chest. A wish to go through
 its face bores when it may dig; a wish off its face -- through it without digging, or
 away from it -- takes the nearest other face the wish lies along, so a creature on a
-wall wanting what is out on the floor steps down onto the floor, and is refused only
-when there is none in reach. Axis faces only: exact, six cases, enumerable; a slope
+wall wanting what is out on the floor steps down onto the floor; with none in reach, a
+wall or a ceiling is let go of and it falls to what is below (a floor holds it: it cannot
+fly), and a fall lands only on a floor, never the wall it just left. Axis faces only: exact, six cases, enumerable; a slope
 reads as corners, as it does to a centipede. The face it clings to rides synced data as its up, and its box is
 centred on its axis, so a client draws it on the wall it is on.
 

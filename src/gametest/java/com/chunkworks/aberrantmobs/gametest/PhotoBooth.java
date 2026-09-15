@@ -88,8 +88,10 @@ public final class PhotoBooth {
     private static int tick = 0;
     private static List<Step> steps;
     private static UUID creature;
-    /** The x of the dig hill's face, for the dig's verdict. */
+    /** The x of the dig hill's face, for the dig's verdict; the tree's trunk and the pillar, for theirs. */
     private static double hillFace;
+    private static double treeX;
+    private static double pillarX;
 
     @SubscribeEvent
     public static void onClientTick(ClientTickEvent.Post event) {
@@ -340,6 +342,51 @@ public final class PhotoBooth {
             onServer(mc, sp -> onCreature(sp, a -> verdict("it dug its way in", () -> a.blocksDug() > 82 && a.getX() > hillFace + 2.0 ? null
                     : "dug " + a.blocksDug() + " blocks, at x " + a.getX() + " with the hill's face at " + hillFace)));
         }));
+        // What Rusty met on the surface (2026-09-15): a tree in its way, and things it got stuck on or flipped
+        // over at. Set down in the open beyond the hill and sent past an oak, digging allowed as the mind allows
+        // it; then past a lone pillar of stone. The frames say whether it climbs, chews, hangs or stands.
+        s.add(new Step(t += 20, () -> onServer(mc, sp -> onCreature(sp, a -> {
+            double y = sp.serverLevel().getMinBuildHeight() + 4;
+            double px = hillFace + 30.0;
+            int tx = (int) px + 12;
+            treeX = tx;
+            oak(sp, tx, (int) y, (int) Z);
+            a.moveTo(px, y, Z, -90.0f, 0.0f);
+            a.resetCrawl();
+            a.setCrawlTarget(new Vec(tx + 12.5, y + 23.3 * 1.5 / 16.0, Z), true, 0.45);
+            sp.teleportTo(sp.serverLevel(), tx - 2.0, y + 6.0, Z - 22.0, 0.0f, 0.0f);
+            sp.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(tx - 2.0, y + 3.5, Z));
+        }))));
+        s.add(new Step(t += 40, () -> shoot(mc, "booth-tree-1")));
+        s.add(new Step(t += 40, () -> shoot(mc, "booth-tree-2")));
+        s.add(new Step(t += 80, () -> shoot(mc, "booth-tree-3")));
+        s.add(new Step(t += 80, () -> {
+            shoot(mc, "booth-tree-4");
+            Aberrant a = find(mc);
+            verdict("it got past the tree", () -> a != null && a.getX() > treeX + 4.0 ? null : "at x " + (a == null ? null : a.getX() - treeX) + " from the trunk, on " + (a == null ? null : a.syncedNormal()));
+            verdict("and stands on the ground past it", () -> a != null && a.syncedNormal() == Crawl.Normal.UP ? null : "on " + (a == null ? null : a.syncedNormal()));
+        }));
+        s.add(new Step(t += 20, () -> onServer(mc, sp -> onCreature(sp, a -> {
+            double y = sp.serverLevel().getMinBuildHeight() + 4;
+            double px = treeX + 30.0;
+            int cx = (int) px + 12;
+            pillarX = cx;
+            fill(sp, cx, (int) y, (int) Z, cx, (int) y + 7, (int) Z, Blocks.STONE);
+            a.moveTo(px, y, Z, -90.0f, 0.0f);
+            a.resetCrawl();
+            a.setCrawlTarget(new Vec(cx + 12.5, y + 23.3 * 1.5 / 16.0, Z), true, 0.45);
+            sp.teleportTo(sp.serverLevel(), cx - 2.0, y + 6.0, Z - 22.0, 0.0f, 0.0f);
+            sp.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(cx - 2.0, y + 3.5, Z));
+        }))));
+        s.add(new Step(t += 40, () -> shoot(mc, "booth-pillar-1")));
+        s.add(new Step(t += 40, () -> shoot(mc, "booth-pillar-2")));
+        s.add(new Step(t += 80, () -> shoot(mc, "booth-pillar-3")));
+        s.add(new Step(t += 80, () -> {
+            shoot(mc, "booth-pillar-4");
+            Aberrant a = find(mc);
+            verdict("it got past the pillar", () -> a != null && a.getX() > pillarX + 4.0 ? null : "at x " + (a == null ? null : a.getX() - pillarX) + " from the pillar, on " + (a == null ? null : a.syncedNormal()));
+            verdict("and stands on the ground past it", () -> a != null && a.syncedNormal() == Crawl.Normal.UP ? null : "on " + (a == null ? null : a.syncedNormal()));
+        }));
         // The chitin armour: the booth player in the full set, set down before a wall and walked into it;
         // from its own eyes the world rolls, from behind it stands on the wall.
         s.add(new Step(t += 20, () -> onServer(mc, sp -> onCreature(sp, a -> {
@@ -386,6 +433,38 @@ public final class PhotoBooth {
                     sp.serverLevel().setBlock(new BlockPos(x, y, z), block.defaultBlockState(), 3);
                 }
             }
+        }
+    }
+
+    /**
+     * effects: grows an oak with its trunk's foot at {@code (x, y, z)}: six logs, two five-wide layers of leaves
+     * without their corners on the fourth and fifth, a ring of eight on the sixth and a cross on the seventh, the
+     * leaves persistent so they do not decay in the frame
+     */
+    private static void oak(ServerPlayer sp, int x, int y, int z) {
+        for (int i = 0; i < 6; i++) {
+            sp.serverLevel().setBlock(new BlockPos(x, y + i, z), Blocks.OAK_LOG.defaultBlockState(), 3);
+        }
+        net.minecraft.world.level.block.state.BlockState leaves = Blocks.OAK_LEAVES.defaultBlockState().setValue(net.minecraft.world.level.block.LeavesBlock.PERSISTENT, true);
+        for (int dy = 3; dy <= 4; dy++) {
+            for (int dx = -2; dx <= 2; dx++) {
+                for (int dz = -2; dz <= 2; dz++) {
+                    if ((Math.abs(dx) == 2 && Math.abs(dz) == 2) || (dx == 0 && dz == 0)) {
+                        continue;
+                    }
+                    sp.serverLevel().setBlock(new BlockPos(x + dx, y + dy, z + dz), leaves, 3);
+                }
+            }
+        }
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                if (dx != 0 || dz != 0) {
+                    sp.serverLevel().setBlock(new BlockPos(x + dx, y + 5, z + dz), leaves, 3);
+                }
+            }
+        }
+        for (int[] d : new int[][] {{0, 0}, {1, 0}, {-1, 0}, {0, 1}, {0, -1}}) {
+            sp.serverLevel().setBlock(new BlockPos(x + d[0], y + 6, z + d[1]), leaves, 3);
         }
     }
 

@@ -181,11 +181,12 @@ accept a dark chimney by thick rock where it bores its pocket, the creative tab 
 mod and its egg or a summon puts the creature whole on the lit surface, killed it drops
 chitin and its plate and experience, a full set walked into a wall takes it and climbs and lets
 go without the helmet and lands, water lets go and the undressed stop at the wall),
-`runPhotoBooth` (33 checks: every sound event resolves, side,
+`runPhotoBooth` (37 checks: every sound event resolves, side,
 quarter, face, a walking strip, from above, each clip playing on the client at its key
 frames, drawn after the death, the stolen face known to the client, the client held at
-the maw, on the wall, dug in, the client in the chitin set standing on a wall from its
-own eyes and from behind). The booth world is normal difficulty with spawning off: a
+the maw, on the wall, dug in, past an oak and past a lone pillar upright, the client in
+the chitin set standing on a wall from its own eyes and from behind). The booth world is
+normal difficulty with spawning off: a
 monster is discarded in peaceful.
 
 ## Decisions
@@ -262,8 +263,15 @@ bore the way ran along the ceiling row and the head stood wishing upward (an air
 cheap within the body's hold of a face). And one the booth's frame showed, at either size:
 a held player's eyes sat inside the head's front cube, since nfx's maw point is the maw
 cube's centre; the held one now hangs against the mask's front at the maw's height, half
-their own width forward, in the pincers. The 1.2.0 queue also holds (b) the item and armour
-art redrawn in vanilla's family and (c) scarier recordings.
+their own width forward, in the pincers. Rusty's first surface test at this size (stuck on
+trees, flipped over, panting like a dog) was one mechanism, reproduced in the booth on an oak
+and a one-block pillar and fixed as D-0012: the crawl climbed a post the way went round,
+went over it and hung refused on the far side wanting the ground 2.8 blocks below; now it
+climbs only where the way rises and lets go of a wall or a ceiling it cannot follow the way
+from, falling to the floor; the breath is a low one at odds of one in three hundred a tick
+while still. The oak and the pillar are booth scenes now (37 checks). The 1.2.0 queue also
+holds (b) the item and armour art redrawn in vanilla's family and (c) scarier recordings,
+the breath's among them.
 
 ## Next
 

@@ -34,10 +34,14 @@ import org.junit.jupiter.api.Test;
  * dig, or is blocked when the rock is hard. A ceiling met on a wall: it
  * takes the ceiling. An edge: it wraps over onto the ledge's face heading
  * down. Nothing under it and nothing in reach: airborne, falling, landing
- * on a floor that comes. A wish through the floor: bores with digging,
- * blocked without; a wish away from the face: the nearest other face the
- * wish lies along if one is in reach (a wall-clinger steps onto the
- * floor), else blocked; a wish into the face with no other face in reach
+ * on a floor that comes, never on a wall on the way down. A wish through
+ * the floor: bores with digging, blocked without; a wish away from the
+ * face: the nearest other face the wish lies along if one is in reach (a
+ * wall-clinger steps onto the floor), else a floor holds it and a wall or
+ * a ceiling is let go of, to fall and land; what the way goes round is not
+ * climbed: it turns where it stands, blocked only facing the wish with
+ * rock still ahead, and moves once the way ahead is clear; a wish into
+ * the face with no other face in reach
  * and no digging: on along what of it lies in the face (up the last of a
  * wall toward a way that goes over its edge), blocked only straight in.
  * Reaching a point: within reach outright; under
@@ -95,6 +99,28 @@ final class CrawlTest {
         assertFalse(toward.blocked());
         assertTrue(toward.pose().centre().x() > 3.0 + 0.3, "on toward it: " + toward.pose().centre());
         assertTrue(Crawl.step(FLOOR, onFloor(3.0), new Vec(0.0, -4.0, 0.0), 0.4, R, false).blocked(), "straight down: blocked");
+    }
+
+    @Test
+    void whatTheWayGoesRoundIsNotClimbed() {
+        // A wall from x = 8 on; the head 1.4 short of it, its lookahead 1.6 on the rock. Not climbing, wishing straight
+        // at it: blocked where it stands. Wishing off to the side: it turns where it stands, unblocked, and once the
+        // line ahead is clear it moves. Climbing allowed, the same head takes the wall (aWallAheadIsClimbedOrDug).
+        Cells wall = (x, y, z) -> x >= 8 || y < 0 ? Cells.Kind.ROCK : Cells.Kind.AIR;
+        Crawl.Pose before = new Crawl.Pose(new Vec(6.6, 1.5, 0.5), Vec.X, Crawl.Normal.UP);
+        Crawl.Step straight = Crawl.step(wall, before, Vec.X, 0.4, R, false, false);
+        assertTrue(straight.blocked(), "facing the wish with rock still ahead");
+        assertEquals(Crawl.Normal.UP, straight.pose().normal(), "not climbed");
+        assertTrue(straight.pose().centre().near(before.centre(), 0.02));
+        Crawl.Step turning = Crawl.step(wall, before, new Vec(1, 0, 1), 0.4, R, false, false);
+        assertFalse(turning.blocked(), "turning toward a wish beside the rock");
+        assertEquals(Crawl.Normal.UP, turning.pose().normal());
+        assertTrue(turning.pose().centre().near(before.centre(), 0.02), "where it stands");
+        assertTrue(turning.pose().heading().z() > 0.4, "turned a step toward it: " + turning.pose().heading());
+        Crawl.Step moving = Crawl.step(wall, turning.pose(), new Vec(1, 0, 1), 0.4, R, false, false);
+        assertFalse(moving.blocked());
+        assertTrue(moving.pose().centre().z() > before.centre().z() + 0.1, "the line ahead clear, on it goes: " + moving.pose().centre());
+        assertEquals(Crawl.Normal.WEST, Crawl.step(wall, before, Vec.X, 0.4, R, false).pose().normal(), "with climbing allowed, the wall is taken");
     }
 
     @Test
@@ -243,13 +269,18 @@ final class CrawlTest {
         assertEquals(c.y() - Crawl.FALL, s.pose().centre().y(), 1e-9, "falling");
         assertTrue(s.pose().airborne());
         Cells deep = Cells.floor(-4);   // top at -3
-        Crawl.Pose falling = new Crawl.Pose(new Vec(0.5, -0.9, 0.5), Vec.X, Crawl.Normal.NONE);
+        Crawl.Pose falling = new Crawl.Pose(new Vec(0.5, -1.0, 0.5), Vec.X, Crawl.Normal.NONE);
         s = Crawl.step(deep, falling, Vec.X, 0.3, R, false);
-        assertEquals(Crawl.Normal.UP, s.pose().normal(), "the floor within reach: landed");
+        assertEquals(Crawl.Normal.UP, s.pose().normal(), "come down to within its clearance and a fall of the floor: landed");
         assertEquals(-3.0 + 1.5, s.pose().centre().y(), 0.02);
         assertTrue(s.pose().heading().near(Vec.X, 1e-9), "keeping its heading");
-        // Attaching straight down keeps the heading; attaching to a wall when heading at it picks a way along it.
+        Crawl.Pose higher = new Crawl.Pose(new Vec(0.5, -0.5, 0.5), Vec.X, Crawl.Normal.NONE);
+        assertTrue(Crawl.step(deep, higher, Vec.X, 0.3, R, false).pose().airborne(), "still two and a fifth over it: falling on");
+        // Falling past a wall it does not grab it: a head that let go of a wall must not be back on it next tick.
         Cells wallOnly = (x, y, z) -> x >= 3 ? Cells.Kind.ROCK : Cells.Kind.AIR;
+        Crawl.Pose byWall = new Crawl.Pose(new Vec(1.8, 5.0, 0.5), Vec.X, Crawl.Normal.NONE);
+        assertTrue(Crawl.step(wallOnly, byWall, Vec.X, 0.3, R, false).pose().airborne(), "the wall a block and a fifth off is not taken");
+        // Attaching straight down keeps the heading; attaching to a wall when heading at it picks a way along it.
         Crawl.Pose at = Crawl.attach(wallOnly, new Vec(1.8, 5, 0.5), Vec.X, R, 2.0);
         assertEquals(Crawl.Normal.WEST, at.normal());
         assertEquals(0.0, at.heading().x(), 1e-9, "a heading in the face");
@@ -281,10 +312,31 @@ final class CrawlTest {
         assertTrue(s.pose().heading().near(Vec.X, 1e-9), "heading east on it");
         assertEquals(1.5, s.pose().centre().y(), 0.02, "at its clearance over the floor");
         assertTrue(s.turned() && !s.blocked());
-        // Wanting straight out from the wall with no floor in reach: blocked, as before.
+        // Wanting straight out from the wall with no floor in reach: it lets go, falls, and lands on the floor.
         Crawl.Pose high = new Crawl.Pose(new Vec(1.5, 8.0, 0.5), Vec.Y, Crawl.Normal.EAST);
-        assertTrue(Crawl.step(corner, high, Vec.X, 0.3, R, false).blocked(), "nothing else to cling to");
-        assertEquals(Crawl.Normal.EAST, Crawl.step(corner, high, Vec.X, 0.3, R, false).pose().normal());
+        Crawl.Step letGo = Crawl.step(corner, high, Vec.X, 0.3, R, false);
+        assertTrue(letGo.pose().airborne() && !letGo.blocked() && letGo.turned(), "nothing else to cling to: let go of the wall");
+        assertTrue(letGo.pose().centre().near(high.centre(), 1e-9), "from where it hung");
+        Crawl.Pose p = letGo.pose();
+        int ticks = 0;
+        while (p.airborne() && ticks < 40) {
+            p = Crawl.step(corner, p, Vec.X, 0.3, R, false).pose();
+            ticks++;
+        }
+        assertEquals(Crawl.Normal.UP, p.normal(), "landed on the floor");
+        assertEquals(1.5, p.centre().y(), 0.02);
+        assertTrue(ticks >= 15 && ticks <= 25, "after falling six and a half blocks at 0.3 a tick: " + ticks);
+        // Hanging under a ceiling wanting the floor far below: the same, let go and land.
+        Cells slab = (x, y, z) -> y >= 6 || y <= -1 ? Cells.Kind.ROCK : Cells.Kind.AIR;
+        Crawl.Pose hanging = new Crawl.Pose(new Vec(3.0, 4.5, 0.5), Vec.X, Crawl.Normal.DOWN);
+        Crawl.Step drop = Crawl.step(slab, hanging, new Vec(0, -1, 0), 0.3, R, false);
+        assertTrue(drop.pose().airborne() && !drop.blocked(), "the floor four and a half under it: let go of the ceiling");
+        p = drop.pose();
+        for (int i = 0; i < 40 && p.airborne(); i++) {
+            p = Crawl.step(slab, p, new Vec(0, -1, 0), 0.3, R, false).pose();
+        }
+        assertEquals(Crawl.Normal.UP, p.normal());
+        assertEquals(1.5, p.centre().y(), 0.02);
         // On the floor wanting up with a wall in reach: takes the wall, heading up it.
         Crawl.Pose byWall = new Crawl.Pose(new Vec(1.0, 1.5, 0.5), Vec.X.times(-1), Crawl.Normal.UP);
         Crawl.Step up = Crawl.step(corner, byWall, Vec.Y, 0.3, R, false);

@@ -181,8 +181,13 @@ public class Aberrant extends Monster {
     private static final int REPLAN = 20;
     /** A refused crawl brings the next plan forward to within this many ticks -- not to now: a search a tick is more than a server can spare, and the same cell plans the same way. */
     private static final int BLOCKED_REPLAN = 5;
-    /** A waypoint this near is passed and a target this near is reached: outright, or across the head's face while under it ({@link Crawl#reaches}), since the axis rides its clearance over what lies on the face. */
-    private static final double WAYPOINT_REACH = 1.2;
+    /**
+     * A target this near is reached, and a waypoint within the head's own clearance -- inside its box -- is
+     * passed: outright, or across the head's face while under it ({@link Crawl#reaches}), since the axis rides
+     * its clearance over what lies on the face. The waypoint's reach follows the body because the lookahead does:
+     * a way that goes round a post runs through the cell before it, which a head that looks 2.4 ahead never
+     * comes within 1.2 of, and it stood there refused.
+     */
     private static final double TARGET_REACH = 1.5;
     /** A target within this of the last one keeps the way already planned, blocks. */
     private static final double SAME_TARGET = 4.0;
@@ -208,9 +213,9 @@ public class Aberrant extends Monster {
     private static final int XP = 50;
     /** The death clip's length: the body is taken away when it ends. */
     private static final int DEATH_TICKS = 40;
-    /** A skitter every so many ticks under way; a breath every so many still; while stalking or hunting, a click or a hiss about this often, so the prey hears it is there. */
+    /** A skitter every so many ticks under way; a breath, standing still, at these odds a tick -- about one in fifteen seconds and never on a beat (every ninety ticks it panted like a dog at whoever it stood beside); while stalking or hunting, a click or a hiss about this often, so the prey hears it is there. */
     private static final int SKITTER_EVERY = 6;
-    private static final int BREATH_EVERY = 90;
+    private static final int BREATH_ODDS = 300;
     private static final int DREAD_EVERY = 70;
 
     private final AberrantPart[] parts;
@@ -866,7 +871,8 @@ public class Aberrant extends Monster {
         } else {
             Vec wish = wish(cells, rules);
             boolean dig = mayDig && wayThroughRock(cells, Crawl.DIG_AHEAD + rules.bore());
-            Crawl.Step step = Crawl.step(cells, crawl, wish, wish.equals(Vec.ZERO) ? 0.0 : crawlSpeed, rules, dig);
+            boolean climb = wayRises(rules.lookahead() + 1.0);
+            Crawl.Step step = Crawl.step(cells, crawl, wish, wish.equals(Vec.ZERO) ? 0.0 : crawlSpeed, rules, dig, climb);
             crawl = step.pose();
             if (step.blocked() && !lastBlocked && LOG.isDebugEnabled()) {
                 LOG.debug("{} refused: head {} heading {} on {} wishing {} digging {}", getId(), crawl.centre(), crawl.heading(), crawl.normal(), wish, dig);
@@ -934,6 +940,37 @@ public class Aberrant extends Monster {
     }
 
     /**
+     * effects: returns whether the way ahead, from its next waypoint to the
+     * first beyond {@code reach} of the head, rises off the face the head
+     * clings to: the rock ahead is then something the way climbs, and the
+     * crawl may take it as a wall; false for a way that keeps to the face --
+     * one that goes round what is ahead, a post or a trunk the head would
+     * otherwise climb, go over and hang refused on the far side of -- and
+     * true with no way at all, since a scripted walk climbs whatever it
+     * meets; false in the air
+     */
+    private boolean wayRises(double reach) {
+        if (path == null || crawl == null) {
+            return true;
+        }
+        if (crawl.airborne()) {
+            return false;
+        }
+        Vec centre = crawl.centre();
+        Vec n = crawl.normal().dir;
+        for (int i = pathAt; i < path.size(); i++) {
+            Vec d = path.get(i).centre().minus(centre);
+            if (d.length() > reach) {
+                return false;
+            }
+            if (d.dot(n) > 0.5) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * effects: returns this tick's wish: the scripted walk's direction while
      * it lies in the face and its heading after, the way toward the target
      * (a waypoint, or the target, under the head's feet on the face it rides
@@ -978,7 +1015,7 @@ public class Aberrant extends Monster {
         if (path == null) {
             return Vec.ZERO;
         }
-        while (pathAt < path.size() - 1 && Crawl.reaches(crawl, rules, path.get(pathAt).centre(), WAYPOINT_REACH)) {
+        while (pathAt < path.size() - 1 && Crawl.reaches(crawl, rules, path.get(pathAt).centre(), rules.clearance())) {
             pathAt++;
         }
         return path.get(pathAt).centre().minus(centre);
@@ -1088,8 +1125,8 @@ public class Aberrant extends Monster {
             boolean after = mode.equals("stalk") || mode.equals("hunt");
             if (speed > 0.05 && tickCount % SKITTER_EVERY == 0) {
                 sound(ModContent.SKITTER.get(), quiet ? 0.5f : after ? 1.3f : 1.0f, 0.85f, 1.05f);
-            } else if (speed < 0.02 && tickCount % BREATH_EVERY == 0 && !animator.busy()) {
-                sound(ModContent.BREATH.get(), after ? 0.7f : 0.5f, 0.75f, 0.95f);
+            } else if (speed < 0.02 && !animator.busy() && random.nextInt(BREATH_ODDS) == 0) {
+                sound(ModContent.BREATH.get(), after ? 0.5f : 0.35f, 0.6f, 0.8f);
             }
             if (after && !animator.busy() && random.nextInt(DREAD_EVERY) == 0) {
                 // Something near you clicks its pincers, or hisses, low.
