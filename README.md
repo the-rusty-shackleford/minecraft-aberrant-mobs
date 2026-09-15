@@ -6,7 +6,7 @@ head, the mind that reads its senses through a decision tree, the crawling, digg
 stalking, grabbing and biting its verbs do, and what it drops. The first creature is the
 **Face-Stealer**, nfx's centipede: eleven blocks of it, a mask for a face.
 
-This is phase 6 of 7 (`~/.claude/plans/wiggly-cuddling-adleman.md` is the plan): the
+All seven phases of the plan are built (1.0.0): the
 creature exists, is sized and named by its profile, its body follows its head along a
 trail and writhes, its feet stand on the world and step in a wave, its plating rings and
 its crack glows, its attack animations play on the server's say, it crawls over floors,
@@ -14,10 +14,10 @@ walls and ceilings, digs its way to a point through rock, coils and pounces, thi
 decision tree in its profile over what it senses and hears, driving verbs in Java),
 grabs, bites, wears the face of its last victim, spawns in the rock beside deep dark
 caves, drops chitin and its cracked plate, and sounds like what it is; and its chitin
-makes an armour whose full set walks on walls and ceilings as if they were ground. This
-is phase 7 of 7; what the plan left for its phase C (knockback and projectiles into the
-wearer's frame, block placement facing on a wall, the shadow) is listed under Next in
-`knowledge/PROJECT.md`.
+makes an armour whose full set walks on walls and ceilings as if they were ground. What
+the plan left for the armour's phase C (block placement facing on a wall, the shadow and
+nameplate, explosions into the wearer's frame, the third-person back camera on a wall)
+is listed under Next in `knowledge/PROJECT.md`.
 
 ## A creature
 

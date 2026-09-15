@@ -189,9 +189,16 @@ monster is discarded in peaceful.
 
 See `decisions/`.
 
+## Releases
+
+1.0.0 (2026-09-15): the first, on Rusty's go ("the server is private anyway"), all seven
+phases, into pack 1.33.0 on the Mod Hub; the repo public at
+`github.com/the-rusty-shackleford/minecraft-aberrant-mobs` from that day. Rusty's own
+vetting of the creature in play is still to come; what it finds is the next version.
+
 ## Next
 
-Rusty's vetting of the whole, then a GitHub remote and a release on their go. Open: the
+Rusty's vetting of the whole in play. Open: the
 armour's remaining phase C (block placement facing on a wall, the shadow and nameplate,
 explosions into the frame, and the third-person back camera: on a wall it backs off
 down into the ground and the game's clip parks it on the surface, so the booth uses the
