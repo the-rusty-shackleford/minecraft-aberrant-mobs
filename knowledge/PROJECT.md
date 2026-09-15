@@ -54,7 +54,11 @@ four blocks from the player, wanting what was out on the floor), falls and attac
 when it has nothing; `Rules(clearance, bore, lookahead)`); `Tunnel` (the
 section within the bore's radius of the head's run, rock only, never beside hard or
 fluid); `Burrow` (A* over cells, air 1, unsupported air 4, rock 5 hunting or 14
-stalking, hard and fluid and rock beside them never, a 4000-expansion budget); `Leap`
+stalking, hard and fluid and rock beside them never, a 4000-expansion budget as a
+backstop; its bound charges the rock depth about the target, `rockDepth`, and a
+per-search `Table` reads each cell once and holds the search's state in primitive
+arrays with a heap of its own -- before these, 2026-09-15, a hunt to a point ten blocks
+into a hill never planned within the budget, see D-0010); `Leap`
 (a launch velocity landing exactly under the game's integration); `Burrow.planNearest`
 gives the way to the nearest reachable cell when the target is cut off, and the entity
 never falls back to a straight line (the playtest found it held on a pool for good). The
@@ -62,7 +66,12 @@ entity cuts rock only while the way itself runs through rock within a strike's r
 a way that climbs a wall does not dig its foot (the booth found it cutting the foot of a
 hill its way went over, then standing blocked for good with no wall left to take) while
 in its own bore, whose next cells a strike has already cut, it keeps cutting the bends
-wide (the tunnel test's "wide" check caught the stricter "next cell is rock"), and a
+wide (the tunnel test's "wide" check caught the stricter "next cell is rock"); a strike
+cuts the crawl's section along the heading plus the tube round the way's next cells laid
+into the head's face (`Tunnel.along`, nearest first, `Tunnel.cuttable` keeping rock by
+water), since a bend cut along the heading alone left its outer floor cell standing and
+the head stepped up onto it and jammed under its own roof; `LevelCells` reads an
+unloaded chunk as hard, so a plan never loads one; and a
 refused crawl brings the
 next plan forward to within five ticks, never to the next tick. In
 main: the entity
@@ -189,20 +198,11 @@ down into the ground and the game's clip parks it on the surface, so the booth u
 front camera); the wall-walk under Iris in the booth from a second client; whatever the
 playtest's frames say about the dread.
 
-`Burrow.BUDGET` (4000 expansions) is too small: a hunt to a point ten blocks into rock
-with open air about finds no way in budget (measured on the booth's hill: 8000 in the
-open, 16000 under a three-high ceiling or in a chamber), so what the creature follows
-is `planNearest`'s partial way to the nearest cell seen, replanned from inside as it
-goes. Before 2026-09-15 the booth's dig passed on the straight-line fallback that the
-playtest fixes removed, never on the planner; the booth's hill is now shaped so that
-boring in through its face is the cheapest way (twelve high, seventeen wide: over the
-top or in from a side would cost more at hunting costs). To decide: raise the budget or
-search smarter. The cost in the game, from the DEBUG line `planned a way of N cells in
-M us` (in `debug.log`): a budget-exhausted plan in the booth's open world takes 7-44 ms
-at 4000 expansions (each expansion reads its six neighbours, and each rock neighbour
-its twenty-seven about it, straight from the level); the gametests' plans, in closed
-structures, average 2.7 ms with a worst of 30. So a 16000 budget would cost ~80 ms a
-plan as the search stands: it needs a per-plan memo of cells read, or a search that
-expands less open air (the heuristic is taxicab times the air cost, weak against rock
-at five), before the budget can rise. A replan every 20 ticks at 20 ms is already a
-millisecond a tick per hunting creature in the open.
+The planner's budget question (2026-09-15 morning: a hunt to a point ten blocks into
+rock with open air about found no way within 4000 expansions, and a budget-exhausted
+plan cost 7-44 ms in the game) is settled by D-0010: the search got cheaper, the budget
+did not grow. The booth's hill is shaped so that boring in through its face is the
+cheapest way (twelve high, seventeen wide); before that day the dig had passed on the
+straight-line fallback the playtest fixes removed, never on the planner. Each plan's
+size and time is still logged at DEBUG (`planned a way of N cells in M us`, in
+`debug.log`) for the next time a number is wanted.

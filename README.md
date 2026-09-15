@@ -223,7 +223,10 @@ with nothing under it, attached to any face in reach, else falling. Rock ahead i
 climbed (the wall becomes its face, the old up its heading) or, when it may dig, bored:
 the head holds, the strike clip plays, and on the strike's cue the section ahead
 (`domain/Tunnel`: the cells within the bore's radius of the head's run, three by three
-on an axis, the floor it rides on kept) is cut to air (`DigWorld`; loud with particles
+on an axis, the floor it rides on kept, and, following a way, of the tube round the
+way's next cells laid into the head's face, so a bend is cut as a bend rather than
+leaving its outer corner standing for the head to step up onto; the nearest cells
+first, at most thirty-two a strike) is cut to air (`DigWorld`; loud with particles
 and a game event, or quiet). Rock is only ever cut when nothing hard or wet is beside
 it, so a tunnel never breaches water, lava, bedrock or a chest. A wish to go through
 its face bores when it may dig; a wish off its face -- through it without digging, or
@@ -237,7 +240,13 @@ A way to a point is planned by `domain/Burrow`: A* over cells, six-connected, ai
 face cheap, air with none dearer, rock at the cost of digging it (cheap hunting, dear
 stalking), hard and fluid never, bounded by a budget; cut off by water or bedrock, it
 takes the way to the nearest reachable cell instead, never a straight line a pool would
-hold it on. The entity follows it waypoint by waypoint, cutting rock only while the way
+hold it on. The search knows how deep in rock the target lies (the taxicab distance to
+the nearest air, looked for up to eight cells out) and charges every way that many cells
+of rock in its bound, so the open air about a buried target is not flooded before the
+search commits to the rock; it reads each cell from the level once, into a table that
+also holds the search's own state, and expands a cell with a few probes and no
+allocation, so a plan is a millisecond or two; a cell in a chunk that is not loaded reads as
+hard, so no plan ever loads a chunk. The entity follows it waypoint by waypoint, cutting rock only while the way
 itself runs through rock within a strike's reach -- a way that climbs a wall does not dig
 its foot, while in its own bore it keeps cutting the bends wide -- and plans again every
 twenty ticks, or within five of a refusal (a search a tick is more than a server can

@@ -23,33 +23,43 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.TagKey;
-import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.ChunkAccess;
+import net.minecraft.world.level.chunk.status.ChunkStatus;
 
 /**
  * The level as {@link Cells}: a fluid is FLUID; a block with no collision
  * is AIR; a block the wither cannot break, obsidian, one with a block
  * entity or one in {@code #aberrantmobs:undiggable} is HARD; anything
- * else solid is ROCK. One block read per cell, through a cursor this
- * reader owns, so a tick of casts allocates nothing. Not thread-safe: one
- * per caller, on the level's own thread.
+ * else solid is ROCK. A cell in a chunk that is not loaded is HARD too:
+ * a read never loads a chunk, since a plan asks after thousands of cells
+ * and a search that ran out past the loaded world would stall the
+ * server generating chunks (a prowl toward a far bearing once cost 1.3 s
+ * that way). One block read per cell, through a cursor this reader owns,
+ * so a tick of casts allocates nothing. Not thread-safe: one per caller,
+ * on the level's own thread.
  */
 public final class LevelCells implements Cells {
     /** Blocks a creature never digs, for packs to add to. */
     public static final TagKey<Block> UNDIGGABLE = TagKey.create(Registries.BLOCK, AberrantMobs.id("undiggable"));
 
-    private final BlockGetter level;
+    private final LevelReader level;
     private final BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
 
-    public LevelCells(BlockGetter level) {
+    public LevelCells(LevelReader level) {
         this.level = level;
     }
 
     @Override
     public Kind at(int x, int y, int z) {
-        BlockState state = level.getBlockState(cursor.set(x, y, z));
+        ChunkAccess chunk = level.getChunk(x >> 4, z >> 4, ChunkStatus.FULL, false);   // never loads one
+        if (chunk == null) {
+            return Kind.HARD;
+        }
+        BlockState state = chunk.getBlockState(cursor.set(x, y, z));
         if (!state.getFluidState().isEmpty()) {
             return Kind.FLUID;
         }

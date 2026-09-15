@@ -60,6 +60,48 @@ public final class Tunnel {
         return List.copyOf(out);
     }
 
+    /**
+     * requires: {@code |normal| = 1}, {@code ahead >= 0}, {@code radius > 0}, {@code 0 <= from <= way.size()}
+     * effects: returns the cells whose centres lie within {@code radius} of
+     * the polyline that starts at {@code centre} and runs through the
+     * centres of {@code way[from..]} laid into the plane through
+     * {@code centre} perpendicular to {@code normal} (each moved along the
+     * normal onto it: a way's cells lie a row under the head, on the floor
+     * side, or in its own row, and the bore is cut about the head), cut
+     * off {@code ahead} along its length; no cell twice, in the order met
+     * along the way -- the tube a strike cuts so that a bend in the way is
+     * cut as a bend, where a section along the heading alone leaves the
+     * bend's outer corner standing
+     */
+    public static List<Cell> along(Vec centre, Vec normal, List<Cell> way, int from, double ahead, double radius) {
+        if (Math.abs(normal.length() - 1.0) > 1e-6 || !(ahead >= 0) || !(radius > 0) || from < 0 || from > way.size()) {
+            throw new IllegalArgumentException("a unit normal, a reach, a radius and a place in the way");
+        }
+        List<Cell> out = new ArrayList<>();
+        Vec at = centre;
+        double left = ahead;
+        for (int i = from; i < way.size() && left > 1e-9; i++) {
+            Vec raw = way.get(i).centre();
+            Vec next = raw.minus(normal.times(raw.minus(centre).dot(normal)));
+            double d = next.minus(at).length();
+            if (d < 1e-9) {
+                continue;
+            }
+            if (d > left) {
+                next = at.plus(next.minus(at).times(left / d));
+                d = left;
+            }
+            for (Cell c : section(at, next.minus(at).times(1.0 / d), d, radius)) {
+                if (!out.contains(c)) {
+                    out.add(c);
+                }
+            }
+            left -= d;
+            at = next;
+        }
+        return List.copyOf(out);
+    }
+
     /** effects: returns the distance from {@code p} to the segment {@code ab} */
     static double distanceToSegment(Vec p, Vec a, Vec b) {
         Vec ab = b.minus(a);
@@ -87,6 +129,29 @@ public final class Tunnel {
             }
         }
         return true;
+    }
+
+    /**
+     * effects: returns the rock cells of {@code section} that may be cut,
+     * in its order: those with no fluid on any face, so that cutting them
+     * breaches nothing -- what a strike removes, when its section may hold
+     * cells beyond the ones {@link #diggable} judged
+     */
+    public static List<Cell> cuttable(Cells cells, List<Cell> section) {
+        List<Cell> out = new ArrayList<>();
+        for (Cell c : section) {
+            if (cells.at(c) != Cells.Kind.ROCK) {
+                continue;
+            }
+            boolean wet = false;
+            for (Cell n : c.neighbours()) {
+                wet |= cells.at(n) == Cells.Kind.FLUID;
+            }
+            if (!wet) {
+                out.add(c);
+            }
+        }
+        return List.copyOf(out);
     }
 
     /** effects: returns the rock cells of {@code section}, in its order: what a dig removes */

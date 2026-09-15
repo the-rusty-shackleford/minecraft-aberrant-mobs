@@ -831,9 +831,12 @@ public class Aberrant extends Monster {
             boolean dig = mayDig && wayThroughRock(cells, Crawl.DIG_AHEAD + rules.bore());
             Crawl.Step step = Crawl.step(cells, crawl, wish, wish.equals(Vec.ZERO) ? 0.0 : crawlSpeed, rules, dig);
             crawl = step.pose();
+            if (step.blocked() && !lastBlocked && LOG.isDebugEnabled()) {
+                LOG.debug("{} refused: head {} heading {} on {} wishing {} digging {}", getId(), crawl.centre(), crawl.heading(), crawl.normal(), wish, dig);
+            }
             lastBlocked = step.blocked();
             if (step.digNeeded()) {
-                pendingDig = Crawl.section(crawl, rules);
+                pendingDig = readied(rules);
                 if (!animator.busy()) {
                     play(FaceStealerClips.STRIKE);
                 }
@@ -842,6 +845,29 @@ public class Aberrant extends Monster {
             }
         }
         place();
+    }
+
+    /**
+     * effects: returns the section the next strike cuts: the crawl's, along
+     * the heading, and, following a way, the tube round the way's next
+     * cells laid into the head's face within the same reach, so that a bend
+     * is cut as a bend (a section along the heading alone left the outer
+     * corner of a bend standing, and the head stepped up onto it and jammed
+     * under the roof of its own bore); nearest cells first, so a strike's
+     * budget takes what is at hand
+     */
+    private List<Cell> readied(Crawl.Rules rules) {
+        List<Cell> section = new java.util.ArrayList<>(Crawl.section(crawl, rules));
+        if (path != null && !crawl.airborne()) {
+            for (Cell c : Tunnel.along(crawl.centre(), crawl.normal().dir, path, pathAt, Crawl.DIG_AHEAD, rules.bore())) {
+                if (!section.contains(c)) {
+                    section.add(c);
+                }
+            }
+        }
+        Vec centre = crawl.centre();
+        section.sort(java.util.Comparator.comparingDouble(c -> c.centre().minus(centre).length()));
+        return section;
     }
 
     /**
@@ -1390,8 +1416,12 @@ public class Aberrant extends Monster {
             devour();
         }
         if (FaceStealerClips.CUE_STRIKE.equals(cue) && pendingDig != null && level() instanceof ServerLevel server) {
-            List<Cell> rock = Tunnel.rock(cells(), pendingDig);
-            blocksDug += DigWorld.dig(server, this, rock.size() > STRIKE_BUDGET ? rock.subList(0, STRIKE_BUDGET) : rock, !quiet);
+            List<Cell> rock = Tunnel.cuttable(cells(), pendingDig);
+            int cut = DigWorld.dig(server, this, rock.size() > STRIKE_BUDGET ? rock.subList(0, STRIKE_BUDGET) : rock, !quiet);
+            blocksDug += cut;
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("{} struck: {} of {} rock cut, head {} heading {}", getId(), cut, rock.size(), crawl == null ? null : crawl.centre(), crawl == null ? null : crawl.heading());
+            }
             pendingDig = null;
         }
     }

@@ -274,7 +274,9 @@ public final class FaceStealerGameTests {
                 com.chunkworks.aberrantmobs.domain.Vec p = trail.at(d).pos();
                 BlockPos head = BlockPos.containing(p.x(), p.y(), p.z());
                 helper.assertTrue(helper.getLevel().getBlockState(head).isAir(), "the way behind the head is open at " + d + ": " + head);
-                helper.assertTrue(helper.getLevel().getBlockState(head.north()).isAir() && helper.getLevel().getBlockState(head.south()).isAir(), "and wide: " + head);
+                helper.assertTrue(helper.getLevel().getBlockState(head.north()).isAir() && helper.getLevel().getBlockState(head.south()).isAir(),
+                        "and wide at " + d + " behind, " + p + ": " + head + " north " + helper.getLevel().getBlockState(head.north()).getBlock()
+                                + " south " + helper.getLevel().getBlockState(head.south()).getBlock() + "; the head at " + a.crawlPose());
             }
             helper.assertTrue(a.crawlPose() != null && !a.crawlPose().airborne(), "still on a face");
             helper.succeed();
@@ -511,7 +513,7 @@ public final class FaceStealerGameTests {
         });
     }
 
-    @GameTest(template = "tall", timeoutTicks = 40, batch = "spawn")
+    @GameTest(template = "tall", timeoutTicks = 200, batch = "spawn")
     public void theSpawnRulesRefuseTheLitSurfaceAndAcceptADarkPocketByThickRock(GameTestHelper helper) {
         layFloor(helper);
         BlockPos lit = helper.absolutePos(new BlockPos(7, FLOOR, 7));
@@ -519,8 +521,10 @@ public final class FaceStealerGameTests {
         fill(helper, 0, FLOOR, 0, 14, 15, 14, Blocks.STONE);   // the whole template rock
         fill(helper, 7, 5, 7, 7, 7, 7, Blocks.AIR);            // a chimney of cave in the middle, dark, seven of rock each way
         BlockPos pocket = helper.absolutePos(new BlockPos(7, 5, 7));
-        helper.runAtTickTime(20, () -> {   // the light engine settles
-            helper.assertTrue(helper.getLevel().getBrightness(net.minecraft.world.level.LightLayer.SKY, pocket) == 0, "dark: sky " + helper.getLevel().getBrightness(net.minecraft.world.level.LightLayer.SKY, pocket));
+        // The light engine works off the server thread and the gametest server does not pace its ticks, so the
+        // pocket goes dark after a wall-clock delay, not a tick count: wait for it.
+        helper.startSequence().thenWaitUntil(() -> helper.assertTrue(helper.getLevel().getBrightness(net.minecraft.world.level.LightLayer.SKY, pocket) == 0,
+                "dark: sky " + helper.getLevel().getBrightness(net.minecraft.world.level.LightLayer.SKY, pocket))).thenExecute(() -> {
             helper.assertTrue(com.chunkworks.aberrantmobs.SpawnRules.siteBeside(helper.getLevel(), pocket), "a wall six thick lies beside it");
             helper.assertTrue(net.minecraft.world.entity.SpawnPlacements.checkSpawnRules(com.chunkworks.aberrantmobs.ModContent.ABERRANT.get(), helper.getLevel(), net.minecraft.world.entity.MobSpawnType.NATURAL, pocket, helper.getLevel().getRandom()), "a dark pocket by thick rock will do");
             helper.assertTrue(net.minecraft.world.entity.SpawnPlacements.checkSpawnRules(com.chunkworks.aberrantmobs.ModContent.ABERRANT.get(), helper.getLevel(), net.minecraft.world.entity.MobSpawnType.COMMAND, lit, helper.getLevel().getRandom()), "a command puts it anywhere");
@@ -534,8 +538,7 @@ public final class FaceStealerGameTests {
             BlockPos inside = BlockPos.containing(a.getX(), a.getY() + 1.0, a.getZ());
             helper.assertTrue(helper.getLevel().getBlockState(inside).isAir(), "in a pocket it bored: " + inside);
             helper.assertTrue(a.blocksDug() >= 20, "the pocket's rock cut: " + a.blocksDug());
-            helper.succeed();
-        });
+        }).thenSucceed();
     }
 
     @GameTest(template = "arena", timeoutTicks = 100, batch = "loot")

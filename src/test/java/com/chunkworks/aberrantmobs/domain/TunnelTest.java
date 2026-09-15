@@ -31,7 +31,11 @@ import org.junit.jupiter.api.Test;
  * floor the head rides on; a diagonal takes more cells; the order is
  * fixed. Rock lists only the rock. Diggable: all air or rock yes; a hard
  * cell no; a fluid cell no; rock with fluid behind it no. A cell's
- * neighbours, centre and containing.
+ * neighbours, centre and containing. A tube along a way is laid into the
+ * head's face, follows a bend round its outer corner where the heading's
+ * section does not, stops at its reach, is the same for the way given in
+ * the head's row or the floor's, and refuses bad arguments. Cuttable is
+ * the rock with no fluid on a face, the hard left standing.
  */
 final class TunnelTest {
     @Test
@@ -90,5 +94,57 @@ final class TunnelTest {
         assertEquals(0.0, Tunnel.distanceToSegment(new Vec(1, 0, 0), Vec.ZERO, new Vec(2, 0, 0)), 1e-12);
         assertEquals(1.0, Tunnel.distanceToSegment(new Vec(3, 0, 0), Vec.ZERO, new Vec(2, 0, 0)), 1e-12, "past the end");
         assertEquals(Math.sqrt(2.0), Tunnel.distanceToSegment(new Vec(1, 1, 0), Vec.ZERO, Vec.ZERO), 1e-12, "a point segment");
+    }
+
+    @Test
+    void aTubeAlongTheWayIsLaidIntoTheFaceAndCutsABendAsABend() {
+        // The head 1.46 over the floor's top (y = 0), on the floor; its way runs two cells on along +X in the row
+        // under it (the floor-side air) and then two toward -Z: an L. The tube follows the L at the head's height.
+        Vec centre = new Vec(3.0, 1.46, 0.5);
+        List<Cell> way = List.of(new Cell(3, 0, 0), new Cell(4, 0, 0), new Cell(5, 0, 0), new Cell(5, 0, -1), new Cell(5, 0, -2));
+        List<Cell> tube = Tunnel.along(centre, Vec.Y, way, 1, 6.0, 1.5);
+        assertFalse(tube.isEmpty());
+        for (Cell c : tube) {
+            assertTrue(c.y() >= 0 && c.y() <= 2, "laid into the head's row, three high, the floor kept: " + c);
+        }
+        assertTrue(tube.contains(new Cell(4, 1, 1)) && tube.contains(new Cell(4, 1, -1)), "the first leg's sides");
+        assertTrue(tube.contains(new Cell(4, 1, -2)) && tube.contains(new Cell(6, 1, -2)), "the second leg's sides");
+        assertTrue(tube.contains(new Cell(6, 1, 0)) && tube.contains(new Cell(6, 1, -1)) && tube.contains(new Cell(6, 1, 1)), "the bend's outer corner: " + tube);
+        List<Cell> heading = Tunnel.section(centre, Vec.X, 2.0, 1.5);
+        assertFalse(heading.contains(new Cell(6, 1, -1)) || heading.contains(new Cell(4, 1, -2)), "which a section along the heading leaves standing");
+        assertEquals(tube.size(), new java.util.HashSet<>(tube).size(), "no cell twice");
+        // Cut off two along its length: the first leg and a step, none of the far end.
+        List<Cell> near = Tunnel.along(centre, Vec.Y, way, 1, 2.0, 1.5);
+        assertTrue(near.contains(new Cell(4, 1, 0)));
+        assertFalse(near.contains(new Cell(5, 1, -2)) || near.contains(new Cell(6, 1, -1)), "beyond the reach: " + near);
+        // The same way given in the head's own row is the same tube: the projection along the normal.
+        List<Cell> raised = List.of(new Cell(3, 1, 0), new Cell(4, 1, 0), new Cell(5, 1, 0), new Cell(5, 1, -1), new Cell(5, 1, -2));
+        assertEquals(new java.util.HashSet<>(tube), new java.util.HashSet<>(Tunnel.along(centre, Vec.Y, raised, 1, 6.0, 1.5)));
+        // On a wall whose face looks west, the head 1.46 off it: the way's cells in the wall come to the head's plane.
+        List<Cell> wallTube = Tunnel.along(new Vec(3.0, 5.0, 0.5), new Vec(-1, 0, 0), List.of(new Cell(4, 6, 0), new Cell(4, 7, 0)), 0, 6.0, 1.5);
+        for (Cell c : wallTube) {
+            assertTrue(c.x() >= 1 && c.x() <= 4, "about the head's plane at x = 3: " + c);
+        }
+        assertTrue(Tunnel.along(centre, Vec.Y, way, way.size(), 6.0, 1.5).isEmpty(), "the way done: nothing");
+        assertThrows(IllegalArgumentException.class, () -> Tunnel.along(centre, new Vec(0, 2, 0), way, 0, 6.0, 1.5));
+        assertThrows(IllegalArgumentException.class, () -> Tunnel.along(centre, Vec.Y, way, way.size() + 1, 6.0, 1.5));
+    }
+
+    @Test
+    void cuttableIsTheRockWithNoFluidOnAFace() {
+        List<Cell> s = Tunnel.section(new Vec(3.0, 1.46, 0.5), Vec.X, 2.0, 1.5);
+        Cells water = (x, y, z) -> y <= -1 ? Cells.Kind.ROCK : x >= 4 ? (x >= 6 ? Cells.Kind.FLUID : Cells.Kind.ROCK) : Cells.Kind.AIR;
+        List<Cell> cut = Tunnel.cuttable(water, s);
+        assertFalse(cut.isEmpty());
+        for (Cell c : cut) {
+            assertEquals(4, c.x(), "the rock by the water, at x = 5, is left; the rest is cut: " + c);
+        }
+        Cells hard = (x, y, z) -> y <= -1 ? Cells.Kind.ROCK : x >= 4 ? (y == 1 && z == 0 ? Cells.Kind.HARD : Cells.Kind.ROCK) : Cells.Kind.AIR;
+        List<Cell> aboutHard = Tunnel.cuttable(hard, s);
+        assertFalse(aboutHard.isEmpty());
+        for (Cell c : aboutHard) {
+            assertTrue(hard.at(c) == Cells.Kind.ROCK, "rock only, the hard cell left: " + c);
+        }
+        assertEquals(Tunnel.rock(Cells.floor(-1), s), Tunnel.cuttable(Cells.floor(-1), s), "over the floor, nothing either way");
     }
 }
