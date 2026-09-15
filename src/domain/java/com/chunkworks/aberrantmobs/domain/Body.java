@@ -23,34 +23,38 @@ import java.util.OptionalInt;
 /**
  * A rig read as a body: which bones are the head and the chain behind it,
  * how far behind the head each chain bone sits along the body (from the
- * file's own pivots), which bones are legs and on which side, and how
- * high the body's axis runs above the feet. Built once per profile from
- * names the profile gives; then it turns a {@link ChainPose} and the legs'
- * poses into a {@link Pose} every frame. Immutable.
+ * file's own pivots), which bones are legs, on which side and on which
+ * segment, where each leg's hip and rest foot are in its segment's frame
+ * (from the file's pivots and the farthest vertex of the leg's cubes, as
+ * it stands in the file), and how high the body's axis runs above the
+ * feet. Built once per profile from names the profile gives; then it turns
+ * a {@link ChainPose} and the legs' poses into a {@link Pose} every frame.
+ * Immutable.
  *
  * <p>RI: chain[0] is the head; arcBack is the same length as chain, starts
- *     at 0 and never decreases; every bone index names a bone of the rig
- *     it was built from; scale positive.
- * AF: AF(chain, arcBack, legs, axisHeight) = "the body whose spine is the
- *     bones chain[0..n) at arcBack[k] blocks behind the head, with legs
- *     {@code legs} (pair i left at 2i, right at 2i + 1), its axis
- *     {@code axisHeight} blocks over its feet".
+ *     at 0 and never decreases; legBones and legs are the same length, even;
+ *     every bone index names a bone of the rig it was built from; every
+ *     leg's segment is an index into chain; scale positive.
+ * AF: AF(chain, arcBack, legBones, legs, axisHeight) = "the body whose
+ *     spine is the bones chain[0..n) at arcBack[k] blocks behind the head,
+ *     with leg i the bone legBones[i] standing as legs[i] says (pair i
+ *     left at 2i, right at 2i + 1), its axis {@code axisHeight} blocks
+ *     over its feet".
  */
 public final class Body {
-    /** A leg bone and its side: +1 for the left (the model's +X), -1 for the right. */
-    public record Leg(int bone, int side) {}
-
     private final int[] chain;
     private final String[] boneNames;
     private final double[] arcBack;
-    private final Leg[] legs;
+    private final int[] legBones;
+    private final Legs.Leg[] legs;
     private final double axisHeight;
     private final double scale;
 
-    private Body(int[] chain, String[] boneNames, double[] arcBack, Leg[] legs, double axisHeight, double scale) {
+    private Body(int[] chain, String[] boneNames, double[] arcBack, int[] legBones, Legs.Leg[] legs, double axisHeight, double scale) {
         this.chain = chain;
         this.boneNames = boneNames;
         this.arcBack = arcBack;
+        this.legBones = legBones;
         this.legs = legs;
         this.axisHeight = axisHeight;
         this.scale = scale;
@@ -62,9 +66,14 @@ public final class Body {
      * head, the chain bones tail-ward in order, and the leg pairs by their
      * common prefix with {@code left} and {@code right} appended; the arc
      * behind the head of each chain bone is the head pivot's Z less the
-     * bone's, times {@code scale}<br>
+     * bone's, times {@code scale}; each leg hangs from the nearest chain
+     * bone above it, its hip the leg pivot's offset from that bone's pivot
+     * and its rest foot the vertex of its cubes (its own and its
+     * descendants') farthest from its pivot, both as the file stands and
+     * in the segment's frame, blocks<br>
      * throws: {@link IllegalArgumentException} when a name is not a bone of
-     * the rig, or the chain's pivots do not run tailward
+     * the rig, the chain's pivots do not run tailward, a leg hangs from no
+     * chain bone, has no cubes, or its foot is not out to its side
      */
     public static Body of(Rig rig, String head, List<String> chainNames, List<String> legPairs, String left, String right, double scale) {
         if (!(scale > 0)) {
@@ -84,16 +93,74 @@ public final class Body {
             }
         }
         arcBack[0] = 0.0;
-        Leg[] legs = new Leg[legPairs.size() * 2];
+        int[] legBones = new int[legPairs.size() * 2];
         for (int i = 0; i < legPairs.size(); i++) {
-            legs[2 * i] = new Leg(bone(rig, legPairs.get(i) + left), +1);
-            legs[2 * i + 1] = new Leg(bone(rig, legPairs.get(i) + right), -1);
+            legBones[2 * i] = bone(rig, legPairs.get(i) + left);
+            legBones[2 * i + 1] = bone(rig, legPairs.get(i) + right);
+        }
+        Xform[] rest = rig.place(Pose.REST);
+        Legs.Leg[] legs = new Legs.Leg[legBones.length];
+        for (int i = 0; i < legBones.length; i++) {
+            legs[i] = leg(rig, rest, chain, legBones[i], i % 2 == 0 ? +1 : -1, scale);
         }
         String[] names = new String[chain.length];
         for (int k = 0; k < chain.length; k++) {
             names[k] = rig.bone(chain[k]).name();
         }
-        return new Body(chain, names, arcBack, legs, rig.bone(chain[0]).pivot().y() * scale, scale);
+        return new Body(chain, names, arcBack, legBones, legs, rig.bone(chain[0]).pivot().y() * scale, scale);
+    }
+
+    /** effects: returns leg bone {@code bone} as a leg of the chain, see {@link #of} */
+    private static Legs.Leg leg(Rig rig, Xform[] rest, int[] chain, int bone, int side, double scale) {
+        int segment = -1;
+        for (int b = rig.bone(bone).parent(); b >= 0 && segment < 0; b = rig.bone(b).parent()) {
+            for (int k = 0; k < chain.length; k++) {
+                if (chain[k] == b) {
+                    segment = k;
+                }
+            }
+        }
+        if (segment < 0) {
+            throw new IllegalArgumentException("leg " + rig.bone(bone).name() + " hangs from no chain bone");
+        }
+        // The segment's frame as the file stands: its placement's rotation about its pivot.
+        Xform seg = rest[chain[segment]];
+        Quat unturn = seg.rotation().conjugate();
+        Vec hipModel = rest[bone].translation();
+        Vec hip = unturn.rotate(hipModel.minus(seg.translation())).times(scale);
+        Vec tip = null;
+        double farthest = -1.0;
+        for (int b = 0; b < rig.boneCount(); b++) {
+            if (!descends(rig, b, bone)) {
+                continue;
+            }
+            for (Vec v : rig.mesh(b).positions()) {
+                Vec p = rest[b].apply(v);
+                double d = p.minus(hipModel).length();
+                if (d > farthest) {
+                    farthest = d;
+                    tip = p;
+                }
+            }
+        }
+        if (tip == null) {
+            throw new IllegalArgumentException("leg " + rig.bone(bone).name() + " has no cubes to stand on");
+        }
+        Vec foot = unturn.rotate(tip.minus(hipModel)).times(scale);
+        if (!(side * foot.x() > 0)) {
+            throw new IllegalArgumentException("leg " + rig.bone(bone).name() + "'s foot is not out to its side: " + foot);
+        }
+        return new Legs.Leg(segment, side, hip, foot);
+    }
+
+    /** effects: returns whether {@code b} is {@code ancestor} or hangs from it */
+    private static boolean descends(Rig rig, int b, int ancestor) {
+        for (int i = b; i >= 0; i = rig.bone(i).parent()) {
+            if (i == ancestor) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static int bone(Rig rig, String name) {
@@ -116,6 +183,21 @@ public final class Body {
 
     public int legPairs() {
         return legs.length / 2;
+    }
+
+    /** effects: returns how many legs the body has, left and right of each pair */
+    public int legCount() {
+        return legs.length;
+    }
+
+    /** effects: returns leg {@code i} (pair i / 2, left when even) as the feet need it */
+    public Legs.Leg leg(int i) {
+        return legs[i];
+    }
+
+    /** effects: returns every leg, pair by pair, left then right; a fresh copy */
+    public Legs.Leg[] legs() {
+        return legs.clone();
     }
 
     /** effects: returns the bone index of chain segment {@code k} (the head 0) */
@@ -148,9 +230,11 @@ public final class Body {
      * effects: returns the pose that places every chain bone where
      * {@code chain} puts it, relative to {@code origin} (the point the rig
      * is drawn from, blocks) and in model units, facing as it says, and
-     * turns each leg about its coxa by its pose: a left leg's swing forward
-     * is a turn about -Y and its lift a turn about +Z, a right leg's the
-     * reverse, so both swing toward the head and lift their tips
+     * turns each leg about its coxa by its pose: first the lift, about the
+     * leg's own Z (its hinge, since its cubes run along its X), a left
+     * leg's by +Z and a right leg's by -Z so both raise their tips; then
+     * the swing about Y, a left leg's by -Y and a right leg's by +Y so both
+     * swing toward the head
      */
     public Pose pose(ChainPose chain, LegGait.LegPose[] legPoses, Vec origin) {
         if (chain.size() != this.chain.length || legPoses.length != legs.length) {
@@ -162,9 +246,11 @@ public final class Body {
             p = p.withAbsolute(this.chain[k], new Xform(chain.orientation(k), at));
         }
         for (int i = 0; i < legs.length; i++) {
-            Leg leg = legs[i];
+            int side = legs[i].side();
             LegGait.LegPose lp = legPoses[i];
-            p = p.withLocal(leg.bone(), Quat.fromEulerXYZDegrees(0.0, -leg.side() * lp.swingDeg(), leg.side() * lp.liftDeg()));
+            Quat swing = Quat.fromAxisAngle(Vec.Y, Math.toRadians(-side * lp.swingDeg()));
+            Quat lift = Quat.fromAxisAngle(Vec.Z, Math.toRadians(side * lp.liftDeg()));
+            p = p.withLocal(legBones[i], swing.times(lift));
         }
         return p;
     }

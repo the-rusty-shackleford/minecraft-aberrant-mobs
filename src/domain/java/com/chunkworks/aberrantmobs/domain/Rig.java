@@ -29,8 +29,10 @@ import java.util.OptionalInt;
  * Immutable.
  *
  * <p>Placing bone b in model space: {@code W(b) = W(parent) * T(pivot_b -
- * pivot_parent) * R(rest_b) * R(pose_b)}, the root's parent the identity
- * at the origin; a cube's vertex v (bone space) stands at {@code W(b)(v)}.
+ * pivot_parent + R(rest_b) shift_b) * R(rest_b) * R(pose_b)}, the root's
+ * parent the identity at the origin; a cube's vertex v (bone space) stands
+ * at {@code W(b)(v)}. A placed bone stands at its placement, moved by its
+ * shift along the placement's axes.
  * With every pose turn the identity this reproduces the project exactly as
  * Blockbench shows it, group rotations included -- the reader's test
  * proves it against the saved file.
@@ -137,17 +139,20 @@ public final class Rig {
         Xform[] world = new Xform[bones.size()];
         for (int i = 0; i < bones.size(); i++) {
             Bone b = bones.get(i);
+            Vec shift = pose.shift(i);
             Xform absolute = pose.absolute(i);
             if (absolute != null) {
-                world[i] = absolute;
+                world[i] = shift.equals(Vec.ZERO) ? absolute
+                        : new Xform(absolute.rotation(), absolute.translation().plus(absolute.rotation().rotate(shift)));
                 continue;
             }
             Quat turn = b.rest().times(pose.local(i));
+            Vec moved = shift.equals(Vec.ZERO) ? Vec.ZERO : b.rest().rotate(shift);
             if (b.isRoot()) {
-                world[i] = new Xform(turn, b.pivot());
+                world[i] = new Xform(turn, b.pivot().plus(moved));
             } else {
                 Bone parent = bones.get(b.parent());
-                world[i] = world[b.parent()].compose(new Xform(turn, b.pivot().minus(parent.pivot())));
+                world[i] = world[b.parent()].compose(new Xform(turn, b.pivot().minus(parent.pivot()).plus(moved)));
             }
         }
         return world;

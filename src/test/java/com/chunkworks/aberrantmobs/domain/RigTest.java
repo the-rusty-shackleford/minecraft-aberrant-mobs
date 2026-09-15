@@ -17,6 +17,7 @@
  */
 package com.chunkworks.aberrantmobs.domain;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -86,6 +87,25 @@ final class RigTest {
         Xform[] w = rig.place(pose);
         // b ignores a's turn: its cube's corner (3, 1, 1) is (1, 1, 1) from b's pivot, placed at (11, 11, 11).
         assertTrue(w[2].apply(rig.mesh(2).positions().get(6)).near(new Vec(11, 11, 11), 1e-12));
+    }
+
+    @Test
+    void aShiftMovesTheBoneAlongItsOwnRestAxesLocalOrPlaced() {
+        Rig rig = chain();
+        // b shifted up 5 at rest: its cube's corner (3, 1, 1) is at (3, 6, 1).
+        Xform[] w = rig.place(Pose.REST.withShift(2, new Vec(0, 5, 0)));
+        assertTrue(w[2].apply(rig.mesh(2).positions().get(6)).near(new Vec(3, 6, 1), 1e-12));
+        // Under a's quarter turn about Y, b's own X is the world's -Z: a shift of (1, 0, 0) on b moves the corner from (2, 1, -2) to (2, 1, -3).
+        Pose turned = Pose.REST.withLocal(1, Quat.fromEulerXYZDegrees(0, 90, 0)).withShift(2, new Vec(1, 0, 0));
+        assertTrue(rig.place(turned)[2].apply(rig.mesh(2).positions().get(6)).near(new Vec(2, 1, -3), 1e-9));
+        // A placed bone shifts along its placement's axes: placed turned a quarter about Y at (10, 10, 10), shifted (1, 0, 0),
+        // the corner (1, 1, 1) from its pivot lands at (11, 11, 9) - (0, 0, 1) = (11, 11, 8).
+        Pose placed = Pose.REST.withAbsolute(2, new Xform(Quat.fromEulerXYZDegrees(0, 90, 0), new Vec(10, 10, 10))).withShift(2, new Vec(1, 0, 0));
+        assertTrue(rig.place(placed)[2].apply(rig.mesh(2).positions().get(6)).near(new Vec(11, 11, 8), 1e-9));
+        // A shift survives a later local turn or placement of the bone; a zero shift is the default.
+        assertTrue(placed.withLocal(2, Quat.IDENTITY).shift(2).near(new Vec(1, 0, 0), 1e-12));
+        assertTrue(Pose.REST.shift(2).equals(Vec.ZERO));
+        assertEquals(2, Pose.REST.withShift(2, Vec.Y).highestBone());
     }
 
     @Test

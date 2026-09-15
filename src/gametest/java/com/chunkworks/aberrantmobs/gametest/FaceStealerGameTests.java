@@ -32,9 +32,12 @@ import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 /**
- * The Face-Stealer on a headless server. Phase 1: its profile is in the
- * registry as the file says, and a creature made from it is sized, named
- * and healthy as the profile says, and keeps its profile across a save.
+ * The Face-Stealer on a headless server. Its profile is in the registry as
+ * the file says, and a creature made from it is sized, named and healthy
+ * as the profile says; its parts lie along its body and follow its walk;
+ * only the cracked segment takes a blow; its feet stand on the floor,
+ * most of them at any moment, while it walks; a clip played on the server
+ * fires its cues on their ticks and ends.
  *
  * <p>The arena template is 15 by 15; a floor of stone is laid on it.
  */
@@ -127,6 +130,58 @@ public final class FaceStealerGameTests {
         helper.assertTrue(parts[3 == weak ? 4 : 3].hurt(helper.getLevel().damageSources().explosion(null, null), 10.0f), "an explosion lands anywhere");
         helper.assertTrue(Math.abs(a.getHealth() - (full - 12.0f)) < 1e-4, "at half: " + a.getHealth());
         helper.succeed();
+    }
+
+    @GameTest(template = "arena", timeoutTicks = 80)
+    public void mostFeetStandOnTheFloorWhileItWalks(GameTestHelper helper) {
+        layFloor(helper);
+        Vec3 at = helper.absoluteVec(new Vec3(2.5, FLOOR, 7.5));
+        Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, -90.0f);
+        helper.assertTrue(a != null, "the creature is made");
+        helper.getLevel().addFreshEntity(a);
+        a.setScriptedWalk(new com.chunkworks.aberrantmobs.domain.Vec(0.3, 0.0, 0.0), 40);
+        helper.runAtTickTime(25, () -> {
+            com.chunkworks.aberrantmobs.domain.Legs.Foot[] feet = a.feet();
+            helper.assertValueEqual(feet.length, 26, "a foot per leg");
+            int planted = 0, swinging = 0;
+            for (com.chunkworks.aberrantmobs.domain.Legs.Foot f : feet) {
+                if (f.swinging()) {
+                    swinging++;
+                }
+                if (f.planted()) {
+                    planted++;
+                    com.chunkworks.aberrantmobs.domain.Vec anchor = f.anchor();
+                    helper.assertTrue(anchor.y() - at.y > -0.05 && anchor.y() - at.y < 0.3, "an anchor rests on the floor's top: " + (anchor.y() - at.y));
+                    BlockPos under = BlockPos.containing(anchor.x(), anchor.y() - 0.15, anchor.z());
+                    helper.assertTrue(!helper.getLevel().getBlockState(under).getCollisionShape(helper.getLevel(), under).isEmpty(), "and on something solid: " + under);
+                }
+            }
+            helper.assertTrue(planted >= 16, "most feet are down mid-walk: " + planted + " planted, " + swinging + " swinging");
+            helper.assertTrue(swinging <= 10, "at most the share swings: " + swinging);
+            helper.assertTrue(a.speed() > 0.2, "while it walks: " + a.speed());
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "arena", timeoutTicks = 60)
+    public void aClipPlaysOnTheServerAndFiresItsCuesOnTheirTicks(GameTestHelper helper) {
+        layFloor(helper);
+        Vec3 at = helper.absoluteVec(new Vec3(7.5, FLOOR, 7.5));
+        Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, -90.0f);
+        helper.assertTrue(a != null, "the creature is made");
+        helper.getLevel().addFreshEntity(a);
+        helper.assertTrue(a.clipPlaying() == null && a.lastCue() == null, "nothing plays at first");
+        a.play(com.chunkworks.aberrantmobs.domain.FaceStealerClips.COIL);
+        helper.assertValueEqual(a.clipPlaying(), "coil", "the coil plays");
+        helper.runAtTickTime(9, () -> helper.assertValueEqual(a.lastCue(), com.chunkworks.aberrantmobs.domain.FaceStealerClips.CUE_CLICK, "the click by its fifth tick"));
+        helper.runAtTickTime(16, () -> helper.assertValueEqual(a.lastCue(), com.chunkworks.aberrantmobs.domain.FaceStealerClips.CUE_HISS, "the hiss by its twelfth"));
+        helper.runAtTickTime(22, () -> {
+            helper.assertTrue(a.clipPlaying() == null, "and the clip has ended: " + a.clipPlaying());
+            helper.assertTrue(a.lastCueTick() > 0, "the cue's tick was kept: " + a.lastCueTick());
+            a.play(com.chunkworks.aberrantmobs.domain.FaceStealerClips.DEATH);
+            helper.assertValueEqual(a.clipPlaying(), "death", "a new clip starts at once");
+            helper.succeed();
+        });
     }
 
     @GameTest(template = "arena", timeoutTicks = 80)

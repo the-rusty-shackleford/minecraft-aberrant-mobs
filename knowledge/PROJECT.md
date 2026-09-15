@@ -29,21 +29,31 @@ one entity type `Aberrant`; `domain/BbRig` reads the project into a `Rig` of bon
 (`assets/aberrantmobs/aberrantmobs/model/face_stealer.bbmodel`; a copy in
 `tools/reference/`).
 
-Phase 2 (in progress): the body -- `Trail`, `Undulation`, `ChainPose`, `LegGait`, `Body`
+Phase 2 (done): the body -- `Trail`, `Undulation`, `ChainPose`, `LegGait`, `Body`
 (pure, partitioned); the entity's trail and wave per side, the renderer laying the chain
 from the interpolated head; `AberrantPart` per segment on the server, placed on the chain
 each tick; `Carapace` and the synced crack, damage routed by segment, the glow drawn on
-the cracked segment; `RigStore` reads the model from the jar for the server. Still to do
-in phase 2: `Legs` (feet planted on the world, most down at all times) and the authored
-`Clip`s with `Animator`.
+the cracked segment; `RigStore` reads the model from the jar for the server. Then the
+feet: `Cells` (the one way the domain reads blocks; `LevelCells` in main), `Legs` (a
+foot per leg planted on the level, stepped in the gait's metachronal order with at most
+40 % swinging and a pair never together, swings shorter and strides longer with speed,
+the surface found by a bisected cast on floor, wall or ceiling), `Body` deriving each
+leg's segment, hip and rest foot from the file's pivots and cubes, the renderer aiming
+each leg at its foot (`Legs.aim`, a lever: lift in the leg's plane then yaw). And the
+clips: `Clip` (keys slerped, cues at ticks), `Animator` (one clip over the body's pose),
+`FaceStealerClips` (coil, pounce, strike, grab, bite, flinch, death, with their cues);
+the server starts a clip by name over synced data, both sides advance, the server acts
+on cues (recorded for now; sounds and the dig's blocks hang on them later).
 
 ## How it is verified
 
-`./gradlew test` (46 JUnit tests, the reader proved against the saved file),
-`runGameTestServer` (4 gametests: the profile and the creature, the parts along the body
-after a walk, only the crack takes a blow, a scripted walk), `runPhotoBooth` (7 checks:
-side, quarter, face, a walking strip, from above). The booth world is normal difficulty
-with spawning off: a monster is discarded in peaceful.
+`./gradlew test` (58 JUnit tests, the reader proved against the saved file),
+`runGameTestServer` (6 gametests: the profile and the creature, the parts along the body
+after a walk, only the crack takes a blow, most feet on the floor mid-walk, a clip's
+cues on their ticks, a scripted walk), `runPhotoBooth` (15 checks: side, quarter, face,
+a walking strip, from above, each clip playing on the client at its key frames, drawn
+after the death). The booth world is normal difficulty with spawning off: a monster is
+discarded in peaceful.
 
 ## Decisions
 
@@ -51,4 +61,5 @@ See `decisions/`.
 
 ## Next
 
-Phase 2's rest: planted feet and the clips. Then phase 3, crawl and dig.
+Phase 3, crawl and dig: `Crawl`, `Burrow`, `Tunnel`, `Leap`; `DigWorld` removing blocks
+on the strike clip's cue.

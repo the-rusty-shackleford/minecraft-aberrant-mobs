@@ -19,9 +19,15 @@ package com.chunkworks.aberrantmobs;
 
 import com.chunkworks.aberrantmobs.api.AberrantMobs;
 import com.chunkworks.aberrantmobs.api.CreatureProfile;
+import com.chunkworks.aberrantmobs.domain.Animator;
 import com.chunkworks.aberrantmobs.domain.Body;
 import com.chunkworks.aberrantmobs.domain.Carapace;
 import com.chunkworks.aberrantmobs.domain.ChainPose;
+import com.chunkworks.aberrantmobs.domain.Clip;
+import com.chunkworks.aberrantmobs.domain.FaceStealerClips;
+import com.chunkworks.aberrantmobs.domain.Legs;
+import com.chunkworks.aberrantmobs.domain.Pose;
+import com.chunkworks.aberrantmobs.domain.Rig;
 import com.chunkworks.aberrantmobs.domain.Trail;
 import com.chunkworks.aberrantmobs.domain.Undulation;
 import com.chunkworks.aberrantmobs.domain.Vec;
@@ -40,7 +46,6 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.entity.projectile.Projectile;
@@ -61,14 +66,25 @@ import org.jetbrains.annotations.Nullable;
  * have the head's positions already) and the writhe's {@link
  * Undulation.Wave}, advanced once a tick by the ground speed. The trail is
  * seeded straight behind the head when the body is first known, so a
- * creature that just appeared has a whole body. The server lays a
- * {@link AberrantPart} on every chain segment each tick, where the world
- * meets and hits it; the carapace says what a hit comes to.
+ * creature that just appeared has a whole body. Each side also keeps the
+ * feet: every leg's foot planted on the world, stepped by {@link Legs}
+ * from the level's own blocks, so the legs stand where there is something
+ * to stand on. The server lays an {@link AberrantPart} on every chain
+ * segment each tick, where the world meets and hits it; the carapace says
+ * what a hit comes to.
+ *
+ * <p>An authored {@link Clip} plays on the server's say: its name and a
+ * serial ride synced data, so every client starts the same clip within a
+ * tick; both sides then advance their own {@link Animator}, the server
+ * acting on the cues, the client drawing the turns over the body's pose.
  */
 public class Aberrant extends Monster {
     private static final EntityDataAccessor<String> DATA_PROFILE = SynchedEntityData.defineId(Aberrant.class, EntityDataSerializers.STRING);
     /** The cracked segment's index in the chain, -1 for none yet. */
     private static final EntityDataAccessor<Integer> DATA_WEAK = SynchedEntityData.defineId(Aberrant.class, EntityDataSerializers.INT);
+    /** The clip last started, by name ("" for none), and a count of starts so a repeat is noticed. */
+    private static final EntityDataAccessor<String> DATA_CLIP = SynchedEntityData.defineId(Aberrant.class, EntityDataSerializers.STRING);
+    private static final EntityDataAccessor<Integer> DATA_CLIP_SERIAL = SynchedEntityData.defineId(Aberrant.class, EntityDataSerializers.INT);
 
     /** How far beyond its box a creature is still drawn: a body eleven blocks long trails well past its head. */
     private static final double CULL_REACH = 12.0;
@@ -86,6 +102,19 @@ public class Aberrant extends Monster {
     private double speed;
     @Nullable
     private Carapace carapace;
+    /** The feet, one per leg, null until the body is known; and the legs they belong to, kept while the body is the same. */
+    @Nullable
+    private Legs.Foot[] feet;
+    @Nullable
+    private Legs.Leg[] legs;
+    @Nullable
+    private Body legsOf;
+    @Nullable
+    private LevelCells cells;
+    private final Animator animator = new Animator();
+    @Nullable
+    private String lastCue;
+    private int lastCueTick = -1;
 
     public Aberrant(EntityType<? extends Aberrant> type, Level level) {
         super(type, level);
@@ -120,6 +149,8 @@ public class Aberrant extends Monster {
         super.defineSynchedData(builder);
         builder.define(DATA_PROFILE, "");
         builder.define(DATA_WEAK, -1);
+        builder.define(DATA_CLIP, "");
+        builder.define(DATA_CLIP_SERIAL, 0);
     }
 
     /** effects: returns this creature's profile, or null before one is set or when the packs lost it */
@@ -170,10 +201,16 @@ public class Aberrant extends Monster {
             refreshDimensions();
             sizeParts();
         }
+        if (DATA_CLIP_SERIAL.equals(key) && level().isClientSide()) {
+            Clip clip = FaceStealerClips.ALL.get(entityData.get(DATA_CLIP));
+            if (clip != null) {
+                animator.play(clip);
+            }
+        }
     }
 
     @Override
-    protected EntityDimensions getDefaultDimensions(Pose pose) {
+    protected EntityDimensions getDefaultDimensions(net.minecraft.world.entity.Pose pose) {
         CreatureProfile p = profile();
         if (p == null) {
             return super.getDefaultDimensions(pose);
@@ -222,13 +259,7 @@ public class Aberrant extends Monster {
     }
 
     /** effects: stands each segment's part on the chain, its box centred on the segment's axis */
-    private void placeParts(Body body, Trail trail) {
-        CreatureProfile p = profile();
-        if (p == null) {
-            return;
-        }
-        Undulation undulation = p.rig().undulation();
-        ChainPose chain = ChainPose.of(trail, body.arcBack(), undulation, wave(undulation));
+    private void placeParts(ChainPose chain) {
         int segments = Math.min(MAX_PARTS, chain.size());
         for (int k = 0; k < segments; k++) {
             AberrantPart part = parts[k];
@@ -412,13 +443,83 @@ public class Aberrant extends Monster {
         if (p != null) {
             wave = p.rig().undulation().advance(wave(p.rig().undulation()), speed);
         }
-        if (body != null) {
+        if (body != null && p != null) {
             Trail t = trail(body.axisHeight(), body.length());
             t.push(axis(body.axisHeight()), up());
+            ChainPose chain = ChainPose.of(t, body.arcBack(), p.rig().undulation(), wave);
+            stepFeet(body, p, chain);
             if (!level().isClientSide()) {
-                placeParts(body, t);
+                placeParts(chain);
             }
         }
+        for (String cue : animator.advance()) {
+            onCue(cue);
+        }
+    }
+
+    // --- the feet -------------------------------------------------------
+
+    /** effects: steps every foot one tick on {@code chain} over the level's blocks, the body's travel along its facing */
+    private void stepFeet(Body body, CreatureProfile p, ChainPose chain) {
+        if (legs == null || legsOf != body) {
+            legs = body.legs();
+            legsOf = body;
+            feet = Legs.hanging(legs.length);
+        }
+        if (cells == null) {
+            cells = new LevelCells(level());
+        }
+        feet = Legs.step(cells, chain, legs, feet, p.rig().gait(), distance, speed, facing());
+    }
+
+    /** effects: returns every leg's foot as it stands now, pair by pair, left then right; hanging before the body is known; a fresh copy */
+    public Legs.Foot[] feet() {
+        if (feet == null) {
+            Body body = body();
+            return Legs.hanging(body == null ? 0 : body.legCount());
+        }
+        return feet.clone();
+    }
+
+    // --- the clips ------------------------------------------------------
+
+    /**
+     * requires: called on the server
+     * effects: starts {@code clip} on this creature, here and on every
+     * client that sees it, dropping whatever played
+     */
+    public void play(Clip clip) {
+        animator.play(clip);
+        entityData.set(DATA_CLIP, clip.name());
+        entityData.set(DATA_CLIP_SERIAL, entityData.get(DATA_CLIP_SERIAL) + 1);
+    }
+
+    /** effects: returns the name of the clip playing on this side, or null */
+    @Nullable
+    public String clipPlaying() {
+        Clip c = animator.playing();
+        return c == null ? null : c.name();
+    }
+
+    /** effects: returns {@code base} with this side's playing clip laid over it, {@code partialTick} into the tick; {@code base} when none plays */
+    public Pose overlay(Rig rig, Pose base, double partialTick) {
+        return animator.overlay(rig, base, partialTick);
+    }
+
+    /** effects: returns the last cue a clip fired on this side, or null; and the tick it fired on */
+    @Nullable
+    public String lastCue() {
+        return lastCue;
+    }
+
+    public int lastCueTick() {
+        return lastCueTick;
+    }
+
+    /** effects: acts on a clip's cue: remembered now; the sounds and the dig's blocks hang on it in later phases */
+    private void onCue(String cue) {
+        lastCue = cue;
+        lastCueTick = tickCount;
     }
 
     // --- saving ---------------------------------------------------------

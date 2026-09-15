@@ -18,6 +18,8 @@
 package com.chunkworks.aberrantmobs.gametest;
 
 import com.chunkworks.aberrantmobs.Aberrant;
+import com.chunkworks.aberrantmobs.domain.Clip;
+import com.chunkworks.aberrantmobs.domain.FaceStealerClips;
 import com.mojang.blaze3d.platform.NativeImage;
 import java.util.ArrayList;
 import java.util.List;
@@ -52,7 +54,9 @@ import org.slf4j.LoggerFactory;
 /**
  * The protocol on film, with the Face-Stealer as the sitter: a flat world
  * at noon, the creature summoned on the grass facing east, photographed
- * from the side, from its front quarter and up close on its face. Each
+ * from the side, from its front quarter and up close on its face; then
+ * walking, from the side and from above, its feet planted; then each
+ * authored clip at its key frames. Each
  * frame is saved as {@code booth-<name>.png} in the run's screenshots
  * folder and judged by eye afterwards; the verdict lines ({@code booth:
  * PASS} / {@code booth: FAIL}) are what the Gradle task reads. Silent from
@@ -220,12 +224,56 @@ public final class PhotoBooth {
             }
         })));
         s.add(new Step(t += 12, () -> shoot(mc, "booth-walk-top")));
+        // The clips: each played on the server where the walk left the creature, shot at its key frames --
+        // the coil, the bite, the flinch and the death from the side, the pincers' clips from the front quarter.
+        record Shot(Clip clip, boolean quarter, int... at) {}
+        List<Shot> shots = List.of(
+                new Shot(FaceStealerClips.COIL, false, 8, 15), new Shot(FaceStealerClips.POUNCE, true, 4),
+                new Shot(FaceStealerClips.STRIKE, true, 4), new Shot(FaceStealerClips.GRAB, true, 5),
+                new Shot(FaceStealerClips.BITE, false, 8, 12), new Shot(FaceStealerClips.FLINCH, false, 3),
+                new Shot(FaceStealerClips.DEATH, false, 20, 39));
+        for (Shot shot : shots) {
+            s.add(new Step(t += 20, () -> onServer(mc, sp -> onCreature(sp, a -> frame(sp, a, shot.quarter())))));
+            s.add(new Step(t += 10, () -> onServer(mc, sp -> onCreature(sp, a -> a.play(shot.clip())))));
+            for (int at : shot.at()) {
+                s.add(new Step(t + at, () -> {
+                    shoot(mc, "booth-" + shot.clip().name() + "-" + at);
+                    if (at == shot.at()[0]) {
+                        Aberrant a = find(mc);
+                        verdict("the client plays the " + shot.clip().name(), () -> a != null && shot.clip().name().equals(a.clipPlaying()) ? null : "the client's clip is " + (a == null ? null : a.clipPlaying()));
+                    }
+                }));
+            }
+            t += shot.clip().ticks();
+        }
         s.add(new Step(t += 20, () -> {
+            int drawn = count(mc, PhotoBooth::creature);
+            verdict("it is drawn after its death clip", () -> drawn > 2000 ? null : "creature pixels " + drawn);
             LOG.info("booth: PASS all checks ran");
             phase = Phase.DONE;
             mc.stop();
         }));
         return s;
+    }
+
+    /** effects: puts the camera on the creature's front half from the north side, or from its front quarter */
+    private static void frame(ServerPlayer sp, Aberrant a, boolean quarter) {
+        double y = sp.serverLevel().getMinBuildHeight() + 4;
+        if (quarter) {
+            sp.teleportTo(sp.serverLevel(), a.getX() + 8.0, y + 4.0, Z + 6.5, 0.0f, 0.0f);
+            sp.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(a.getX() - 0.5, y + 1.4, Z));
+        } else {
+            sp.teleportTo(sp.serverLevel(), a.getX() - 2.5, y + 4.0, Z - 13.0, 0.0f, 0.0f);
+            sp.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(a.getX() - 2.5, y + 1.2, Z));
+        }
+    }
+
+    private static void onCreature(ServerPlayer sp, Consumer<Aberrant> action) {
+        for (var e : sp.serverLevel().getEntities().getAll()) {
+            if (e instanceof Aberrant a && a.getUUID().equals(creature)) {
+                action.accept(a);
+            }
+        }
     }
 
     private static Aberrant find(Minecraft mc) {

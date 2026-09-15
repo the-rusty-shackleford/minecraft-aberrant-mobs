@@ -22,7 +22,9 @@ import com.chunkworks.aberrantmobs.api.CreatureProfile;
 import com.chunkworks.aberrantmobs.domain.Body;
 import com.chunkworks.aberrantmobs.domain.ChainPose;
 import com.chunkworks.aberrantmobs.domain.LegGait;
+import com.chunkworks.aberrantmobs.domain.Legs;
 import com.chunkworks.aberrantmobs.domain.Pose;
+import com.chunkworks.aberrantmobs.domain.Quat;
 import com.chunkworks.aberrantmobs.domain.Trail;
 import com.chunkworks.aberrantmobs.domain.Undulation;
 import com.chunkworks.aberrantmobs.domain.Vec;
@@ -43,9 +45,11 @@ import net.minecraft.util.Mth;
  * The chain is laid along the head's trail from where the game
  * interpolates the head between ticks (the lag between that point and the
  * trail's newest sample carries every segment back by the same amount),
- * set aside by the writhe, and the legs skitter by the gait; the head's
- * children (pincers, antennae) and each segment's legs hang from their
- * bones. The cracked segment's glowing cubes are drawn full bright in a
+ * set aside by the writhe, and each leg is aimed at its foot where the
+ * creature has it planted on the world (a swinging foot advanced by the
+ * partial tick); a playing clip's turns go over that. The head's children
+ * (pincers, antennae) hang from their bones. The cracked segment's
+ * glowing cubes are drawn full bright in a
  * pulsing ember tint, the rest of its plating as any other. A profile
  * whose names do not fit its model is drawn at rest, turned to its yaw,
  * so the mistake is visible and not fatal. Two draw calls a creature.
@@ -80,7 +84,7 @@ public final class AberrantRenderer extends EntityRenderer<Aberrant> {
             poseStack.mulPose(Axis.YP.rotationDegrees(-creature.bodyYaw(partialTick)));
             pose = Pose.REST;
         } else {
-            pose = posed(creature, p, body, partialTick);
+            pose = posed(creature, p, skin, body, partialTick);
         }
         RigDrawer.draw(skin, skin.bones, pose, poseStack, out, packedLight, overlay, null, null);
         // The crack: its glowing cubes, and only on the cracked segment, full bright and pulsing like an ember.
@@ -96,7 +100,7 @@ public final class AberrantRenderer extends EntityRenderer<Aberrant> {
     }
 
     /** effects: returns the body's pose this frame, relative to the point the game draws the creature from */
-    private static Pose posed(Aberrant creature, CreatureProfile p, Body body, float partialTick) {
+    private static Pose posed(Aberrant creature, CreatureProfile p, Skin skin, Body body, float partialTick) {
         Trail trail = creature.trail(body.axisHeight(), body.length());
         Undulation undulation = p.rig().undulation();
         Undulation.Wave wave = creature.wave(undulation);
@@ -109,7 +113,17 @@ public final class AberrantRenderer extends EntityRenderer<Aberrant> {
         Vec drawnAxis = origin.plus(creature.up().times(body.axisHeight()));
         double lag = Math.min(drawnAxis.minus(trail.at(0).pos()).length(), 2.0);
         ChainPose chain = ChainPose.of(trail, body.arcBack(), lag, undulation, wave);
-        LegGait.LegPose[] legs = p.rig().gait().poses(body.legPairs(), creature.distance() + creature.speed() * partialTick, creature.speed());
-        return body.pose(chain, legs, origin);
+        Legs.Foot[] feet = creature.feet();
+        double dt = partialTick / Legs.swingTicks(creature.speed());
+        LegGait.LegPose[] legs = new LegGait.LegPose[body.legCount()];
+        for (int i = 0; i < legs.length; i++) {
+            Legs.Leg leg = body.leg(i);
+            Vec pos = chain.position(leg.segment());
+            Quat orient = chain.orientation(leg.segment());
+            Vec rest = Legs.rest(leg, pos, orient);
+            Vec foot = feet[i].advanced(dt).at(rest, orient.rotate(Vec.Y));
+            legs[i] = Legs.aim(leg, pos, orient, foot);
+        }
+        return creature.overlay(skin.rig, body.pose(chain, legs, origin), partialTick);
     }
 }

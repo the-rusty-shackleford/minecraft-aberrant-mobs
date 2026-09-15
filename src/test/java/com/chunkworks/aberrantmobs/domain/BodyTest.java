@@ -31,9 +31,13 @@ import org.junit.jupiter.api.Test;
 /**
  * Partitions. Naming: the Face-Stealer's names resolve; a missing name is
  * refused; the arcs come off the file's pivots (0 for the head and s01,
- * 11/16 apart after); the axis height off the head's pivot. Posing: chain
- * bones are placed absolutely at (position - origin) / scale, legs turned
- * about their coxae with the sign by side; a pose of the wrong size refused.
+ * 11/16 apart after); the axis height off the head's pivot. Legs: each
+ * hangs from its segment, its hip off the pivots, its rest foot at the
+ * tarsus tip as the file sweeps it (forward at the head, back at the
+ * tail), out to its own side; a leg with no cubes is refused. Posing:
+ * chain bones are placed absolutely at (position - origin) / scale, legs
+ * lifted then swung with the sign by side; a pose of the wrong size
+ * refused.
  */
 final class BodyTest {
     private static final Path FACE_STEALER = Path.of("src/main/resources/assets/aberrantmobs/aberrantmobs/model/face_stealer.bbmodel");
@@ -68,6 +72,29 @@ final class BodyTest {
     }
 
     @Test
+    void theLegsHangFromTheirSegmentsWithTheirFeetAsTheFileSweepsThem() throws IOException {
+        Rig rig = rig();
+        Body b = Body.of(rig, "head", CHAIN, LEGS, "_l", "_r", 1.0 / 16.0);
+        assertEquals(26, b.legCount());
+        Legs.Leg s05l = b.leg(10), s05r = b.leg(11);   // pair 5: s05_leg
+        assertEquals(5, s05l.segment());
+        assertEquals(+1, s05l.side());
+        assertEquals(-1, s05r.side());
+        assertTrue(s05l.hip().near(new Vec(7.68 / 16, (17.4 - 22.9) / 16, (-49.5 + 44.0) / 16), 1e-9), "the hip off the pivots: " + s05l.hip());
+        assertTrue(s05r.hip().near(new Vec(-7.68 / 16, (17.4 - 22.9) / 16, (-49.5 + 44.0) / 16), 1e-9));
+        Vec foot = s05l.rest();
+        assertTrue(foot.x() > 1.3 && foot.x() < 1.7, "the tarsus tip a block and a half out: " + foot);
+        assertTrue(foot.y() < -0.85 && foot.y() > -1.0, "and near a block down: " + foot);
+        assertTrue(foot.z() < 0 && foot.z() > -0.4, "swept a little back by the file's ten degrees: " + foot);
+        assertTrue(s05r.rest().near(new Vec(-foot.x(), foot.y(), foot.z()), 1e-9), "the right leg mirrors");
+        assertTrue(b.leg(0).rest().z() > 0.4, "the head's legs reach forward: " + b.leg(0).rest());
+        assertTrue(b.leg(25).rest().z() < -1.0, "the tail's last legs sweep back: " + b.leg(25).rest());
+        assertEquals(11, b.leg(24).segment(), "the tail's legs hang from the tail");
+        assertEquals(0, b.leg(0).segment(), "the head's from the head");
+        assertTrue(b.legs() != b.legs(), "a fresh copy each time");
+    }
+
+    @Test
     void thePosePlacesTheChainAndTurnsTheLegsBySide() throws IOException {
         Rig rig = rig();
         double scale = 1.0 / 16.0;
@@ -88,10 +115,15 @@ final class BodyTest {
         int s02 = rig.bone("s02").getAsInt();
         assertTrue(pose.absolute(s02).translation().near(new Vec(-11, 23.3, 0), 1e-6), "eleven units behind along -X: " + pose.absolute(s02).translation());
         assertTrue(pose.absolute(s02).rotation().rotate(Vec.Z).near(Vec.X, 1e-9), "facing +X");
-        // The first pair: left swings by -20 about Y and lifts +10 about Z; right the reverse.
+        // The first pair: left lifts +10 about Z then swings -20 about Y; right the reverse.
         int left = rig.bone("head_leg_l").getAsInt(), right = rig.bone("head_leg_r").getAsInt();
-        assertTrue(pose.local(left).near(Quat.fromEulerXYZDegrees(0, -20, 10), 1e-9));
-        assertTrue(pose.local(right).near(Quat.fromEulerXYZDegrees(0, 20, -10), 1e-9));
+        Quat ly = Quat.fromAxisAngle(Vec.Y, Math.toRadians(-20)), lz = Quat.fromAxisAngle(Vec.Z, Math.toRadians(10));
+        assertTrue(pose.local(left).near(ly.times(lz), 1e-9));
+        assertTrue(pose.local(right).near(ly.conjugate().times(lz.conjugate()), 1e-9));
+        assertTrue(pose.local(left).rotate(new Vec(1, 0, 0)).y() > 0.17, "a left leg pointing out lifts its tip");
+        assertTrue(pose.local(left).rotate(new Vec(1, 0, 0)).z() > 0.3, "and swings it forward");
+        assertTrue(pose.local(right).rotate(new Vec(-1, 0, 0)).y() > 0.17, "a right leg pointing out lifts its tip");
+        assertTrue(pose.local(right).rotate(new Vec(-1, 0, 0)).z() > 0.3, "and swings it forward");
         assertTrue(pose.local(rig.bone("s01_leg_l").getAsInt()).near(Quat.IDENTITY, 1e-12));
         assertThrows(IllegalArgumentException.class, () -> b.pose(chain, new LegGait.LegPose[3], origin));
     }
