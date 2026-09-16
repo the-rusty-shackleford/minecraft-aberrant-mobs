@@ -15,10 +15,19 @@ walls and ceilings, digs its way to a point through rock, coils and pounces, thi
 decision tree in its profile over what it senses and hears, driving verbs in Java),
 grabs, bites, wears the face of its last victim, spawns in the rock beside deep dark
 caves, drops chitin and its cracked plate, and sounds like what it is; and its chitin
-makes an armour whose full set walks on walls and ceilings as if they were ground. What
-the plan left for the armour's phase C (block placement facing on a wall, the shadow and
-nameplate, explosions into the wearer's frame, the third-person back camera on a wall)
-is listed under Next in `knowledge/PROJECT.md`.
+makes an armour whose full set walks on walls and ceilings as if they were ground.
+Placement directions, explosion impulses, the name anchor and contact shadow now
+follow the wearer’s frame. First-person obstruction samples surround the actual eyes,
+so the supporting wall no longer blacks out the view. The rear camera uses vanilla clipping along the rotated
+look, including when the ground leaves little room. Removing the set under a ceiling
+searches all the way to a free standing box (D-0015). These changes remain unreleased.
+
+Chitin’s item and worn textures use vanilla netherite/scute templates recoloured to the
+creature’s palette, with an orange chest fissure; see `devtools/art/SOURCES.md` for
+credits. The Stolen Face has an authored bone-mask sprite. A CC0 chitter supplements
+the clicks and a low recorded rumble replaces the idle breath without changing its
+rare timing. Listening review remains pending; sources and cuts are in
+`devtools/art/sounds/SOURCES.md` (D-0016).
 
 ## In creative
 
@@ -380,8 +389,9 @@ player seen underground out of their view and hunt them on eye contact, hold a p
 the maw and devour them, spare a blessed one and flee, coil and pounce, refuse a lit
 surface and take a dark chimney by thick rock to bore its pocket, and drop its loot; and a
 player in the full chitin set walked into a wall takes it, climbs it, lets go without the
-helmet and lands, lets go in water, while the undressed stop at the wall. The booth (`Xephyr :7 -screen 1280x720
--ac -br -noreset`, then `DISPLAY=:7 __GLX_VENDOR_LIBRARY_NAME=mesa
+helmet and lands, lets go in water, while the undressed stop at the wall. The booth uses
+the existing Xephyr display (check `pgrep -a Xephyr`; keep one rendering client). Set
+`DISPLAY` to that display, then `__GLX_VENDOR_LIBRARY_NAME=mesa
 LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe MESA_GL_VERSION_OVERRIDE=4.6
 MESA_GLSL_VERSION_OVERRIDE=460 ./gradlew runPhotoBooth`) checks every sound event
 resolves and photographs the creature from
@@ -395,6 +405,19 @@ cave, blessed so a bite does not end the run, brings a Face-Stealer into the wor
 rock by another cave thirty to fifty blocks off, has the player break a block, and logs
 what the creature does every ten ticks with a frame every eighty; its verdicts are that
 it heard, dug, came near and stalked or hunted.
+
+### Focused visual checks
+
+`./gradlew runPhotoBooth -PboothGravity` checks all six tracked frames, rear/front
+camera geometry, first-person visibility, explosion packet conversion, armour removal and low/high wall-camera
+clearance. `-PboothArt` photographs netherite and chitin from identical front, side
+and rear cameras. The default booth exercises actual survival movement and server
+agreement. Each run requires its completion marker and no failed assertions.
+
+The focused booth’s remote wearer is a server-controlled actor delivered through real
+entity/equipment tracking, not a second connected player. Iris compatibility was
+checked with Iris 1.8.14 beta.1, Sodium 0.8.13 beta.2 and Complementary Unbound 5.8.1
+in an isolated booth directory; a separate-client multiplayer gate remains open.
 
 ## Licence
 

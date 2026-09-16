@@ -36,4 +36,18 @@ licence was read on 2026-09-14 before the file was taken.
 | `bite` | the bone crunch, 0.05 to 1.5 s |
 | `crack` | the egg crack, whole: plating giving |
 | `death` | the dying beast, whole |
-| `breath` | one breath of the beast, 1.8 to 3.3 s |
+| `chitter` | taure’s chitter, 10.8 to 14.8 s, an alternate for the click event |
+| `breath` | the low Geofón rumble, 0.6 to 4.8 s |
+
+Additional sources verified 2026-09-16:
+
+| File | Title | Recordist | Freesound page | License |
+|---|---|---|---|---|
+| `387068-chitter.ogg` | chitter.wav | taure | https://freesound.org/people/taure/sounds/387068/ | CC0 1.0 |
+| `744788-low-rumble.ogg` | Monster breathing snoring growling | lori.mortimer | https://freesound.org/people/lori.mortimer/sounds/744788/ | CC0 1.0 |
+
+The low rumble records vibrations from a rowing machine with a LOM Geofón.
+Both additions use endpoint fades and peak normalization only. The old breath
+source is retained for reproducibility of earlier versions. Runtime keeps D-0012’s
+rare, irregular idle timing. Listening suitability is pending Rusty’s review;
+signal measurements and successful decoding do not establish scariness.

@@ -115,7 +115,12 @@ public final class Transition {
         if (frame.gravity().isDown()) {
             return Optional.of(new Stance(Frame.WORLD, feet, Double.NaN));
         }
-        for (double d = 0.0; d <= height; d += 0.1) {
+        // Include the exact endpoint: Minecraft's 1.8f height is below the
+        // double 1.8 reached by repeated 0.1 additions. Only a whole height
+        // clears the world's upright box from the underside of a ceiling.
+        int steps = (int) Math.ceil(height / 0.1);
+        for (int i = 0; i <= steps; i++) {
+            double d = Math.min(i * 0.1, height);
             Vec candidate = feet.plus(frame.up().times(d));
             if (fits.test(Frame.WORLD.box(candidate, width, height))) {
                 return Optional.of(new Stance(Frame.WORLD, candidate, Double.NaN));

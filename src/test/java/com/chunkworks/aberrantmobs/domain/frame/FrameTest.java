@@ -28,6 +28,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 /**
+ * Placement yaw: all frames, oblique/vertical looks, wall/ceiling fallback, invalid angles.
  * Partitions. Gravity: the nearest to a vector; toward a face; opposites.
  * Frame: every gravity's frame is right-handed with up against it; the
  * world's is the game's; local to world and back are inverse; the box on
@@ -43,6 +44,31 @@ import org.junit.jupiter.api.Test;
  * between, done after.
  */
 final class FrameTest {
+    @Test
+    void placementYawProjectsTheLookAndHasAStableVerticalFallback() {
+        for (Gravity gravity : Gravity.values()) {
+            Frame frame = Frame.of(gravity);
+            for (double yaw : new double[] {-135, -90, 0, 37, 90, 180}) {
+                for (double pitch : new double[] {-90, -25, 0, 60, 90}) {
+                    Vec look = frame.toWorld(CameraAngles.compose(new CameraAngles.Angles(yaw, pitch, 0)).rotate(Vec.Z));
+                    Vec heading = Frame.headingOf(frame.placementYaw(yaw, pitch));
+                    assertEquals(0, heading.y(), 1e-9);
+                    assertEquals(1, heading.length(), 1e-9);
+                    double length = Math.hypot(look.x(), look.z());
+                    if (length > 1e-5) {
+                        assertTrue(heading.near(new Vec(look.x() / length, 0, look.z() / length), 1e-7));
+                    }
+                }
+            }
+        }
+        assertEquals(-90, Frame.of(Gravity.EAST).placementYaw(0, 0), 1e-9, "up the east wall falls back toward that wall");
+        assertEquals(90, Frame.of(Gravity.WEST).placementYaw(0, 0), 1e-9);
+        assertEquals(-37, Frame.of(Gravity.UP).placementYaw(37, 90), 1e-9, "ceiling keeps its horizontal heading");
+        assertEquals(37, Frame.WORLD.placementYaw(37, -90), 1e-9);
+        assertThrows(IllegalArgumentException.class, () -> Frame.WORLD.placementYaw(Double.NaN, 0));
+        assertThrows(IllegalArgumentException.class, () -> Frame.WORLD.placementYaw(0, Double.POSITIVE_INFINITY));
+    }
+
     @Test
     void gravityIsAnAxisNearestTheVector() {
         assertEquals(Gravity.DOWN, Gravity.nearest(new Vec(0.1, -1, 0.2)));
@@ -166,5 +192,16 @@ final class FrameTest {
         assertFalse(blend.done(105.9));
         assertTrue(blend.done(106));
         assertThrows(IllegalArgumentException.class, () -> new Blend(a, b, 0, 0));
+    }
+
+    @Test
+    void releaseIncludesTheFullHeightWhenHangingFromTheCeiling() {
+        // Minecraft's player height is a float, just below the double 1.8.
+        // A 0.1 loop must still try its endpoint: only the full height clears.
+        double height = 1.8f;
+        Vec feet = new Vec(0, 14, 0);
+        var stance = Transition.release(Frame.of(Gravity.UP), feet, 0.6, height, box -> box.hi().y() <= 14);
+        assertTrue(stance.isPresent(), "the final candidate clears the ceiling");
+        assertEquals(14 - height, stance.orElseThrow().feet().y(), 1e-9);
     }
 }

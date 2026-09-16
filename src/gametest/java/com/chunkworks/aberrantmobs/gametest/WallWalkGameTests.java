@@ -38,6 +38,7 @@ import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 /**
+ * Partitions: floor to each of four walls to ceiling; full set/removal; dry/water.
  * The chitin armour on a headless server. A player wearing the full set
  * walked into a wall takes it: gravity toward the wall, on the ground of
  * it, its box lying along the wall's normal, and climbs it with no fall;
@@ -155,4 +156,50 @@ public final class WallWalkGameTests {
             helper.succeed();
         });
     }
+    /** effects: walks each wall onto the ceiling through real collision and transition rules. */
+    @GameTest(template = "tall", timeoutTicks = 150, batch = "wallwalk_axes")
+    public void allFourWallsLeadToTheCeilingAndArmourRemovalLetsGo(GameTestHelper helper) {
+        fill(helper, 0, 0, 0, 14, FLOOR - 1, 14, Blocks.STONE);
+        fill(helper, 0, FLOOR, 0, 1, 14, 14, Blocks.STONE);
+        fill(helper, 12, FLOOR, 0, 14, 14, 14, Blocks.STONE);
+        fill(helper, 0, FLOOR, 0, 14, 14, 1, Blocks.STONE);
+        fill(helper, 0, FLOOR, 12, 14, 14, 14, Blocks.STONE);
+        fill(helper, 0, 14, 0, 14, 14, 14, Blocks.STONE);
+        Gravity[] walls = {Gravity.EAST, Gravity.WEST, Gravity.SOUTH, Gravity.NORTH};
+        float[] yaws = {-90, 90, 0, 180};
+        ServerPlayer[] players = new ServerPlayer[4];
+        for (int i = 0; i < players.length; i++) {
+            players[i] = wearer(helper, 7.5, 7.5, true);
+            players[i].setYRot(yaws[i]);
+            players[i].setYHeadRot(yaws[i]);
+        }
+        for (int t = 1; t <= 110; t++) {
+            helper.runAtTickTime(t, () -> {
+                for (ServerPlayer player : players) step(player, 0.15);
+            });
+        }
+        helper.runAtTickTime(40, () -> {
+            for (int i = 0; i < players.length; i++) {
+                helper.assertValueEqual(WallWalk.frameOf(players[i]).gravity(), walls[i], "took wall " + walls[i]);
+                helper.assertTrue(players[i].onGround(), "grounded on " + walls[i]);
+            }
+        });
+        helper.runAtTickTime(111, () -> {
+            try {
+                for (int i = 0; i < players.length; i++) {
+                    ServerPlayer player = players[i];
+                    helper.assertValueEqual(WallWalk.frameOf(player).gravity(), Gravity.UP, "ceiling reached from " + walls[i]);
+                    helper.assertTrue(player.onGround() && player.fallDistance == 0, "ceiling is its ground from " + walls[i]);
+                    player.setItemSlot(EquipmentSlot.HEAD, ItemStack.EMPTY);
+                    WallWalk.rule(player);
+                    helper.assertValueEqual(WallWalk.frameOf(player), Frame.WORLD, "helmet removal from ceiling after " + walls[i]);
+                    helper.assertTrue(helper.getLevel().noCollision(player, player.getBoundingBox()), "released box clears ceiling");
+                }
+            } finally {
+                for (ServerPlayer player : players) player.discard();
+            }
+            helper.succeed();
+        });
+    }
+
 }

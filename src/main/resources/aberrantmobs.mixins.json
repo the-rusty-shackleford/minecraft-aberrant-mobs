@@ -4,6 +4,9 @@
   "package": "com.chunkworks.aberrantmobs.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
+    "DirectionMixin",
+    "UseOnContextMixin",
+    "ExplosionMixin",
     "EntityAccessor",
     "EntityMixin",
     "LivingEntityMixin",
@@ -16,7 +19,10 @@
     "LocalPlayerMixin",
     "CameraAccessor",
     "CameraMixin",
-    "LivingEntityRendererMixin"
+    "ScreenEffectRendererMixin",
+    "LivingEntityRendererMixin",
+    "EntityRendererMixin",
+    "EntityRenderDispatcherMixin"
   ],
   "injectors": {
     "defaultRequire": 1

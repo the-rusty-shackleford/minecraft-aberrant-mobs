@@ -118,6 +118,29 @@ public record Frame(Gravity gravity, Vec right, Vec up, Vec forward) {
         return new Vec(-Math.sin(r), 0.0, Math.cos(r));
     }
 
+    /**
+     * requires: yaw and pitch are finite degrees in the wearer's local frame
+     * effects: returns a world-horizontal yaw for a block that cannot face vertically.
+     * Projects the look onto world XZ; a vertical look uses the local heading's
+     * projection, then the supporting wall's direction when that too is vertical.
+     * throws: IllegalArgumentException when either angle is not finite
+     */
+    public double placementYaw(double yaw, double pitch) {
+        if (!Double.isFinite(yaw) || !Double.isFinite(pitch)) {
+            throw new IllegalArgumentException("placement angles must be finite");
+        }
+        Vec heading = headingOf(yaw);
+        double p = Math.toRadians(pitch);
+        Vec world = toWorld(heading.times(Math.cos(p)).plus(Vec.Y.times(-Math.sin(p))));
+        if (world.x() * world.x() + world.z() * world.z() < 1e-10) {
+            world = toWorld(heading);
+        }
+        if (world.x() * world.x() + world.z() * world.z() < 1e-10) {
+            world = gravity.dir;
+        }
+        return Math.toDegrees(Math.atan2(-world.x(), world.z()));
+    }
+
     /** effects: returns where the eyes are: {@code eyeHeight} up from the feet */
     public Vec eye(Vec feet, double eyeHeight) {
         return feet.plus(up.times(eyeHeight));

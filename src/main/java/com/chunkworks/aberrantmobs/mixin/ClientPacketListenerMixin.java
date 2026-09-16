@@ -18,6 +18,9 @@
 package com.chunkworks.aberrantmobs.mixin;
 
 import com.chunkworks.aberrantmobs.Aberrant;
+import com.chunkworks.aberrantmobs.wallwalk.WallWalk;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.world.phys.Vec3;
 import net.minecraft.client.GameNarrator;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Gui;
@@ -47,6 +50,15 @@ public abstract class ClientPacketListenerMixin {
         if (!aberrantmobs$held()) {
             narrator.sayNow(message);
         }
+    }
+
+    @Redirect(method = "handleExplosion", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/player/LocalPlayer;setDeltaMovement(Lnet/minecraft/world/phys/Vec3;)V"))
+    private void aberrantmobs$explosionInFrame(LocalPlayer player, Vec3 sum) {
+        if (!WallWalk.bent(player)) {
+            player.setDeltaMovement(sum);
+            return;
+        }
+        WallWalk.addWorldImpulse(player, sum.subtract(player.getDeltaMovement()));
     }
 
     private static boolean aberrantmobs$held() {

@@ -73,6 +73,16 @@ public final class WallWalk {
         return e instanceof FrameCarrier c && !c.aberrantmobs$frame().gravity().isDown();
     }
 
+    /**
+     * requires: impulse is a finite world vector
+     * effects: adds that impulse to the entity's stored velocity, converting to the
+     * wearer's local axes once; ordinary entities retain the game's world velocity
+     */
+    public static void addWorldImpulse(Entity entity, Vec3 impulse) {
+        Vec3 local = bent(entity) ? vec3(frameOf(entity).toLocal(vec(impulse))) : impulse;
+        entity.setDeltaMovement(entity.getDeltaMovement().add(local));
+    }
+
     public static Vec vec(Vec3 v) {
         return new Vec(v.x, v.y, v.z);
     }

@@ -96,6 +96,11 @@ public final class PhotoBooth {
     /** The wall-walk's wall, and how many ticks of the walk the server's position was over half a block from the client's. */
     private static double wallX;
     private static int disagreements;
+    private static String lastClip;
+    private static Clip awaitedClip;
+    private static int[] clipShots;
+    private static int clipWait;
+    private static int clipStarted = -1;
 
     @SubscribeEvent
     public static void onClientTick(ClientTickEvent.Post event) {
@@ -122,11 +127,37 @@ public final class PhotoBooth {
                     phase = Phase.RUNNING;
                     tick = 0;
                     mc.options.hideGui = true;
-                    steps = plan(mc);
-                    onServer(mc, PhotoBooth::setUp);
+                    if (Boolean.getBoolean("aberrantmobs.artBooth")) {
+                        steps = List.of();
+                        onServer(mc, ArtBooth::setUp);
+                    } else if (Boolean.getBoolean("aberrantmobs.gravityBooth")) {
+                        steps = List.of();
+                        onServer(mc, GravityBooth::setUp);
+                    } else {
+                        steps = plan(mc);
+                        onServer(mc, PhotoBooth::setUp);
+                    }
                 }
             }
             case RUNNING -> {
+                if (Boolean.getBoolean("aberrantmobs.artBooth")) {
+                    ArtBooth.tick(mc, tick++);
+                    return;
+                }
+                if (Boolean.getBoolean("aberrantmobs.gravityBooth")) {
+                    GravityBooth.tick(mc, tick++);
+                    return;
+                }
+                Aberrant observed = find(mc);
+                String clip = observed == null ? null : observed.clipPlaying();
+                if (!java.util.Objects.equals(lastClip, clip)) {
+                    LOG.info("booth: clip observation t={} clip={} entityTick={}", tick, clip, observed == null ? -1 : observed.tickCount);
+                    lastClip = clip;
+                }
+                if (awaitedClip != null) {
+                    sampleClip(mc, observed);
+                    return; // the scene clock waits; the real server and client keep ticking
+                }
                 for (Step step : steps) {
                     if (step.at() == tick) {
                         step.action().run();
@@ -197,7 +228,7 @@ public final class PhotoBooth {
         // The face, from three blocks ahead of the head at its eye height.
         s.add(new Step(t += 2, () -> onServer(mc, sp -> {
             double y = sp.serverLevel().getMinBuildHeight() + 4;
-            sp.teleportTo(sp.serverLevel(), X + 9.75, y + 1.95, Z, 0.0f, 0.0f);
+            sp.teleportTo(sp.serverLevel(), X + 8.0, y + 1.95, Z, 0.0f, 0.0f);
             sp.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(X + 3.0, y + 2.1, Z));
         })));
         s.add(new Step(t += SETTLE / 2, () -> {
@@ -292,16 +323,16 @@ public final class PhotoBooth {
                 new Shot(FaceStealerClips.DEATH, false, 20, 39));
         for (Shot shot : shots) {
             s.add(new Step(t += 20, () -> onServer(mc, sp -> onCreature(sp, a -> frame(sp, a, shot.quarter())))));
-            s.add(new Step(t += 10, () -> onServer(mc, sp -> onCreature(sp, a -> a.play(shot.clip())))));
-            for (int at : shot.at()) {
-                s.add(new Step(t + at, () -> {
-                    shoot(mc, "booth-" + shot.clip().name() + "-" + at);
-                    if (at == shot.at()[0]) {
-                        Aberrant a = find(mc);
-                        verdict("the client plays the " + shot.clip().name(), () -> a != null && shot.clip().name().equals(a.clipPlaying()) ? null : "the client's clip is " + (a == null ? null : a.clipPlaying()));
-                    }
+            s.add(new Step(t += 10, () -> {
+                awaitedClip = shot.clip();
+                clipShots = shot.at();
+                clipWait = 0;
+                clipStarted = -1;
+                onServer(mc, sp -> onCreature(sp, a -> {
+                    LOG.info("booth: server starts clip={} entityTick={}", shot.clip().name(), a.tickCount);
+                    a.play(shot.clip());
                 }));
-            }
+            }));
             t += shot.clip().ticks();
         }
         s.add(new Step(t += 20, () -> {
@@ -466,6 +497,8 @@ public final class PhotoBooth {
         s.add(new Step(t += 60, () -> mc.options.keyUp.setDown(false)));
         s.add(new Step(t += 6, () -> {
             shoot(mc, "booth-wallwalk-eyes");
+            int visible = count(mc, rgb -> Math.max((rgb >> 16) & 255, Math.max((rgb >> 8) & 255, rgb & 255)) > 32);
+            verdict("the first-person wall view stays visible", () -> visible > 1000 ? null : "bright pixels " + visible);
             verdict("the client stands on the wall", () -> mc.player != null && com.chunkworks.aberrantmobs.wallwalk.WallWalk.frameOf(mc.player).gravity() == com.chunkworks.aberrantmobs.domain.frame.Gravity.EAST
                     ? null : "the client's gravity is " + (mc.player == null ? null : com.chunkworks.aberrantmobs.wallwalk.WallWalk.frameOf(mc.player).gravity()));
             double y = mc.level.getMinBuildHeight() + 4;
@@ -478,6 +511,13 @@ public final class PhotoBooth {
         }));
         s.add(new Step(t += 6, () -> {
             shoot(mc, "booth-wallwalk-third");
+            mc.options.setCameraType(net.minecraft.client.CameraType.THIRD_PERSON_BACK);
+        }));
+        s.add(new Step(t += 6, () -> {
+            shoot(mc, "booth-wallwalk-back");
+            var camera = mc.gameRenderer.getMainCamera();
+            LOG.info("booth: camera back position={} eye={} look={} cameraLook={}", camera.getPosition(),
+                    mc.player.getEyePosition(), mc.player.getLookAngle(), camera.getLookVector());
             mc.options.setCameraType(net.minecraft.client.CameraType.FIRST_PERSON);
         }));
         s.add(new Step(t += 10, () -> {
@@ -540,6 +580,26 @@ public final class PhotoBooth {
             sp.teleportTo(sp.serverLevel(), a.getX() - 3.75, y + 6.0, Z - 19.5, 0.0f, 0.0f);
             sp.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(a.getX() - 3.75, y + 1.8, Z));
         }
+    }
+
+    /** effects: photographs keyframes from observed playback; a missing clip fails after forty real client ticks. */
+    private static void sampleClip(Minecraft mc, Aberrant actor) {
+        if (clipStarted < 0) {
+            if (actor == null || !awaitedClip.name().equals(actor.clipPlaying())) {
+                if (++clipWait >= 40) {
+                    verdict("the client plays the " + awaitedClip.name(), () -> "clip did not arrive within forty client ticks");
+                    awaitedClip = null;
+                }
+                return;
+            }
+            clipStarted = actor.tickCount;
+            verdict("the client plays the " + awaitedClip.name(), () -> null);
+        }
+        int age = actor.tickCount - clipStarted + 1;
+        for (int at : clipShots) {
+            if (age == at) shoot(mc, "booth-" + awaitedClip.name() + "-" + at);
+        }
+        if (age >= clipShots[clipShots.length - 1]) awaitedClip = null;
     }
 
     private static void onCreature(ServerPlayer sp, Consumer<Aberrant> action) {

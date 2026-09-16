@@ -105,6 +105,8 @@ neoForge {
             sourceSet = sourceSets.gametest
             gameDirectory = file('run/booth')
             systemProperty 'aberrantmobs.photobooth', 'true'
+            systemProperty 'aberrantmobs.artBooth', project.hasProperty('boothArt').toString()
+            systemProperty 'aberrantmobs.gravityBooth', project.hasProperty('boothGravity').toString()
             taskBefore prepareBooth
         }
         playtest {
@@ -212,7 +214,7 @@ tasks.named('runPhotoBooth') { task ->
         if (!failures.isEmpty()) {
             throw new GradleException("booth: ${failures.size()} failed check(s):\n" + failures.join('\n'))
         }
-        if (!(text =~ /booth: PASS/)) {
+        if (!(text =~ /booth: PASS all checks ran/)) {
             throw new GradleException("booth: no verdict in ${logFile} -- the booth never ran")
         }
         task.logger.lifecycle("booth: " + (text =~ /booth: PASS.*/)[0])

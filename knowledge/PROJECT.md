@@ -303,13 +303,23 @@ breath's among them.
 
 ## Next
 
-Rusty's vetting of the whole in play, now at the new size: the booth's frames first, then the
-server. Then (b) and (c) of the 1.2.0 queue. Open: the
-armour's remaining phase C (block placement facing on a wall, the shadow and nameplate,
-explosions into the frame, and the third-person back camera: on a wall it backs off
-down into the ground and the game's clip parks it on the surface, so the booth uses the
-front camera); the wall-walk under Iris in the booth from a second client; whatever the
-playtest's frames say about the dread.
+Rusty’s vetting of the held 1.2.0 work remains open. D-0015 completes the placement,
+explosion, nameplate and contact-shadow adapters, the ceiling-release endpoint, and
+first-person obstruction probes around the actual eyes instead of the supporting wall.
+The rear-camera report was ground clearance, verified by low/high scenes; no camera
+production code changed. D-0016 provides vanilla-family item/worn art and the new CC0
+chitter/rumble candidates. Rusty’s listening review remains pending.
+
+Validation in this session: 123 JUnit tests, 24 real-server tests, 44 full survival-booth
+assertions, 54 focused gravity assertions and six armour comparison assertions passed.
+Both client suites require their completion marker as well as zero failed assertions.
+The focused gravity and armour booths provide matched real-client captures; the
+six-axis gravity gate passed under Iris/Sodium with Complementary Unbound 5.8.1.
+First-person captures wait for the camera to have actually rendered in first person,
+so client tick catch-up cannot silently save the preceding front-camera view.
+The tracked remote wearer is a server-controlled actor. Testing with an independently
+connected second player, knockback/pounce landings in the frame, and subjective dread
+in play remain open. All release actions stay held.
 
 The planner's budget question (2026-09-15 morning: a hunt to a point ten blocks into
 rock with open air about found no way within 4000 expansions, and a budget-exhausted
