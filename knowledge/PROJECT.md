@@ -317,9 +317,27 @@ The focused gravity and armour booths provide matched real-client captures; the
 six-axis gravity gate passed under Iris/Sodium with Complementary Unbound 5.8.1.
 First-person captures wait for the camera to have actually rendered in first person,
 so client tick catch-up cannot silently save the preceding front-camera view.
-The tracked remote wearer is a server-controlled actor. Testing with an independently
-connected second player, knockback/pounce landings in the frame, and subjective dread
-in play remain open. All release actions stay held.
+The focused booth's tracked remote wearer is a server-controlled actor. D-0017 now
+adds a separate dedicated-server gate with two independent TCP Minecraft clients:
+one renders under Iris/Complementary, the wearer's rendering is disabled after login.
+Both complete natural survival wall-to-ceiling movement, six-frame equipment/position
+checks, actual motion packets and ceiling helmet removal, with zero movement corrections.
+The full headless suite is now 123 JUnit plus 32 real-server tests, including six-surface
+pounces, six-axis knockback and four-wall stance replay with rejected forged endpoints.
+
+These checks reproduced and repaired two defects: ceiling pounces aimed above the
+ceiling using the launch face's up, and the server counted the stance displacement
+twice when replaying a wall-to-ceiling report. Ordinary collision and speed validation
+remain; only candidates reproducing all reported coordinates are used. Test creatures
+are persistent to prevent vanilla distance despawn before their first tick. See D-0017
+and the README for the self-cleaning multiplayer runner and its single-renderer sequence.
+
+Rusty's creature listening review and subjective dread in play remain human judgments.
+The local comparison includes the prior/new breath and retained/new click variants.
+Final full-build regression: 123 JUnit, 32 server tests and all 44 standard
+Iris/Complementary booth assertions pass. The separate multiplayer driver also passes
+all three process gates with no movement corrections. Test-only code is absent from
+the production jar. All release actions remain held.
 
 The planner's budget question (2026-09-15 morning: a hunt to a point ten blocks into
 rock with open air about found no way within 4000 expansions, and a budget-exhausted

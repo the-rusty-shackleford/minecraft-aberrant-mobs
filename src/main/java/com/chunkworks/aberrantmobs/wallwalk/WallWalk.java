@@ -148,6 +148,41 @@ public final class WallWalk {
         c.aberrantmobs$setWasOnGround(p.onGround());
     }
 
+    /**
+     * requires: reported is the finite world displacement in a normal movement packet.
+     * effects: returns the displacement to replay before a bent wearer's into-wall
+     * stance change. A candidate is used only if real collision plus the existing
+     * transition rule reproduces all three reported coordinates; otherwise returns
+     * reported unchanged. Does not move the player or run collision side effects.
+     */
+    public static Vec3 replayMove(Player p, Vec3 reported) {
+        if (!bent(p) || !wears(p)) return reported;
+        Frame before = frameOf(p);
+        double halfHeight = p.getBbHeight() / 2.0;
+        // Into-wall stances shift the feet half a body along the old up.
+        // Ordinary grounded moves do not pay for four speculative collision checks.
+        if (vec(reported).dot(before.up()) < halfHeight - 0.05) return reported;
+        Vec feet = vec(p.position());
+        Vec wanted = feet.plus(vec(reported));
+        for (var gravity : com.chunkworks.aberrantmobs.domain.frame.Gravity.values()) {
+            if (gravity == before.gravity() || gravity == before.gravity().opposite()) continue;
+            Frame next = Frame.of(gravity);
+            Vec shift = before.up().times(halfHeight).minus(next.up().times(p.getBbWidth() / 2.0));
+            Vec attempt = vec(reported).minus(shift);
+            // The packet contains the already-clipped travel. Probe a bounded sliver
+            // into the candidate wall so collision can confirm the face it stopped on.
+            attempt = attempt.plus(gravity.dir.times(Transition.INTO_WALL + 1e-4));
+            Vec3 delta = vec3(attempt);
+            Vec3 collided = WallWalkMove.collide(p, before, delta);
+            Vec stopped = attempt.minus(vec(collided));
+            if (stopped.dot(gravity.dir) < 1e-5) continue;
+            var stance = Transition.intoWall(before, feet.plus(vec(collided)), p.getBbWidth(), p.getBbHeight(),
+                    attempt, next.up(), fits(p));
+            if (stance.isPresent() && stance.get().feet().minus(wanted).length() < 1e-5) return delta;
+        }
+        return reported;
+    }
+
     private static Predicate<Frame.Box> fits(Player p) {
         return box -> p.level().noCollision(p, aabb(box));
     }

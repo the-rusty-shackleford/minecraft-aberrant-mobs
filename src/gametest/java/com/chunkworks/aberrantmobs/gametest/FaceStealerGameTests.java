@@ -386,6 +386,9 @@ public final class FaceStealerGameTests {
         Vec3 at = helper.absoluteVec(new Vec3(x, FLOOR, z));
         Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, yaw);
         helper.assertTrue(a != null, "the creature is made");
+        // The fixture must survive regardless of players left in distant test arenas.
+        // Vanilla otherwise despawns it before its first tick, before its ears register.
+        a.setPersistenceRequired();
         helper.getLevel().addFreshEntity(a);
         return a;
     }
@@ -397,7 +400,7 @@ public final class FaceStealerGameTests {
         Aberrant a = minded(helper, 2.5, 7.5, -90.0f);
         helper.assertTrue(a.profile() != null && a.profile().mind().isPresent(), "the Face-Stealer has a mind");
         helper.runAtTickTime(2, () -> {
-            helper.assertValueEqual(a.mode(), "roam", "it starts roaming");
+            helper.assertValueEqual(a.mode(), "roam", "it starts roaming; entity ticks=" + a.tickCount);
             helper.assertValueEqual(a.verb(), "wander", "and wanders");
             com.chunkworks.aberrantmobs.domain.Vec far = a.axis().plus(new com.chunkworks.aberrantmobs.domain.Vec(250, 0, 0));
             a.hear(new com.chunkworks.aberrantmobs.domain.Hearing.Sound(far, 1.0, a.tickCount, "someone"));
@@ -429,7 +432,7 @@ public final class FaceStealerGameTests {
             helper.destroyBlock(new BlockPos(11, FLOOR - 1, 7));
         });
         helper.runAtTickTime(12, () -> {
-            helper.assertValueEqual(a.hearing().remembered(), 1, "the world's block break was heard");
+            helper.assertValueEqual(a.hearing().remembered(), 1, "the world's block break was heard; entity ticks=" + a.tickCount + ", removed=" + a.getRemovalReason() + ", ticking=" + helper.getLevel().isPositionEntityTicking(a.blockPosition()) + ", pos=" + a.position());
             helper.assertValueEqual(a.mode(), "prowl", "and prowled toward");
             helper.assertTrue(a.hearing().estimate(a.axis(), a.tickCount).orElseThrow().loud(), "a loud one");
             helper.succeed();

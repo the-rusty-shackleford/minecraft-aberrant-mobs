@@ -18,14 +18,13 @@
 package com.chunkworks.aberrantmobs.mixin;
 
 import com.chunkworks.aberrantmobs.wallwalk.WallWalk;
-import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;
+import net.minecraft.world.entity.MoverType;
+import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.Redirect;
 
 /**
  * The server re-runs every move a client reports and then compares where
@@ -37,15 +36,15 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * re-run, before the comparison: the two then agree. Applied only at the
  * end of the server's tick, as it first was, every take was a "moved
  * wrongly" and a teleport back, and a wearer in survival never climbed;
- * creative skips the check, which is how the booth missed it.
+ * creative skips the check, which is how the booth missed it. A bent-frame
+ * transition report already includes a stance displacement; its inverse is used
+ * only when collision and the transition rule reproduce the full reported position.
  */
 @Mixin(ServerGamePacketListenerImpl.class)
 public abstract class ServerGamePacketListenerImplMixin {
-    @Shadow
-    public ServerPlayer player;
-
-    @Inject(method = "handleMovePlayer", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/level/ServerPlayer;move(Lnet/minecraft/world/entity/MoverType;Lnet/minecraft/world/phys/Vec3;)V", shift = At.Shift.AFTER))
-    private void aberrantmobs$ruleAfterTheRerun(ServerboundMovePlayerPacket packet, CallbackInfo ci) {
-        WallWalk.rule(player);
+    @Redirect(method = "handleMovePlayer", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/level/ServerPlayer;move(Lnet/minecraft/world/entity/MoverType;Lnet/minecraft/world/phys/Vec3;)V"))
+    private void aberrantmobs$replayBeforeStance(ServerPlayer wearer, MoverType type, Vec3 reported) {
+        wearer.move(type, WallWalk.replayMove(wearer, reported));
+        WallWalk.rule(wearer);
     }
 }

@@ -24,6 +24,7 @@ import com.chunkworks.aberrantmobs.domain.Body;
 import com.chunkworks.aberrantmobs.domain.Burrow;
 import com.chunkworks.aberrantmobs.domain.Carapace;
 import com.chunkworks.aberrantmobs.domain.Cell;
+import com.chunkworks.aberrantmobs.domain.Cells;
 import com.chunkworks.aberrantmobs.domain.ChainPose;
 import com.chunkworks.aberrantmobs.domain.Clip;
 import com.chunkworks.aberrantmobs.domain.Crawl;
@@ -905,7 +906,13 @@ public class Aberrant extends Monster {
         if (crawl == null || body == null || p == null || crawl.airborne()) {
             return false;
         }
-        Vec aim = point.plus(up().times(rules(body, p).clearance()));
+        // A target on another face has another up. A floor launch aimed above
+        // a ceiling used to strike its underside early, well short of the target.
+        // Resolve only the target's immediate support; an airborne target retains
+        // the existing current-up fallback. This runs once per pounce, not per tick.
+        Crawl.Rules rules = rules(body, p);
+        Crawl.Pose destination = Crawl.attach(cells(), point, crawl.heading(), rules, Cells.CAST_STEP * 2);
+        Vec aim = destination == null ? point.plus(up().times(rules.clearance())) : destination.centre();
         Optional<Vec> v = Leap.velocity(crawl.centre(), aim, Vec.ZERO, POUNCE_SPEED, Leap.GRAVITY);
         if (v.isEmpty()) {
             return false;

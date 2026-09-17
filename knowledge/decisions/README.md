@@ -24,3 +24,4 @@ type: index
 | D-0014 | The server judges a wearer's frame inside its re-run of each reported move, never by teleport |
 | D-0015 | Gravity converts placement, impulses and visual anchors at vanilla boundaries; release reaches its exact endpoint |
 | D-0016 | Chitin uses vanilla pixel templates; chitter and rumble are credited CC0 recordings |
+| D-0017 | Collision-validated stance replay, destination-surface pounces and independent TCP client verification |

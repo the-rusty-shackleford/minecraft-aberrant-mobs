@@ -60,6 +60,25 @@ var prepareBooth = tasks.register("prepareBooth") {
     }
 }
 
+// Test-only loopback server and two independent client directories. Existing
+// observer shader/mod configuration is left in place. Nothing touches Prism.
+var prepareMultiplayer = tasks.register("prepareMultiplayer") {
+    def root = layout.projectDirectory.dir('run/multiplayer').asFile
+    doLast {
+        def server = new File(root, 'server')
+        server.mkdirs()
+        new File(server, 'world').deleteDir() // disposable fixture, including saved test players
+        new File(server, 'eula.txt').text = 'eula=true\n'
+        new File(server, 'server.properties').text = 'server-ip=127.0.0.1\nserver-port=25579\nonline-mode=false\nenforce-secure-profile=false\nspawn-protection=0\nallow-flight=true\nview-distance=4\nsimulation-distance=4\nlevel-type=minecraft:flat\ngenerator-settings={"layers":[{"block":"minecraft:bedrock","height":1},{"block":"minecraft:dirt","height":2},{"block":"minecraft:grass_block","height":1}],"biome":"minecraft:plains"}\ngenerate-structures=false\nsync-chunk-writes=false\nmax-players=2\n'
+        ['wearer', 'observer'].each { role ->
+            def dir = new File(root, role)
+            dir.mkdirs()
+            def options = new File(dir, 'options.txt')
+            if (!options.exists()) options.text = 'onboardAccessibility:false\nnarrator:0\nsoundCategory_master:0.0\npauseOnLostFocus:false\nrenderDistance:4\nsimulationDistance:5\nmaxFps:30\nguiScale:2\n'
+        }
+    }
+}
+
 var preparePlaytest = tasks.register("preparePlaytest") {
     def dir = layout.projectDirectory.dir('run/playtest').asFile
     outputs.upToDateWhen { false }
@@ -116,6 +135,28 @@ neoForge {
             systemProperty 'aberrantmobs.playtest', 'true'
             taskBefore preparePlaytest
         }
+        multiplayerServer {
+            server()
+            sourceSet = sourceSets.gametest
+            gameDirectory = file('run/multiplayer/server')
+            programArgument '--nogui'
+            systemProperty 'aberrantmobs.multiplayer', 'server'
+            taskBefore prepareMultiplayer
+        }
+        multiplayerWearer {
+            client()
+            sourceSet = sourceSets.gametest
+            gameDirectory = file('run/multiplayer/wearer')
+            programArguments.addAll('--username', 'FrameWearer')
+            systemProperty 'aberrantmobs.multiplayer', 'wearer'
+        }
+        multiplayerObserver {
+            client()
+            sourceSet = sourceSets.gametest
+            gameDirectory = file('run/multiplayer/observer')
+            programArguments.addAll('--username', 'FrameObserver')
+            systemProperty 'aberrantmobs.multiplayer', 'observer'
+        }
         configureEach {
             logLevel = org.slf4j.event.Level.DEBUG
         }
@@ -135,7 +176,7 @@ neoForge {
     addModdingDependenciesTo(sourceSets.gametest)
 }
 
-neoForge.runs.matching { it.name != 'gameTestServer' && it.name != 'photoBooth' && it.name != 'playtest' }.configureEach {
+neoForge.runs.matching { it.name != 'gameTestServer' && it.name != 'photoBooth' && it.name != 'playtest' && !it.name.startsWith('multiplayer') }.configureEach {
     loadedMods = neoForge.mods.matching { it.name != "${mod_id}_gametest" }
 }
 
@@ -252,5 +293,19 @@ idea {
     module {
         downloadSources = true
         downloadJavadoc = true
+    }
+}
+
+// A zero exit code without the completed experiment is never success.
+['Server', 'Wearer', 'Observer'].each { role ->
+    tasks.named("runMultiplayer${role}") { task ->
+        def logFile = layout.projectDirectory.file("run/multiplayer/${role.toLowerCase()}/logs/latest.log").asFile
+        task.doLast {
+            def text = logFile.exists() ? logFile.text : ''
+            if (!text.contains('multiplayer: PASS all checks ran') || text.contains('multiplayer: FAIL')
+                    || text.contains('FrameWearer moved wrongly') || text.contains('FrameWearer moved too quickly')) {
+                throw new GradleException("multiplayer: incomplete or failed ${role} experiment; see ${logFile}")
+            }
+        }
     }
 }

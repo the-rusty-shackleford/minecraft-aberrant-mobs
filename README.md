@@ -417,7 +417,26 @@ agreement. Each run requires its completion marker and no failed assertions.
 The focused booth’s remote wearer is a server-controlled actor delivered through real
 entity/equipment tracking, not a second connected player. Iris compatibility was
 checked with Iris 1.8.14 beta.1, Sodium 0.8.13 beta.2 and Complementary Unbound 5.8.1
-in an isolated booth directory; a separate-client multiplayer gate remains open.
+in an isolated booth directory.
+
+The independent-client gate is `uv run --no-project python devtools/multiplayer.py`.
+Set the same Java 21/software-rendering environment as the booth and `DISPLAY` to
+an existing, host-checked test display. Start with no other Minecraft client running.
+It creates a disposable loopback server at `127.0.0.1:25579`, waits for a real wearer
+to finish joining and disable rendering, then launches the sole rendering observer.
+Optional observer mods, shaderpacks and config live in `run/multiplayer/observer/`;
+copy the isolated booth's shader setup there to reproduce its visual environment.
+Both players finish loading before the fixture starts. Logs are under
+`run/multiplayer/driver/`, screenshots under `run/multiplayer/observer/screenshots/`.
+Every process must complete; movement corrections fail the gate. On failure the
+runner terminates only its own processes. The test never starts or restarts a live server.
+
+The gate covers natural survival wall/ceiling movement, all six tracked frames and
+equipment, real motion packets, and ceiling helmet removal. Remote player motion is
+checked at vanilla's interpolation target. A four-wall server regression also rejects
+forged penetrating positions: stance replay never bypasses ordinary collision checks.
+Pounces aim their clearance along the destination's supporting face, fixing an early
+ceiling landing. All six landing surfaces are tested with actual creatures. See D-0017.
 
 ## Licence
 

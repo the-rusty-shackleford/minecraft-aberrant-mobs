@@ -43,6 +43,8 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 /**
  * Partitions: all six gravity axes; axial/oblique/vertical looks; six-way and
  * horizontal-only block states; zero/nonzero pre-existing local velocity.
+ * Knockback: grounded/airborne; zero/nonzero velocity; zero/partial/full resistance;
+ * zero/ordinary/large strength; axial/oblique world impact directions.
  * Uses vanilla placement states and an actual level explosion. The framework's
  * server player supplies a connectionless actor, never a replacement backend.
  */
@@ -127,4 +129,97 @@ public final class GravityBoundaryGameTests {
         }
         helper.succeed();
     }
+    /** effects: verifies all four wall-to-ceiling reports replay once and forged endpoints do not get adjusted. */
+    @GameTest(template = "tall", batch = "gravity_replay")
+    public void reportedWallToCeilingStanceIsNotAppliedTwice(GameTestHelper helper) {
+        for (int x=0; x<15; x++) for (int y=3; y<16; y++) for (int z=0; z<15; z++) {
+            if (x==0 || x==14 || y==3 || y==14 || z==0 || z==14)
+                helper.setBlock(new BlockPos(x,y,z), Blocks.STONE);
+        }
+        for (Gravity gravity : new Gravity[] {Gravity.WEST, Gravity.EAST, Gravity.NORTH, Gravity.SOUTH}) {
+            ServerPlayer clientPath = helper.makeMockServerPlayerInLevel();
+            ServerPlayer serverPath = helper.makeMockServerPlayerInLevel();
+            Vec3 relative = switch(gravity) {
+                case WEST -> new Vec3(1,13.65,7.5);
+                case EAST -> new Vec3(14,13.65,7.5);
+                case NORTH -> new Vec3(7.5,13.65,1);
+                case SOUTH -> new Vec3(7.5,13.65,14);
+                default -> throw new AssertionError();
+            };
+            Vec3 start = helper.absoluteVec(relative);
+            try {
+                for (ServerPlayer player : new ServerPlayer[] {clientPath, serverPath}) {
+                    player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.HEAD, new ItemStack(com.chunkworks.aberrantmobs.ModContent.CHITIN_HELMET.get()));
+                    player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.CHEST, new ItemStack(com.chunkworks.aberrantmobs.ModContent.CHITIN_CHESTPLATE.get()));
+                    player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.LEGS, new ItemStack(com.chunkworks.aberrantmobs.ModContent.CHITIN_LEGGINGS.get()));
+                    player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.FEET, new ItemStack(com.chunkworks.aberrantmobs.ModContent.CHITIN_BOOTS.get()));
+                    ((FrameCarrier) player).aberrantmobs$setFrame(Frame.of(gravity));
+                    player.setPos(start);
+                    player.setOnGround(true);
+                }
+                clientPath.move(net.minecraft.world.entity.MoverType.PLAYER,
+                        new Vec3(0,0.22,0).add(WallWalk.vec3(gravity.dir.times(0.08))));
+                WallWalk.rule(clientPath);
+                helper.assertValueEqual(WallWalk.frameOf(clientPath).gravity(), Gravity.UP, "client movement reaches ceiling from " + gravity);
+                Vec3 reported = clientPath.position().subtract(start);
+                // Remove the other actor from collision consideration before replay.
+                clientPath.discard();
+                Vec3 adjusted = WallWalk.replayMove(serverPath, reported);
+                helper.assertTrue(adjusted.distanceTo(reported)>0.5,"the fixture reproduces the stance displacement " + gravity);
+                serverPath.move(net.minecraft.world.entity.MoverType.PLAYER, adjusted);
+                WallWalk.rule(serverPath);
+                helper.assertTrue(serverPath.position().distanceTo(start.add(reported))<1e-5,"replayed feet match all axes " + gravity);
+                helper.assertValueEqual(WallWalk.frameOf(serverPath).gravity(), Gravity.UP,"replayed ceiling frame " + gravity);
+                ((FrameCarrier) serverPath).aberrantmobs$setFrame(Frame.of(gravity));
+                serverPath.setPos(start);
+                Vec3 forged=reported.add(0,2,0);
+                helper.assertValueEqual(WallWalk.replayMove(serverPath,forged),forged,"no adjustment for a penetrating endpoint " + gravity);
+                serverPath.setItemSlot(net.minecraft.world.entity.EquipmentSlot.HEAD,ItemStack.EMPTY);
+                helper.assertValueEqual(WallWalk.replayMove(serverPath,reported),reported,"undressed path untouched " + gravity);
+            } finally { clientPath.discard(); serverPath.discard(); }
+        }
+        helper.succeed();
+    }
+
+    /** effects: compares the real knockback adapter to vanilla in the corresponding local plane. */
+    @GameTest(template = "tall", batch = "gravity_knockback")
+    public void knockbackMatchesVanillaInEveryFrame(GameTestHelper helper) {
+        ServerPlayer wearer = helper.makeMockServerPlayerInLevel();
+        ServerPlayer vanilla = helper.makeMockServerPlayerInLevel();
+        wearer.setPos(helper.absoluteVec(new Vec3(5, 8, 5)));
+        vanilla.setPos(helper.absoluteVec(new Vec3(10, 8, 10)));
+        try {
+            for (Gravity gravity : Gravity.values()) {
+                Frame frame = Frame.of(gravity);
+                ((FrameCarrier) wearer).aberrantmobs$setFrame(frame);
+                for (boolean grounded : new boolean[] {false, true}) {
+                    for (double resistance : new double[] {0, 0.6, 1}) {
+                        wearer.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.KNOCKBACK_RESISTANCE).setBaseValue(resistance);
+                        vanilla.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.KNOCKBACK_RESISTANCE).setBaseValue(resistance);
+                        for (double strength : new double[] {0, 0.4, 1}) {
+                            for (Vec3 before : new Vec3[] {Vec3.ZERO, new Vec3(0.17, -0.23, 0.31)}) {
+                                for (Vec3 impact : new Vec3[] {new Vec3(1, 0, 0.35), new Vec3(-0.27, 0, 1)}) {
+                                    wearer.setOnGround(grounded);
+                                    vanilla.setOnGround(grounded);
+                                    wearer.setDeltaMovement(before);
+                                    vanilla.setDeltaMovement(before);
+                                    Vec3 local = WallWalk.vec3(frame.toLocal(WallWalk.vec(impact)));
+                                    wearer.knockback(strength, impact.x, impact.z);
+                                    vanilla.knockback(strength, local.x, local.z);
+                                    helper.assertTrue(wearer.getDeltaMovement().distanceTo(vanilla.getDeltaMovement()) < 1e-7,
+                                            "vanilla knockback in " + gravity + ", grounded=" + grounded + ", resistance=" + resistance
+                                                    + ", strength=" + strength + ": " + wearer.getDeltaMovement() + " vs " + vanilla.getDeltaMovement());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } finally {
+            wearer.discard();
+            vanilla.discard();
+        }
+        helper.succeed();
+    }
+
 }
