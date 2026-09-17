@@ -352,6 +352,7 @@ size and time is still logged at DEBUG (`planned a way of N cells in M us`, in
 ## Release approval - 2026-09-16
 
 Rusty approved the final review, completing their earlier conditional release go.
-Version 1.2.0 is cleared for publication in pack 1.35.0 after the clean
-release build and asset verification. This supersedes the earlier release holds
+Version 1.2.0 was published on 2026-09-16 and deployed in pack 1.35.1
+after the clean release build and asset verification. The deployed server matched
+the published pack and ran at 20 TPS. This supersedes the earlier release holds
 and pending presentation/listening review recorded above.
