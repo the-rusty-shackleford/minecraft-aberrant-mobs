@@ -251,6 +251,9 @@ tasks.named('runPhotoBooth') { task ->
         if (text =~ /Missing or unsupported mandatory|Mod loading has failed/) {
             throw new GradleException("booth: the loader refused a mod; see ${logFile}")
         }
+        if (text =~ /moved wrongly|moved too quickly/) {
+            throw new GradleException("booth: the server rejected a movement; see ${logFile}")
+        }
         def failures = text.readLines().findAll { it.contains('booth: FAIL') }
         if (!failures.isEmpty()) {
             throw new GradleException("booth: ${failures.size()} failed check(s):\n" + failures.join('\n'))

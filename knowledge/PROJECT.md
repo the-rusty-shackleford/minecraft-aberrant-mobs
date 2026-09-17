@@ -347,3 +347,11 @@ cheapest way (twelve high, seventeen wide); before that day the dig had passed o
 straight-line fallback the playtest fixes removed, never on the planner. Each plan's
 size and time is still logged at DEBUG (`planned a way of N cells in M us`, in
 `debug.log`) for the next time a number is wanted.
+
+
+## Release approval - 2026-09-16
+
+Rusty approved the final review, completing their earlier conditional release go.
+Version 1.2.0 is cleared for publication in pack 1.35.0 after the clean
+release build and asset verification. This supersedes the earlier release holds
+and pending presentation/listening review recorded above.

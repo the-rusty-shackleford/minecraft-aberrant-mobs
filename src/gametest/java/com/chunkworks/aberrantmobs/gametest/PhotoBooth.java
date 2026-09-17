@@ -93,9 +93,8 @@ public final class PhotoBooth {
     private static double hillFace;
     private static double treeX;
     private static double pillarX;
-    /** The wall-walk's wall, and how many ticks of the walk the server's position was over half a block from the client's. */
+    /** The wall used by the survival walking fixture. */
     private static double wallX;
-    private static int disagreements;
     private static String lastClip;
     private static Clip awaitedClip;
     private static int[] clipShots;
@@ -484,15 +483,20 @@ public final class PhotoBooth {
             wallX = wx;
         }))));
         s.add(new Step(t += 3, () -> verdict("the client was let go of the maw", () -> mc.player != null && !mc.player.isPassenger() ? null : "the client still rides " + (mc.player == null ? null : mc.player.getVehicle()))));
-        // The client walks: its forward key held, it goes east into the wall and predicts the change of down itself,
-        // the server agreeing from the moves it reports. Every tick, the server's position against the client's.
-        s.add(new Step(t += 4, () -> mc.options.keyUp.setDown(true)));
+        // Send a snapshot after each ordinary movement packet on the same connection.
+        // Comparing live client/server entities across threads can mix different ticks.
+        s.add(new Step(t += 4, () -> {
+            MovementSample.reset();
+            mc.options.keyUp.setDown(true);
+        }));
         for (int i = 1; i <= 60; i++) {
-            s.add(new Step(t + i, () -> onServer(mc, sp -> {
-                if (mc.player != null && sp.position().distanceTo(mc.player.position()) > 0.5) {
-                    disagreements++;
+            s.add(new Step(t + i, () -> {
+                if (mc.player != null) {
+                    Vec3 position = mc.player.position();
+                    net.neoforged.neoforge.network.PacketDistributor.sendToServer(
+                            new MovementSample(position.x, position.y, position.z));
                 }
-            })));
+            }));
         }
         s.add(new Step(t += 60, () -> mc.options.keyUp.setDown(false)));
         s.add(new Step(t += 6, () -> {
@@ -503,7 +507,7 @@ public final class PhotoBooth {
                     ? null : "the client's gravity is " + (mc.player == null ? null : com.chunkworks.aberrantmobs.wallwalk.WallWalk.frameOf(mc.player).gravity()));
             double y = mc.level.getMinBuildHeight() + 4;
             verdict("and has climbed it in survival", () -> mc.player != null && mc.player.getY() - y > 3.0 ? null : "the client is " + (mc.player == null ? null : mc.player.getY() - y) + " up");
-            verdict("the server agreed with every move", () -> disagreements == 0 ? null : disagreements + " ticks with the server over half a block from the client");
+            verdict("the server agreed with every move", MovementSample::verdict);
             onServer(mc, sp -> verdict("and stands on the wall itself", () -> com.chunkworks.aberrantmobs.wallwalk.WallWalk.frameOf(sp).gravity() == com.chunkworks.aberrantmobs.domain.frame.Gravity.EAST && sp.getY() - y > 3.0
                     ? null : "the server's gravity is " + com.chunkworks.aberrantmobs.wallwalk.WallWalk.frameOf(sp).gravity() + ", " + (sp.getY() - y) + " up"));
             // From the front: the camera backs off along the look, which on a wall is up it and into open air.

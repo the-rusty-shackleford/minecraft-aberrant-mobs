@@ -20,13 +20,13 @@ Placement directions, explosion impulses, the name anchor and contact shadow now
 follow the wearer’s frame. First-person obstruction samples surround the actual eyes,
 so the supporting wall no longer blacks out the view. The rear camera uses vanilla clipping along the rotated
 look, including when the ground leaves little room. Removing the set under a ceiling
-searches all the way to a free standing box (D-0015). These changes remain unreleased.
+searches all the way to a free standing box (D-0015). These changes are included in 1.2.0.
 
 Chitin’s item and worn textures use vanilla netherite/scute templates recoloured to the
 creature’s palette, with an orange chest fissure; see `devtools/art/SOURCES.md` for
 credits. The Stolen Face has an authored bone-mask sprite. A CC0 chitter supplements
 the clicks and a low recorded rumble replaces the idle breath without changing its
-rare timing. Listening review remains pending; sources and cuts are in
+rare timing. Sources and cuts are in
 `devtools/art/sounds/SOURCES.md` (D-0016).
 
 ## In creative
@@ -441,3 +441,8 @@ ceiling landing. All six landing surfaces are tested with actual creatures. See 
 ## Licence
 
 AGPL-3.0-or-later. Copyright 2026 Rusty Shackleford and nfx.
+
+The survival photo booth verifies sixty position snapshots sent after the ordinary
+movement packets, avoiding comparisons of live entities from different threads.
+Missing samples, position disagreements and server movement-rejection warnings fail
+the gate. This instrumentation belongs only to the test mod.

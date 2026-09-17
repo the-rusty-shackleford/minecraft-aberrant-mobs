@@ -32,7 +32,9 @@ import net.neoforged.neoforge.event.entity.living.LivingDamageEvent;
 public final class GameTestMod {
     public static final String MOD_ID = "aberrantmobs_gametest";
 
-    public GameTestMod(IEventBus modBus) {}
+    public GameTestMod(IEventBus modBus) {
+        modBus.addListener(MovementSample::register);
+    }
 
     /**
      * Stands in for Miracle Bringer at the same door: a devouring blow on an
