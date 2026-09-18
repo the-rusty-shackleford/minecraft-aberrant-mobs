@@ -254,6 +254,12 @@ public final class GravityBooth {
         Vec3 cameraLook = new Vec3(camera.getLookVector());
         Vec3 offset = camera.getPosition().subtract(mc.player.getEyePosition());
         double sign = front ? -1 : 1;
+        if (cameraLook.dot(look) * sign <= 0.9999) {
+            var expected = WallWalk.aabb(frame.box(WallWalk.vec(mc.player.position()), mc.player.getBbWidth(), mc.player.getBbHeight()));
+            LOG.info("booth: camera diagnostic frame={} cachedFits={} frameFits={} box={} expected={} look={} cameraLook={}",
+                    frame.gravity(), mc.level.noCollision(mc.player), mc.level.noCollision(mc.player, expected),
+                    mc.player.getBoundingBox(), expected, look, cameraLook);
+        }
         check("camera view " + frame.gravity() + " front=" + front, () -> cameraLook.dot(look) * sign > 0.9999);
         check("camera clearance " + frame.gravity() + " front=" + front,
                 () -> Math.abs(offset.length() - 4) < 0.02 && offset.normalize().dot(look) * sign < -0.9999);

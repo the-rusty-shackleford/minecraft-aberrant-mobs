@@ -35,11 +35,12 @@ public abstract class EntityRendererMixin {
     @Redirect(method = "renderNameTag", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/vertex/PoseStack;translate(DDD)V"))
     private void aberrantmobs$nameAnchor(PoseStack pose, double x, double y, double z,
             Entity entity, Component name, PoseStack unusedPose, MultiBufferSource buffer, int light, float partialTick) {
-        if (!WallWalk.bent(entity) && WallWalkClient.blendOf(entity) == null) {
+        if (!WallWalkClient.presenting(entity)) {
             pose.translate(x, y, z);
             return;
         }
         Vec at = WallWalkClient.frameRotation(entity, partialTick).rotate(new Vec(x, y, z));
+        at = at.plus(WallWalkClient.bodyOffset(entity, partialTick));
         pose.translate(at.x(), at.y(), at.z());
     }
 }

@@ -126,6 +126,7 @@ neoForge {
             systemProperty 'aberrantmobs.photobooth', 'true'
             systemProperty 'aberrantmobs.artBooth', project.hasProperty('boothArt').toString()
             systemProperty 'aberrantmobs.gravityBooth', project.hasProperty('boothGravity').toString()
+            systemProperty 'aberrantmobs.presentationBooth', project.hasProperty('boothPresentation').toString()
             taskBefore prepareBooth
         }
         playtest {

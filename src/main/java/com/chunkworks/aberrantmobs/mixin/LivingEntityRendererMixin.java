@@ -34,9 +34,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class LivingEntityRendererMixin {
     @Inject(method = "setupRotations", at = @At("HEAD"))
     private void aberrantmobs$standInFrame(LivingEntity entity, PoseStack stack, float bob, float bodyYaw, float partialTick, float scale, CallbackInfo ci) {
-        if (!WallWalk.bent(entity) && WallWalkClient.blendOf(entity) == null) {
+        if (!WallWalkClient.presenting(entity)) {
             return;
         }
+        var offset = WallWalkClient.bodyOffset(entity, partialTick);
+        stack.translate(offset.x(), offset.y(), offset.z());
         Quat q = WallWalkClient.frameRotation(entity, partialTick);
         stack.mulPose(new Quaternionf((float) q.x(), (float) q.y(), (float) q.z(), (float) q.w()));
     }

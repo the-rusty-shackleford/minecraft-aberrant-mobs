@@ -161,6 +161,9 @@ attached. **Release and press Jump again** to let go and jump away. A short guar
 prevents immediate reattachment, and Jump must be released before starting another
 attachment. Ordinary bumps, steps and walking off ground-level ledges stay normal.
 Each armor piece shows these controls using your current Jump binding.
+Changes of surface ease the camera and body into their new pose over half a second.
+Mouse look and movement remain responsive during the turn. Walking, body turning and
+camera bob use movement along the supporting surface, including walls and ceilings.
 Client and server must both use the matching mod version for the input protocol.
 
 A wearer has a *frame* (`domain/frame`): one of six
@@ -194,8 +197,11 @@ wall scene is in survival now and counts the ticks the server disagrees. The ser
 reported move reads the fall along the wearer's down (`mixin/ServerPlayerMixin`). On the
 client the camera sits at the wearer's eyes (`mixin/CameraMixin`), its angles are the
 frame's rotation composed with the look and handed back as yaw, pitch and roll
-(`client/WallWalkClient` on `ComputeCameraAngles`), a change of frame swinging over six
-eased ticks (`Blend`), and a wearer's model stands along its frame
+(`client/WallWalkClient` on `ComputeCameraAngles`). At a gravity change, `PoseBlend`
+retains the last visible position and orientation, fading only their correction over
+ten ticks while input remains live. The camera path is clipped against blocks, and
+an incomplete tracked stance cannot briefly place the view through the ceiling.
+A wearer's model stands along its frame
 (`mixin/LivingEntityRendererMixin`). Anyone not in the set runs the game's code
 untouched: every hook returns at once for the world's frame.
 
@@ -417,6 +423,16 @@ what the creature does every ten ticks with a frame every eighty; its verdicts a
 it heard, dug, came near and stalked or hunted.
 
 ### Focused visual checks
+
+`./gradlew runPhotoBooth -PboothPresentation` drives real survival movement around
+connected walls/ceilings and an exposed pillar edge. It checks camera continuity at
+entry, corners, Jump release and ceiling armour removal. It compares the walking
+cycle, speed and bob distance against ground walking in all six directions, samples
+the rendered leg poses, and saves intermediate turn and walking frames. Copy optional
+animation mods and resource packs into the isolated `run/booth/` directory and enable
+the packs in that directory's options before running; the same gate was exercised
+with Fresh Animations 1.10.4, FA+Player 1.1, EMF 3.2.4, ETF 7.1 and Not Enough
+Animations 1.12.4 under Complementary Unbound 5.8.1.
 
 `./gradlew runPhotoBooth -PboothGravity` checks all six tracked frames, rear/front
 camera geometry, first-person visibility, explosion packet conversion, armour removal and low/high wall-camera

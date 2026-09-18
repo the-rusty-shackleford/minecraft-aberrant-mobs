@@ -36,6 +36,32 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  */
 @Mixin(LivingEntity.class)
 public abstract class LivingEntityMixin {
+    @org.spongepowered.asm.mixin.Shadow
+    protected abstract void updateWalkAnimation(float distance);
+
+    @Inject(method = "calculateEntityAnimation", at = @At("HEAD"), cancellable = true)
+    private void aberrantmobs$surfaceWalk(boolean includeHeight, CallbackInfo ci) {
+        LivingEntity self = (LivingEntity)(Object)this;
+        if (!WallWalk.bent(self)) return;
+        var delta = WallWalk.frameOf(self).toLocal(WallWalk.vec(self.position().subtract(self.xo,self.yo,self.zo)));
+        updateWalkAnimation((float)Math.sqrt(delta.x()*delta.x()+delta.z()*delta.z()+(includeHeight ? delta.y()*delta.y() : 0)));
+        ci.cancel();
+    }
+
+    @Redirect(method = "tick", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;getX()D"))
+    private double aberrantmobs$bodyMoveX(LivingEntity self) {
+        if (!WallWalk.bent(self)) return self.getX();
+        var delta = WallWalk.frameOf(self).toLocal(WallWalk.vec(self.position().subtract(self.xo,self.yo,self.zo)));
+        return self.xo + delta.x();
+    }
+
+    @Redirect(method = "tick", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;getZ()D"))
+    private double aberrantmobs$bodyMoveZ(LivingEntity self) {
+        if (!WallWalk.bent(self)) return self.getZ();
+        var delta = WallWalk.frameOf(self).toLocal(WallWalk.vec(self.position().subtract(self.xo,self.yo,self.zo)));
+        return self.zo + delta.z();
+    }
+
     @Inject(method = "knockback", at = @At("HEAD"), cancellable = true)
     private void aberrantmobs$knockbackInFrame(double strength, double x, double z, CallbackInfo ci) {
         LivingEntity self = (LivingEntity) (Object) this;

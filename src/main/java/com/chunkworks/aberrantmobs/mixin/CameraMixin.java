@@ -38,12 +38,13 @@ public abstract class CameraMixin {
 
     @Redirect(method = "setup", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Camera;setPosition(DDD)V"))
     private void aberrantmobs$eyeInFrame(Camera camera, double x, double y, double z, BlockGetter level, Entity entity, boolean detached, boolean reverse, float partialTick) {
-        if (!WallWalk.bent(entity)) {
+        if (!com.chunkworks.aberrantmobs.client.WallWalkClient.cameraPresenting(entity)) {
             ((CameraAccessor) camera).aberrantmobs$setPosition(x, y, z);
             return;
         }
         Vec feet = new Vec(Mth.lerp(partialTick, entity.xo, entity.getX()), Mth.lerp(partialTick, entity.yo, entity.getY()), Mth.lerp(partialTick, entity.zo, entity.getZ()));
         Vec eye = WallWalk.frameOf(entity).eye(feet, Mth.lerp(partialTick, eyeHeightOld, eyeHeight));
+        eye = com.chunkworks.aberrantmobs.client.WallWalkClient.cameraEye(entity, eye);
         ((CameraAccessor) camera).aberrantmobs$setPosition(eye.x(), eye.y(), eye.z());
     }
 }

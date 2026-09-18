@@ -126,7 +126,10 @@ public final class PhotoBooth {
                     phase = Phase.RUNNING;
                     tick = 0;
                     mc.options.hideGui = true;
-                    if (Boolean.getBoolean("aberrantmobs.artBooth")) {
+                    if (Boolean.getBoolean("aberrantmobs.presentationBooth")) {
+                        steps = List.of();
+                        onServer(mc, PresentationBooth::setUp);
+                    } else if (Boolean.getBoolean("aberrantmobs.artBooth")) {
                         steps = List.of();
                         onServer(mc, ArtBooth::setUp);
                     } else if (Boolean.getBoolean("aberrantmobs.gravityBooth")) {
@@ -139,6 +142,10 @@ public final class PhotoBooth {
                 }
             }
             case RUNNING -> {
+                if (Boolean.getBoolean("aberrantmobs.presentationBooth")) {
+                    PresentationBooth.tick(mc, tick++);
+                    return;
+                }
                 if (Boolean.getBoolean("aberrantmobs.artBooth")) {
                     ArtBooth.tick(mc, tick++);
                     return;

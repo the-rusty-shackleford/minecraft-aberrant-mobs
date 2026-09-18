@@ -23,6 +23,10 @@ import org.spongepowered.asm.mixin.gen.Invoker;
 
 @Mixin(Camera.class)
 public interface CameraAccessor {
+    @org.spongepowered.asm.mixin.gen.Accessor("eyeHeight")
+    float aberrantmobs$eyeHeight();
+    @org.spongepowered.asm.mixin.gen.Accessor("eyeHeightOld")
+    float aberrantmobs$eyeHeightOld();
     @Invoker("setPosition")
     void aberrantmobs$setPosition(double x, double y, double z);
 }

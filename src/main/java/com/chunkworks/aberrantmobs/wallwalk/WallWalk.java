@@ -247,6 +247,8 @@ public final class WallWalk {
      * until it answered
      */
     private static void take(Player p, FrameCarrier c, Transition.Stance s) {
+        Vec3 oldFeet = p.position();
+        float oldYaw = p.getYRot(), oldPitch = p.getXRot();
         c.aberrantmobs$setFrame(s.frame());
         if (s.frame().gravity().isDown()) c.aberrantmobs$setGesture(c.aberrantmobs$gesture().released());
         float yaw = Double.isNaN(s.yaw()) ? p.getYRot() : (float) s.yaw();
@@ -254,6 +256,7 @@ public final class WallWalk {
         p.setYRot(yaw);
         p.setYHeadRot(yaw);
         p.yBodyRot = yaw;
+        rebaseClient(p, oldFeet, oldYaw, oldPitch);
         p.fallDistance = 0.0f;
         p.setOnGround(true);
         p.setDeltaMovement(p.getDeltaMovement().multiply(1, 0, 1));
@@ -273,9 +276,20 @@ public final class WallWalk {
         rule(p);
     }
 
+    private static void rebaseClient(Player p, Vec3 oldFeet, float oldYaw, float oldPitch) {
+        if (!p.level().isClientSide) return;
+        Vec3 shift = p.position().subtract(oldFeet);
+        p.xo += shift.x; p.yo += shift.y; p.zo += shift.z;
+        float yaw = p.getYRot()-oldYaw;
+        p.yRotO += yaw; p.yHeadRotO += yaw; p.yBodyRotO += yaw;
+        p.xRotO += p.getXRot()-oldPitch;
+    }
+
     private static void letGo(Player p, FrameCarrier c, Frame f, Vec feet, double w, double h, boolean jump) {
         Optional<Transition.Stance> stance = Transition.release(f, feet, w, h, fits(p));
         if (stance.isEmpty()) return; // keep the valid box until there is room to stand upright
+        Vec3 oldFeet = p.position();
+        float oldYaw = p.getYRot(), oldPitch = p.getXRot();
         Vec3 look = p.getLookAngle();
         Vec world = f.toWorld(vec(p.getDeltaMovement()));
         if (jump) world = world.plus(f.up().times(0.42));
@@ -285,6 +299,7 @@ public final class WallWalk {
         p.setXRot((float) -Math.toDegrees(Math.atan2(look.y, look.horizontalDistance())));
         p.setYHeadRot(p.getYRot());
         p.yBodyRot = p.getYRot();
+        rebaseClient(p, oldFeet, oldYaw, oldPitch);
         p.setDeltaMovement(vec3(world));
         p.setOnGround(false);
         p.fallDistance = 0.0f;

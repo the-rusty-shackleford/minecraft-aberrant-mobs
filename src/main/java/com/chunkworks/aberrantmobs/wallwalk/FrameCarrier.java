@@ -19,7 +19,6 @@ package com.chunkworks.aberrantmobs.wallwalk;
 
 import com.chunkworks.aberrantmobs.domain.frame.ClingIntent;
 import com.chunkworks.aberrantmobs.domain.frame.ClingGesture;
-import com.chunkworks.aberrantmobs.domain.frame.Blend;
 import com.chunkworks.aberrantmobs.domain.frame.Frame;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
@@ -27,8 +26,7 @@ import org.jetbrains.annotations.Nullable;
 /**
  * What a player carries for the wall-walk: its frame (which way is down;
  * synced), the wall its last move was stopped by and the move it tried
- * (for the transition rule), whether it stood on ground last tick, and on
- * the client the camera's blend from one frame to the next. Implemented
+ * (for the transition rule), and whether it stood on ground last tick. Implemented
  * on {@code Player} by a mixin.
  */
 public interface FrameCarrier {
@@ -58,15 +56,6 @@ public interface FrameCarrier {
     boolean aberrantmobs$wasOnGround();
 
     void aberrantmobs$setWasOnGround(boolean onGround);
-
-    @Nullable
-    Blend aberrantmobs$blend();
-
-    void aberrantmobs$setBlend(@Nullable Blend blend);
-
-    int aberrantmobs$seenCode();
-
-    void aberrantmobs$setSeenCode(int code);
 
     /** Where the entity stood as its move began, for reading the wall off the game's own move. */
     @Nullable

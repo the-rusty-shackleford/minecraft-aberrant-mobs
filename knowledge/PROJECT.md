@@ -137,11 +137,11 @@ Phase 7 (built; the plan's phases A and B, with the edge wrap of C): the chitin 
 local/world; the box as an axis swap with the feet on the gravity face; the eye; the
 rotation; a byte code), `CameraAngles` (yaw/pitch/roll to a quaternion and back, gimbal
 rows included), `Transition` (into a wall when pushing at 0.02+ and the box fits; over
-an edge onto the ledge's face; release to the world's down by the least way out), `Blend`
-(an eased slerp over six ticks). Main: `ModContent` chitin material (netherite's plating,
+an edge onto the ledge's face; release to the world's down by the least way out), `PoseBlend`
+(a complete visible-pose correction easing over ten ticks; D-0019). Main: `ModContent` chitin material (netherite's plating,
 mended with chitin) and four pieces (recipes from chitin, the chestplate with the cracked
 carapace), `wallwalk/FrameCarrier` (on Player by mixin: one synced byte for the frame,
-the last wall and move tried, the blend), `WallWalk` (the rule on `PlayerTickEvent.Post`
+the last wall and move tried), `WallWalk` (the rule on `PlayerTickEvent.Post`
 on the server and the local client alike: wearing the full set and not in water, flying,
 riding, gliding, asleep or a spectator; into-wall, over-edge, let-go), `WallWalkMove`
 (the game's move with the frame's up as its vertical: axis-ordered collision, a step up
@@ -150,8 +150,8 @@ for the rule). Mixins: Entity (box, eye, eye position, view vector, move, suppor
 block, on-pos), LivingEntity (travel's move calls turned local to world), Player (the
 carrier), ServerPlayer (the fall check along the frame), LocalPlayer (no nudge out of
 edges), Camera (the eye), LivingEntityRenderer (the model stands along the frame); the
-camera angles event composes the frame's blend with the look and hands back yaw, pitch
-and roll. Of the plan's phase C: a knockback (given in the world's horizontal) and an
+camera angles event composes the frame with live look, eases frame-change pose
+corrections and hands back yaw, pitch and roll. Of the plan's phase C: a knockback (given in the world's horizontal) and an
 entity push land in the wearer's frame (`LivingEntityMixin.knockback`,
 `EntityMixin.push`); not built: block placement facing on a wall, the shadow and
 nameplate, the third-person back camera (see Next). Eye contact is a stare, not a
@@ -374,3 +374,32 @@ all clients and test displays are closed. The 1.3.0 jar excludes test code.
 
 Held locally for review; this control-design approval is not release authorization.
 The existing deployed pack remains the previously authorized release.
+
+
+## Chitin presentation — local playtest update (2026-09-18)
+
+Rusty's hands-on feedback reproduced a 90-degree single-frame camera jump and a
+walking cycle that stopped during vertical wall travel. [D-0019](decisions/D-0019.md)
+records the approved repair: ease the complete camera/body pose over ten ticks while
+keeping look and movement live; measure walking, body heading and bob along the
+supporting surface. Connected corners, exposed edges, Jump detach and ceiling armour
+removal now retain the last visible pose at the transition boundary. Collision checks
+use the current frame's box, including stationary tracked players.
+
+Final checks on this implementation: 130 JUnit tests, 38 real-server tests,
+44 standard shader-booth assertions, 54 focused gravity assertions and
+30 moving-presentation assertions passed. The moving gate compares phase, speed
+and bob distance against ordinary ground walking on all six surfaces and samples
+actual rendered leg motion. Moving renders were inspected under Complementary
+Unbound 5.8.1 with Fresh Animations 1.10.4, FA+Player 1.1, EMF 3.2.4, ETF 7.1 and
+Not Enough Animations 1.12.4. The independent TCP wearer and observer both passed
+vertical walking-animation checks, with zero stalls and no movement corrections;
+the server and both clients completed their full gate.
+
+The production jar excludes test code. SHA-256:
+`b4870de3f4304644b812ee77a0934933e8c65ceb43413c9f1f468c0927d2ca22`.
+The isolated Prism instance **Chitin Playtest 1.3.0** was refreshed with that exact
+jar; its existing test room and reset function remain available. The previous test
+jar and player state were backed up before the refresh. Rusty's personal feel review
+is the next checkpoint. Version 1.3.0 remains local and unreleased; there was no push,
+tag, pack assembly, deployment or live-server restart.

@@ -51,6 +51,7 @@ public final class MultiplayerClient {
     private static final boolean ACTIVE = ROLE.equals("wearer") || ROLE.equals("observer");
     private static String stage = "";
     private static int age, total;
+    private static int wallTicks, walkingSamples, stalledSamples;
     private static boolean connected, acknowledged, noRenderReady, joined;
     private MultiplayerClient() {}
 
@@ -105,7 +106,19 @@ public final class MultiplayerClient {
         }
         mc.options.keyUp.setDown(ROLE.equals("wearer") && (stage.equals("bump") || stage.equals("walk") || stage.equals("wrap") || stage.equals("outer-walk")));
         mc.options.keyJump.setDown(ROLE.equals("wearer") && (stage.equals("walk") || stage.equals("jump-release")));
+        Player walking = wearer(mc);
+        wallTicks = walking != null && WallWalk.frameOf(walking).gravity() == Gravity.EAST ? wallTicks+1 : 0;
+        if (walking != null && wallTicks > 10 && (stage.equals("walk") || stage.equals("wrap"))
+                && Math.abs(walking.getY()-walking.yo) > 0.04) {
+            walkingSamples++;
+            if (walking.walkAnimation.speed() < 0.05) stalledSamples++;
+        }
         if (stage.equals("done")) {
+            if (walkingSamples < 5 || stalledSamples != 0) {
+                fail(mc, "vertical walking animation on " + ROLE + ": samples=" + walkingSamples + " stalled=" + stalledSamples);
+                return;
+            }
+            LOG.info("multiplayer: PASS vertical walking animation on {}: {} moving samples, zero stalls", ROLE, walkingSamples);
             mc.options.keyUp.setDown(false);
             LOG.info("multiplayer: PASS all checks ran ({})", ROLE);
             mc.stop(); return;

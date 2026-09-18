@@ -56,6 +56,10 @@ public final class WallWalkMove {
         }
         Vec tried = f.toLocal(WallWalk.vec(delta));
         Vec got = f.toLocal(WallWalk.vec(collided));
+        // Vanilla's camera bob and movement phase measure travel across the supporting surface.
+        p.walkDist += (float)Math.hypot(got.x(),got.z()) * 0.6F;
+        p.moveDist += (float)Math.hypot(got.x(),got.z()) * 0.6F;
+        p.flyDist += (float)collided.length() * 0.6F;
         boolean cx = !Mth.equal(tried.x(), got.x());
         boolean cz = !Mth.equal(tried.z(), got.z());
         boolean cy = tried.y() != got.y();

@@ -19,7 +19,6 @@ package com.chunkworks.aberrantmobs.mixin;
 
 import com.chunkworks.aberrantmobs.domain.frame.ClingIntent;
 import com.chunkworks.aberrantmobs.domain.frame.ClingGesture;
-import com.chunkworks.aberrantmobs.domain.frame.Blend;
 import com.chunkworks.aberrantmobs.domain.frame.Frame;
 import com.chunkworks.aberrantmobs.wallwalk.FrameCarrier;
 import net.minecraft.network.syncher.EntityDataAccessor;
@@ -48,11 +47,6 @@ public abstract class PlayerMixin implements FrameCarrier {
     private Vec3 aberrantmobs$lastTried;
     @Unique
     private boolean aberrantmobs$wasOnGround;
-    @Unique
-    @Nullable
-    private Blend aberrantmobs$blend;
-    @Unique
-    private int aberrantmobs$seenCode;
     @Unique
     @Nullable
     private Vec3 aberrantmobs$movePre;
@@ -116,27 +110,6 @@ public abstract class PlayerMixin implements FrameCarrier {
     @Override
     public void aberrantmobs$setWasOnGround(boolean onGround) {
         aberrantmobs$wasOnGround = onGround;
-    }
-
-    @Override
-    @Nullable
-    public Blend aberrantmobs$blend() {
-        return aberrantmobs$blend;
-    }
-
-    @Override
-    public void aberrantmobs$setBlend(@Nullable Blend blend) {
-        aberrantmobs$blend = blend;
-    }
-
-    @Override
-    public int aberrantmobs$seenCode() {
-        return aberrantmobs$seenCode;
-    }
-
-    @Override
-    public void aberrantmobs$setSeenCode(int code) {
-        aberrantmobs$seenCode = code;
     }
 
     @Override
