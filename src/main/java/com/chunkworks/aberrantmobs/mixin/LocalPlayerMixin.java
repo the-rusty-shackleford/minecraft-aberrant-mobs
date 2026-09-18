@@ -27,6 +27,18 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 /** The client's nudge out of a block edge is reckoned in the world's axes; a wearer on a wall does without it. */
 @Mixin(LocalPlayer.class)
 public abstract class LocalPlayerMixin {
+    @org.spongepowered.asm.mixin.Shadow private int autoJumpTime;
+
+    @Inject(method = "aiStep", at = @At("HEAD"))
+    private void aberrantmobs$clearAttachedAutoJump(CallbackInfo ci) {
+        if (WallWalk.bent((LocalPlayer)(Object)this)) autoJumpTime = 0;
+    }
+
+    @Inject(method = "canAutoJump", at = @At("HEAD"), cancellable = true)
+    private void aberrantmobs$noAttachedAutoJump(org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable<Boolean> cir) {
+        if (WallWalk.bent((LocalPlayer)(Object)this)) cir.setReturnValue(false);
+    }
+
     @Inject(method = "moveTowardsClosestSpace", at = @At("HEAD"), cancellable = true)
     private void aberrantmobs$noNudge(double x, double z, CallbackInfo ci) {
         if (WallWalk.bent((LocalPlayer) (Object) this)) {

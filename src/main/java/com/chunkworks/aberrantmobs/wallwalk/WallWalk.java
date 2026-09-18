@@ -21,6 +21,9 @@ import com.chunkworks.aberrantmobs.AberrantMobsMod;
 import com.chunkworks.aberrantmobs.ModContent;
 import com.chunkworks.aberrantmobs.domain.Vec;
 import com.chunkworks.aberrantmobs.domain.frame.Frame;
+import com.chunkworks.aberrantmobs.domain.frame.ClingIntent;
+import com.chunkworks.aberrantmobs.domain.frame.ClingGesture;
+import com.chunkworks.aberrantmobs.domain.frame.Gravity;
 import com.chunkworks.aberrantmobs.domain.frame.Transition;
 import java.util.Optional;
 import java.util.function.Predicate;
@@ -35,21 +38,12 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 
 /**
- * The chitin's gift: a player wearing the full set walks on walls and
- * ceilings as if they were ground. The client runs the pure
- * {@link Transition} rules on its own player right after each move; the
- * server runs the same rules right after its re-run of each move the
- * client reports (the mixin on the packet listener), before it compares
- * the two positions, and again after its tick for what no move decides
- * -- the set coming off, water. So the two agree and no packet is added:
- * the frame rides the player's synced data as one byte. A wearer's
- * motion, look and box are reckoned in the frame's local axes by the
- * mixins on the entity; here only which frame it is changes.
- *
- * <p>A wearer takes a wall it walks into hard enough, wraps over an edge
- * it walks off, and lets go -- to the world's own down, the least way out
- * that fits -- when the set comes off, in water, flying, riding, gliding,
- * or as a spectator.
+ * Deliberate six-axis wall walking. Manual Jump plus forward and a view toward
+ * a real wall permits entry; connected supported corners then follow movement.
+ * A fresh Jump press releases. Ordinary bumps and world-floor ledges do not attach.
+ * Input precedes normal movement packets; the server independently validates
+ * collisions and stance changes before vanilla compares the reported position.
+ * The resulting frame remains one server-synced byte.
  */
 @EventBusSubscriber(modid = AberrantMobsMod.MOD_ID)
 public final class WallWalk {
@@ -104,69 +98,126 @@ public final class WallWalk {
         rule(p);
     }
 
-    /** effects: one tick of the rule for {@code p}: its frame changed as the class says */
-    public static void rule(Player p) {
-        if (!(p instanceof FrameCarrier c)) {
-            return;
+    private static boolean eligible(Player p) {
+        return wears(p) && !p.isSpectator() && !p.getAbilities().flying && !p.isPassenger()
+                && !p.isInWaterOrBubble() && !p.isInLava() && !p.isFallFlying() && !p.isSleeping();
+    }
+
+    /** effects: records one ordered manual input sample, without trusting any client position or gravity. */
+    public static void input(Player p, ClingIntent intent) {
+        if (!(p instanceof FrameCarrier c)) return;
+        if (!wears(p) && !bent(p)) return;
+        c.aberrantmobs$setIntent(intent, p.tickCount);
+        c.aberrantmobs$setGesture(c.aberrantmobs$gesture().next(intent.jump(), bent(p)));
+    }
+
+    /** effects: applies a requested/environmental release before movement, only where an upright box fits. */
+    public static void prepare(Player p) {
+        if (!(p instanceof FrameCarrier c) || !bent(p)) return;
+        if (!eligible(p) || c.aberrantmobs$gesture().detach()) {
+            boolean jump = eligible(p) && c.aberrantmobs$gesture().detach();
+            letGo(p, c, frameOf(p), vec(p.position()), p.getBbWidth(), p.getBbHeight(), jump);
         }
+    }
+
+    private static boolean mayEnter(Player p, FrameCarrier c, Vec normal) {
+        return p.tickCount - c.aberrantmobs$inputTick() <= 5 && c.aberrantmobs$gesture().ready()
+                && c.aberrantmobs$intent().faces(frameOf(p), normal);
+    }
+
+    /** effects: resolves this move's contact once; unsupported attached players return to world gravity. */
+    public static void rule(Player p) {
+        if (!(p instanceof FrameCarrier c)) return;
+        prepare(p);
         Frame f = c.aberrantmobs$frame();
-        boolean wearing = wears(p) && !p.isSpectator() && !p.getAbilities().flying && !p.isPassenger() && !p.isInWaterOrBubble() && !p.isInLava() && !p.isFallFlying() && !p.isSleeping();
-        double w = p.getBbWidth(), h = p.getBbHeight();
-        Vec feet = new Vec(p.getX(), p.getY(), p.getZ());
-        if (!wearing) {
-            if (!f.gravity().isDown()) {
-                letGo(p, c, f, feet, w, h);
-            }
-            c.aberrantmobs$setLastWall(null, null);
+        Vec3 wall = c.aberrantmobs$lastWall(), tried = c.aberrantmobs$lastTried();
+        c.aberrantmobs$setLastWall(null, null);
+        if (!eligible(p)) {
             c.aberrantmobs$setWasOnGround(p.onGround());
             return;
         }
-        Predicate<Frame.Box> fits = fits(p);
-        Vec3 wall = c.aberrantmobs$lastWall();
-        Vec3 tried = c.aberrantmobs$lastTried();
-        if (wall != null && tried != null) {
-            Optional<Transition.Stance> s = Transition.intoWall(f, feet, w, h, vec(tried), vec(wall), fits);
-            if (s.isPresent()) {
-                take(p, c, s.get());
-                c.aberrantmobs$setLastWall(null, null);
+        double w = p.getBbWidth(), h = p.getBbHeight();
+        Vec feet = vec(p.position());
+        if (wall != null && tried != null && (bent(p) || mayEnter(p, c, vec(wall)))) {
+            var stance = Transition.intoWall(f, feet, w, h, vec(tried), vec(wall), fits(p));
+            if (stance.isPresent() && supported(p, stance.get())) {
+                take(p, c, stance.get());
                 c.aberrantmobs$setWasOnGround(true);
                 return;
             }
         }
-        if (c.aberrantmobs$wasOnGround() && !p.onGround() && !p.isShiftKeyDown() && tried != null) {
-            Vec localMove = f.toLocal(vec(tried));
-            if (localMove.y() <= 0.0 && p.getDeltaMovement().y <= 0.0) {
-                Optional<Transition.Stance> s = Transition.overEdge(f, feet, w, h, vec(tried), fits);
-                if (s.isPresent()) {
-                    take(p, c, s.get());
-                    c.aberrantmobs$setLastWall(null, null);
-                    c.aberrantmobs$setWasOnGround(true);
-                    return;
-                }
+        // Floor ledges are ordinary walking. Only an already attached wearer wraps.
+        if (bent(p) && tried != null && !supported(p, new Transition.Stance(f, feet, Double.NaN))) {
+            var stance = !p.isShiftKeyDown() ? edge(p, f, feet, vec(tried)) : Optional.<Transition.Stance>empty();
+            if (stance.isPresent()) {
+                take(p, c, stance.get());
+                c.aberrantmobs$setWasOnGround(true);
+                return;
             }
+            letGo(p, c, f, feet, w, h, false);
         }
         c.aberrantmobs$setWasOnGround(p.onGround());
     }
 
+    private static boolean supported(Player p, Transition.Stance stance) {
+        AABB foot = WallWalkMove.underfoot(stance.frame(), aabb(stance.frame().box(stance.feet(), p.getBbWidth(), p.getBbHeight())));
+        return p.level().getBlockCollisions(p, foot).iterator().hasNext();
+    }
+
+    // Trace the actual outward face beneath the old ledge. A fit in empty space
+    // alone is not a surface, and a guessed offset must never become grounded.
+    private static Optional<Transition.Stance> edge(Player p, Frame f, Vec feet, Vec move) {
+        Vec tangent = move.minus(f.up().times(move.dot(f.up())));
+        if (tangent.length() < Transition.INTO_WALL) return Optional.empty();
+        Vec normal = Gravity.nearest(tangent).dir;
+        double inset = p.getBbWidth() / 2.0 + 0.01;
+        Vec start = feet.minus(f.up().times(inset)).plus(normal.times(0.05));
+        Vec end = start.minus(normal.times(p.getBbWidth() + 0.5));
+        var hit = p.level().clip(new net.minecraft.world.level.ClipContext(vec3(start), vec3(end),
+                net.minecraft.world.level.ClipContext.Block.COLLIDER, net.minecraft.world.level.ClipContext.Fluid.NONE, p));
+        if (hit.getType() != net.minecraft.world.phys.HitResult.Type.BLOCK
+                || !vec(Vec3.atLowerCornerOf(hit.getDirection().getNormal())).near(normal, 1e-6)) return Optional.empty();
+        return Transition.overEdge(f, feet, p.getBbWidth(), p.getBbHeight(), move, vec(hit.getLocation()), fits(p))
+                .filter(stance -> supported(p, stance));
+    }
+
     /**
      * requires: reported is the finite world displacement in a normal movement packet.
-     * effects: returns the displacement to replay before a bent wearer's into-wall
+     * effects: returns the displacement to replay before an eligible wearer's supported
      * stance change. A candidate is used only if real collision plus the existing
      * transition rule reproduces all three reported coordinates; otherwise returns
      * reported unchanged. Does not move the player or run collision side effects.
      */
     public static Vec3 replayMove(Player p, Vec3 reported) {
-        if (!bent(p) || !wears(p)) return reported;
+        if (!eligible(p)) return reported;
         Frame before = frameOf(p);
         double halfHeight = p.getBbHeight() / 2.0;
+        // An outer corner reports the new feet on the exposed face, not the
+        // short movement past the edge. Reconstruct only a collision-checked
+        // candidate whose actual face trace reproduces the complete endpoint.
+        if (bent(p) && vec(reported).dot(before.up()) < -p.getBbWidth() / 2.0
+                && supported(p, new Transition.Stance(before, vec(p.position()), Double.NaN))) {
+            for (Gravity gravity : Gravity.values()) {
+                if (gravity == before.gravity() || gravity == before.gravity().opposite()) continue;
+                Vec normal = Frame.of(gravity).up();
+                Vec attempt = vec(reported).plus(before.up().times(p.getBbWidth() / 2.0 + 0.01))
+                        .plus(normal.times(p.getBbWidth() / 2.0 + 1e-4));
+                Vec3 delta = vec3(attempt);
+                Vec after = vec(p.position()).plus(vec(WallWalkMove.collide(p, before, delta)));
+                if (supported(p, new Transition.Stance(before, after, Double.NaN))) continue;
+                var stance = edge(p, before, after, attempt);
+                if (stance.isPresent() && stance.get().feet().near(vec(p.position().add(reported)), 1e-5)) return delta;
+            }
+        }
         // Into-wall stances shift the feet half a body along the old up.
         // Ordinary grounded moves do not pay for four speculative collision checks.
         if (vec(reported).dot(before.up()) < halfHeight - 0.05) return reported;
         Vec feet = vec(p.position());
         Vec wanted = feet.plus(vec(reported));
-        for (var gravity : com.chunkworks.aberrantmobs.domain.frame.Gravity.values()) {
+        for (var gravity : Gravity.values()) {
             if (gravity == before.gravity() || gravity == before.gravity().opposite()) continue;
             Frame next = Frame.of(gravity);
+            if (!bent(p) && !mayEnter(p, (FrameCarrier) p, next.up())) continue;
             Vec shift = before.up().times(halfHeight).minus(next.up().times(p.getBbWidth() / 2.0));
             Vec attempt = vec(reported).minus(shift);
             // The packet contains the already-clipped travel. Probe a bounded sliver
@@ -178,7 +229,7 @@ public final class WallWalk {
             if (stopped.dot(gravity.dir) < 1e-5) continue;
             var stance = Transition.intoWall(before, feet.plus(vec(collided)), p.getBbWidth(), p.getBbHeight(),
                     attempt, next.up(), fits(p));
-            if (stance.isPresent() && stance.get().feet().minus(wanted).length() < 1e-5) return delta;
+            if (stance.isPresent() && supported(p, stance.get()) && stance.get().feet().minus(wanted).length() < 1e-5) return delta;
         }
         return reported;
     }
@@ -189,7 +240,7 @@ public final class WallWalk {
 
     /**
      * effects: puts {@code p} in the stance: its frame, its feet, its yaw so
-     * the way it was going carries on; its local velocity kept, its fall
+     * the way it was going carries on; its tangent velocity kept and outward momentum cancelled, its fall
      * forgotten. Never a teleport: on the server the rule runs inside the
      * re-run of the client's own move, whose reported position is this
      * stance's already, and a teleport would drop the client's next moves
@@ -197,6 +248,7 @@ public final class WallWalk {
      */
     private static void take(Player p, FrameCarrier c, Transition.Stance s) {
         c.aberrantmobs$setFrame(s.frame());
+        if (s.frame().gravity().isDown()) c.aberrantmobs$setGesture(c.aberrantmobs$gesture().released());
         float yaw = Double.isNaN(s.yaw()) ? p.getYRot() : (float) s.yaw();
         p.setPos(s.feet().x(), s.feet().y(), s.feet().z());
         p.setYRot(yaw);
@@ -204,6 +256,7 @@ public final class WallWalk {
         p.yBodyRot = yaw;
         p.fallDistance = 0.0f;
         p.setOnGround(true);
+        p.setDeltaMovement(p.getDeltaMovement().multiply(1, 0, 1));
     }
 
     /**
@@ -220,15 +273,22 @@ public final class WallWalk {
         rule(p);
     }
 
-    private static void letGo(Player p, FrameCarrier c, Frame f, Vec feet, double w, double h) {
-        Optional<Transition.Stance> s = Transition.release(f, feet, w, h, fits(p));
-        Vec3 local = p.getDeltaMovement();
-        Vec3 world = vec3(f.toWorld(vec(local)));
+    private static void letGo(Player p, FrameCarrier c, Frame f, Vec feet, double w, double h, boolean jump) {
+        Optional<Transition.Stance> stance = Transition.release(f, feet, w, h, fits(p));
+        if (stance.isEmpty()) return; // keep the valid box until there is room to stand upright
+        Vec3 look = p.getLookAngle();
+        Vec world = f.toWorld(vec(p.getDeltaMovement()));
+        if (jump) world = world.plus(f.up().times(0.42));
         c.aberrantmobs$setFrame(Frame.WORLD);
-        if (s.isPresent()) {
-            p.setPos(s.get().feet().x(), s.get().feet().y(), s.get().feet().z());
-        }
-        p.setDeltaMovement(world);   // the world's frame: local is world
+        p.setPos(vec3(stance.get().feet()));
+        p.setYRot((float) Math.toDegrees(Math.atan2(-look.x, look.z)));
+        p.setXRot((float) -Math.toDegrees(Math.atan2(look.y, look.horizontalDistance())));
+        p.setYHeadRot(p.getYRot());
+        p.yBodyRot = p.getYRot();
+        p.setDeltaMovement(vec3(world));
+        p.setOnGround(false);
         p.fallDistance = 0.0f;
+        c.aberrantmobs$setLastWall(null, null);
+        c.aberrantmobs$setGesture(c.aberrantmobs$gesture().released());
     }
 }

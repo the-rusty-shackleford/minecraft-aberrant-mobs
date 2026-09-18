@@ -42,9 +42,24 @@ import org.spongepowered.asm.mixin.injection.Redirect;
  */
 @Mixin(ServerGamePacketListenerImpl.class)
 public abstract class ServerGamePacketListenerImplMixin {
+    @org.spongepowered.asm.mixin.Shadow private double lastGoodX;
+    @org.spongepowered.asm.mixin.Shadow private double lastGoodY;
+    @org.spongepowered.asm.mixin.Shadow private double lastGoodZ;
     @Redirect(method = "handleMovePlayer", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/level/ServerPlayer;move(Lnet/minecraft/world/entity/MoverType;Lnet/minecraft/world/phys/Vec3;)V"))
     private void aberrantmobs$replayBeforeStance(ServerPlayer wearer, MoverType type, Vec3 reported) {
+        if (WallWalk.wears(wearer) || WallWalk.bent(wearer)) {
+            Vec3 wanted = new Vec3(lastGoodX, lastGoodY, lastGoodZ).add(reported);
+            WallWalk.prepare(wearer);
+            reported = wanted.subtract(wearer.position());
+        }
         wearer.move(type, WallWalk.replayMove(wearer, reported));
         WallWalk.rule(wearer);
     }
+    // Vanilla infers a jump from increasing WORLD Y plus a false ground flag.
+    // Climbing a wall can satisfy both; only manual cling input may detach it.
+    @Redirect(method = "handleMovePlayer", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/level/ServerPlayer;jumpFromGround()V"))
+    private void aberrantmobs$worldJumpOnly(ServerPlayer wearer) {
+        if (!WallWalk.bent(wearer)) wearer.jumpFromGround();
+    }
+
 }

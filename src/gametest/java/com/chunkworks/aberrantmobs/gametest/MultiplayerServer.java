@@ -112,6 +112,8 @@ public final class MultiplayerServer {
                 level.setBlockAndUpdate(new BlockPos(8,y,0), Blocks.SEA_LANTERN.defaultBlockState());
                 level.setBlockAndUpdate(new BlockPos(8,y,16), Blocks.SEA_LANTERN.defaultBlockState());
             }
+            for (int x=10;x<=12;x++) for (int y=65;y<=69;y++) for (int z=6;z<=10;z++)
+                server.overworld().setBlockAndUpdate(new BlockPos(x,y,z),Blocks.STONE.defaultBlockState());
             wearer.setGameMode(GameType.SURVIVAL);
             wearer.setItemSlot(EquipmentSlot.HEAD, new ItemStack(ModContent.CHITIN_HELMET.get()));
             wearer.setItemSlot(EquipmentSlot.CHEST, new ItemStack(ModContent.CHITIN_CHESTPLATE.get()));
@@ -124,6 +126,14 @@ public final class MultiplayerServer {
             cue(server, "ready");
         } else if (phase.equals("ready") && ACKS.size() == 2) {
             LOG.info("multiplayer: PASS two real TCP players received the fixture");
+            cue(server, "bump");
+        } else if (phase.equals("bump") && age >= 55) {
+            if (WallWalk.bent(wearer) || wearer.getX() < 15.6) {
+                fail("ordinary bump attached or failed to reach wall: " + wearer.position()); return;
+            }
+            LOG.info("multiplayer: PASS normal forward input stops at the wall without attaching");
+            cue(server, "bumped");
+        } else if (phase.equals("bumped") && ACKS.size() == 2) {
             cue(server, "walk");
         } else if (phase.equals("walk") && (wearer.getY() >= 70 || age >= 100)) {
             if (WallWalk.frameOf(wearer).gravity() != Gravity.EAST || wearer.getY() < 69) {
@@ -137,6 +147,24 @@ public final class MultiplayerServer {
             LOG.info("multiplayer: wrap server {} {}", wearer.position(), WallWalk.frameOf(wearer).gravity());
             if (WallWalk.frameOf(wearer).gravity() == Gravity.UP) cue(server, "wrapped");
         } else if (phase.equals("wrapped") && ACKS.size() == 2) {
+            setFixtureFrame(wearer, Frame.of(Gravity.EAST));
+            wearer.teleportTo(server.overworld(),10,69.1,8,0,0);
+            wearer.connection.resetPosition();
+            wearer.setDeltaMovement(Vec3.ZERO);
+            wearer.fallDistance=0;
+            wearer.connection.send(new ClientboundSetEntityMotionPacket(wearer));
+            cue(server,"outer-ready");
+        } else if (phase.equals("outer-ready") && ACKS.size() == 2) {
+            cue(server,"outer-walk");
+        } else if (phase.equals("outer-walk") && !WallWalk.bent(wearer)) {
+            if (wearer.getY()<69.99 || server.overworld().noCollision(wearer,wearer.getBoundingBox().move(0,-0.02,0)) || !server.overworld().noCollision(wearer)) {
+                fail("convex corner lost its supporting face: " + wearer.position()); return;
+            }
+            cue(server,"outer-done");
+        } else if (phase.equals("outer-done") && ACKS.size() == 2) {
+            LOG.info("multiplayer: PASS real client and server followed the convex corner onto the top");
+            for (int x=10;x<=12;x++) for (int y=65;y<=69;y++) for (int z=6;z<=10;z++)
+                server.overworld().setBlockAndUpdate(new BlockPos(x,y,z),Blocks.AIR.defaultBlockState());
             frame = 0;
             place(server, wearer, observer);
         } else if (phase.startsWith("frame:") && ACKS.size() == 2) {
@@ -152,7 +180,7 @@ public final class MultiplayerServer {
             LOG.info("multiplayer: PASS velocity packet applied by both clients in {}", Gravity.values()[frame]);
             if (++frame < Gravity.values().length) place(server, wearer, observer);
             else {
-                ((FrameCarrier) wearer).aberrantmobs$setFrame(Frame.of(Gravity.UP));
+                setFixtureFrame(wearer, Frame.of(Gravity.UP));
                 wearer.teleportTo(server.overworld(), 8, 80, 8, 0, 0);
                 wearer.connection.resetPosition();
                 wearer.setDeltaMovement(Vec3.ZERO);
@@ -161,6 +189,21 @@ public final class MultiplayerServer {
                 cue(server, "ceiling");
             }
         } else if (phase.equals("ceiling") && ACKS.size() == 2) {
+            cue(server, "jump-release");
+        } else if (phase.equals("jump-release") && age >= 15) {
+            if (WallWalk.bent(wearer) || !server.overworld().noCollision(wearer) || !WallWalk.wears(wearer)) {
+                fail("Jump did not safely detach the fully dressed wearer"); return;
+            }
+            cue(server, "jumped");
+        } else if (phase.equals("jumped") && ACKS.size() == 2) {
+            setFixtureFrame(wearer, Frame.of(Gravity.UP));
+            wearer.teleportTo(server.overworld(), 8, 80, 8, 0, 0);
+            wearer.connection.resetPosition();
+            wearer.setDeltaMovement(Vec3.ZERO);
+            wearer.fallDistance = 0;
+            wearer.connection.send(new ClientboundSetEntityMotionPacket(wearer));
+            cue(server, "ceiling-again");
+        } else if (phase.equals("ceiling-again") && ACKS.size() == 2) {
             wearer.setItemSlot(EquipmentSlot.HEAD, ItemStack.EMPTY);
             wearer.inventoryMenu.sendAllDataToRemote();
             cue(server, "released");
@@ -170,6 +213,18 @@ public final class MultiplayerServer {
             }
             LOG.info("multiplayer: PASS all checks ran");
             cue(server, "done");
+        }
+    }
+
+    // A fixture teleport must carry its new frame before the position. Waiting
+    // for the next entity-tracker tick briefly puts an upright client inside the
+    // destination wall, where vanilla pushes it out before the frame arrives.
+    private static void setFixtureFrame(ServerPlayer wearer, Frame frame) {
+        ((FrameCarrier)wearer).aberrantmobs$setFrame(frame);
+        var dirty = wearer.getEntityData().packDirty();
+        if (dirty != null) {
+            var packet = new net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket(wearer.getId(), dirty);
+            wearer.server.getPlayerList().getPlayers().forEach(player -> player.connection.send(packet));
         }
     }
 
@@ -183,7 +238,7 @@ public final class MultiplayerServer {
             case NORTH -> new Vec3(8.5, 72.5, 1);
             case SOUTH -> new Vec3(8.5, 72.5, 16);
         };
-        ((FrameCarrier) wearer).aberrantmobs$setFrame(Frame.of(gravity));
+        setFixtureFrame(wearer, Frame.of(gravity));
         wearer.teleportTo(server.overworld(), at.x, at.y, at.z, 0, 0);
         wearer.connection.resetPosition();
         wearer.setDeltaMovement(Vec3.ZERO);

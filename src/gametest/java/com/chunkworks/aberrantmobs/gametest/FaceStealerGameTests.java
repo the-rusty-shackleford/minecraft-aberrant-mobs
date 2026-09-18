@@ -632,6 +632,7 @@ public final class FaceStealerGameTests {
         Vec3 at = helper.absoluteVec(new Vec3(7.5, FLOOR, 7.5));
         Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, -90.0f);
         helper.assertTrue(a != null, "the creature is made");
+        a.setPersistenceRequired(); // Distant fixture players must not despawn the loot target before its first tick.
         helper.getLevel().addFreshEntity(a);
         a.setNoAi(true);
         helper.assertValueEqual(a.getDefaultLootTable().location(), AberrantMobs.id("creature/face_stealer"), "the profile's loot table");
@@ -640,6 +641,7 @@ public final class FaceStealerGameTests {
         net.minecraft.world.entity.player.Player killer = helper.makeMockPlayer(net.minecraft.world.level.GameType.SURVIVAL);
         killer.setPos(a.getX(), a.getY(), a.getZ() - 5.0);
         helper.runAtTickTime(2, () -> {
+            helper.assertTrue(!a.isRemoved(), "loot target removed before strike: " + a.getRemovalReason() + ", age=" + a.tickCount);
             // Five blows however hard: no blow takes more than a fifth of its health (the profile's stats.blows).
             for (int blow = 1; blow <= 5; blow++) {
                 a.invulnerableTime = 0;

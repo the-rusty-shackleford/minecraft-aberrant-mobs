@@ -356,3 +356,21 @@ Version 1.2.0 was published on 2026-09-16 and deployed in pack 1.35.1
 after the clean release build and asset verification. The deployed server matched
 the published pack and ran at 20 TPS. This supersedes the earlier release holds
 and pending presentation/listening review recorded above.
+
+## Chitin controls — local 1.3.0 candidate (2026-09-18)
+
+Rusty approved deliberate Jump entry instead of bump-triggered attachment. With the
+complete set, hold Jump while moving forward toward the wall being looked at; follow
+supported inner and outer corners; release and press Jump again to detach. A short
+guard plus key release prevents immediate reattachment. Ordinary bumps and floor
+ledges remain normal. Armor tooltips display the configured Jump binding.
+
+[D-0018](decisions/D-0018.md) records the controls, real support queries, authoritative
+input/movement ordering, server jump-inference correction and reproduced regressions.
+Current verification: 126 JUnit, 38 real-server, 44 full shader-booth and 54 focused
+gravity checks passed. Independent clients passed entry, both corner types, all six
+frames and release with no movement corrections. Enlarged renders were reviewed;
+all clients and test displays are closed. The 1.3.0 jar excludes test code.
+
+Held locally for review; this control-design approval is not release authorization.
+The existing deployed pack remains the previously authorized release.

@@ -35,6 +35,7 @@ public final class AberrantMobsMod {
 
     public AberrantMobsMod(IEventBus modBus) {
         ModContent.register(modBus);
+        modBus.addListener(com.chunkworks.aberrantmobs.wallwalk.ClingInput::register);
         modBus.addListener((DataPackRegistryEvent.NewRegistry event) ->
                 event.dataPackRegistry(AberrantMobs.CREATURES, CreatureProfile.CODEC, CreatureProfile.CODEC));
     }

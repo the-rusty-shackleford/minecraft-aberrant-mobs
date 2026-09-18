@@ -25,3 +25,4 @@ type: index
 | D-0015 | Gravity converts placement, impulses and visual anchors at vanilla boundaries; release reaches its exact endpoint |
 | D-0016 | Chitin uses vanilla pixel templates; chitter and rumble are credited CC0 recordings |
 | D-0017 | Collision-validated stance replay, destination-surface pounces and independent TCP client verification |
+| D-0018 | Deliberate Jump entry, supported corners and a fresh Jump to release |

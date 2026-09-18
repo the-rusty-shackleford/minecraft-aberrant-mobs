@@ -17,6 +17,9 @@
  */
 package com.chunkworks.aberrantmobs.client;
 
+import com.chunkworks.aberrantmobs.wallwalk.WallWalk;
+import com.chunkworks.aberrantmobs.wallwalk.ClingInput;
+import com.chunkworks.aberrantmobs.domain.frame.ClingIntent;
 import com.chunkworks.aberrantmobs.AberrantMobsMod;
 import com.chunkworks.aberrantmobs.domain.Quat;
 import com.chunkworks.aberrantmobs.domain.frame.Blend;
@@ -43,6 +46,20 @@ import org.jetbrains.annotations.Nullable;
 @EventBusSubscriber(modid = AberrantMobsMod.MOD_ID, value = Dist.CLIENT)
 public final class WallWalkClient {
     private WallWalkClient() {}
+
+    /** effects: samples manual Jump before auto-jump, sends it before movement, and consumes it while clinging. */
+    @SubscribeEvent
+    public static void onInput(net.neoforged.neoforge.client.event.MovementInputUpdateEvent event) {
+        Player p = event.getEntity();
+        if (!WallWalk.wears(p) && !WallWalk.bent(p)) return;
+        var keys = event.getInput();
+        boolean attached = WallWalk.bent(p);
+        var intent = new ClingIntent(keys.jumping, keys.forwardImpulse > 0, p.getYRot(), p.getXRot());
+        net.neoforged.neoforge.network.PacketDistributor.sendToServer(new ClingInput(intent.jump(), intent.forward(), intent.yaw(), intent.pitch()));
+        WallWalk.input(p, intent);
+        WallWalk.prepare(p);
+        if (attached) keys.jumping = false;
+    }
 
     @SubscribeEvent
     public static void onTick(ClientTickEvent.Post event) {

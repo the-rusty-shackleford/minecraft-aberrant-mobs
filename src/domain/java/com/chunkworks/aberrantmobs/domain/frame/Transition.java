@@ -33,7 +33,7 @@ public final class Transition {
     private Transition() {}
 
     /** A wearer must be moving at least this fast into a wall to take it, blocks a tick. */
-    public static final double INTO_WALL = 0.02;
+    public static final double INTO_WALL = 0.01;
     /** How far past the feet a ledge's face must lie to be wrapped onto, blocks. */
     public static final double EDGE_REACH = 0.3;
 
@@ -80,6 +80,7 @@ public final class Transition {
     }
 
     /**
+     * requires: facePoint is the actual nearby exposed block-face hit, found by the world adapter
      * effects: returns the stance of a wearer in {@code frame} at {@code feet}
      * that has walked off its floor's edge along {@code worldMove}: it wraps
      * onto the ledge's face (the face looking along its move), its feet
@@ -87,16 +88,16 @@ public final class Transition {
      * keeps going), if that box {@code fits}; nothing when the wearer moved
      * too little, or the box does not fit
      */
-    public static Optional<Stance> overEdge(Frame frame, Vec feet, double width, double height, Vec worldMove, Predicate<Frame.Box> fits) {
+    public static Optional<Stance> overEdge(Frame frame, Vec feet, double width, double height, Vec worldMove, Vec facePoint, Predicate<Frame.Box> fits) {
         Vec along = worldMove.minus(frame.up().times(worldMove.dot(frame.up())));
         if (along.length() < INTO_WALL) {
             return Optional.empty();
         }
         Gravity next = Gravity.nearest(along.times(-1));
         Frame f = Frame.of(next);
-        // The ledge's face is a plane perpendicular to the move, just behind the feet; the feet go onto it, a little down.
-        Vec faceNormal = f.up();
-        Vec feetNew = feet.plus(faceNormal.times(width / 2.0 + 1e-3)).plus(frame.up().times(-EDGE_REACH));
+        // The adapter traced this real face. Never manufacture support from a free box.
+        Vec feetNew = facePoint;
+        if (facePoint.minus(feet).length() > width + EDGE_REACH) return Optional.empty();
         Frame.Box box = f.box(feetNew, width, height);
         if (!fits.test(box)) {
             return Optional.empty();

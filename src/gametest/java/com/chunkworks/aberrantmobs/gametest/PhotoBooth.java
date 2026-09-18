@@ -488,6 +488,7 @@ public final class PhotoBooth {
         s.add(new Step(t += 4, () -> {
             MovementSample.reset();
             mc.options.keyUp.setDown(true);
+            mc.options.keyJump.setDown(true);
         }));
         for (int i = 1; i <= 60; i++) {
             s.add(new Step(t + i, () -> {
@@ -498,7 +499,7 @@ public final class PhotoBooth {
                 }
             }));
         }
-        s.add(new Step(t += 60, () -> mc.options.keyUp.setDown(false)));
+        s.add(new Step(t += 60, () -> { mc.options.keyUp.setDown(false); mc.options.keyJump.setDown(false); }));
         s.add(new Step(t += 6, () -> {
             shoot(mc, "booth-wallwalk-eyes");
             int visible = count(mc, rgb -> Math.max((rgb >> 16) & 255, Math.max((rgb >> 8) & 255, rgb & 255)) > 32);

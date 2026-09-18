@@ -154,8 +154,16 @@ death. The plating's clang is the anvil.
 
 Chitin makes a set (`chitin_helmet`, `chitin_chestplate` -- with the Cracked Carapace at
 its heart -- `chitin_leggings`, `chitin_boots`; netherite's plating, mended with chitin).
-Worn whole, it lets the wearer walk on walls and ceilings as if they were ground: not a
-climbing trick but a change of down. A wearer has a *frame* (`domain/frame`): one of six
+Worn whole, it lets the wearer walk on walls and ceilings. Hold **Jump** while moving
+forward toward the wall you are looking at to attach deliberately. Keep moving to
+follow connected walls, ceilings and exposed corners; you can release Jump once
+attached. **Release and press Jump again** to let go and jump away. A short guard
+prevents immediate reattachment, and Jump must be released before starting another
+attachment. Ordinary bumps, steps and walking off ground-level ledges stay normal.
+Each armor piece shows these controls using your current Jump binding.
+Client and server must both use the matching mod version for the input protocol.
+
+A wearer has a *frame* (`domain/frame`): one of six
 axis gravities, with right, up and forward axes in the world; its motion, its look and
 its box are reckoned in those axes and turned to the world's by the mixins on the
 entity (`mixin/EntityMixin`: the box is the axis swap with the feet on the gravity face,
@@ -163,18 +171,20 @@ the eyes are up along the frame, the view vector is the local look turned to the
 the move collides the frame's up axis first and steps up along it, the supporting block
 is under the frame's feet), while `travel` keeps working in the wearer's own axes --
 gravity along its down, a jump along its up, friction on its floor -- and only its move
-into the world is turned (`mixin/LivingEntityMixin`). Walking into a sturdy wall hard
-enough takes it (`Transition.intoWall`: the wall becomes the floor, the feet on its face,
-if the wearer's box fits there); walking off an edge wraps onto the ledge's face
-(`Transition.overEdge`); taking the set off, water, lava, flying, riding, gliding,
-sleeping or spectating lets go to the world's own down by the least way out that fits
-(`Transition.release`). A knockback or a push lands in the wearer's frame. The client
+into the world is turned (`mixin/LivingEntityMixin`). A sustained manual Jump gesture, forward movement and a view toward the contacted
+wall permit entry (`ClingGesture`, `ClingIntent`). Actual collision, a free rotated
+box and supporting blocks decide the stance (`Transition.intoWall`). An attached
+wearer follows concave corners and traces the real exposed face at a convex edge
+(`Transition.overEdge`). An empty-space fit alone never counts as support. Losing
+support, taking the set off, water, lava, flying, riding, gliding, sleeping or spectating
+lets go to world gravity where the upright box fits (`Transition.release`).
+A knockback or a push lands in the wearer's frame. The client
 runs the rule on its own player right after each move (`wallwalk/WallWalk`, the pure
 rules over `level.noCollision`); the server runs the same rule right after its re-run of
 each move the client reports, before it compares the two positions
 (`mixin/ServerGamePacketListenerImplMixin`), and again after its tick for what no move
-decides (the set coming off, water: `PlayerTickEvent.Post`); so the two agree and no
-packet is added -- the frame rides the player's synced data as one byte
+decides (the set coming off, water: `PlayerTickEvent.Post`); manual Jump and view input precede normal movement packets, while the server independently
+validates the surface and movement. The frame rides the player's synced data as one byte
 (`mixin/PlayerMixin`). Until 1.2.0 the server ran the rule only after its tick: a take
 moves the feet onto the wall's face, the client reported that position, the server's
 re-run had not taken the wall, and a survival player was "moved wrongly" and teleported
@@ -388,7 +398,7 @@ its mind on, prowl toward a distant step, hear a block break through the world, 
 player seen underground out of their view and hunt them on eye contact, hold a player at
 the maw and devour them, spare a blessed one and flee, coil and pounce, refuse a lit
 surface and take a dark chimney by thick rock to bore its pocket, and drop its loot; and a
-player in the full chitin set walked into a wall takes it, climbs it, lets go without the
+player in the full chitin set deliberately takes a wall, climbs it, lets go without the
 helmet and lands, lets go in water, while the undressed stop at the wall. The booth uses
 the existing Xephyr display (check `pgrep -a Xephyr`; keep one rendering client). Set
 `DISPLAY` to that display, then `__GLX_VENDOR_LIBRARY_NAME=mesa

@@ -89,7 +89,7 @@ public abstract class EntityMixin {
     @Inject(method = "move", at = @At("HEAD"), cancellable = true)
     private void aberrantmobs$move(MoverType type, Vec3 pos, CallbackInfo ci) {
         Entity self = (Entity) (Object) this;
-        if (!(self instanceof Player p) || self.noPhysics || !WallWalk.wears(p)) {
+        if (!(self instanceof Player p) || self.noPhysics || (!WallWalk.wears(p) && !WallWalk.bent(p))) {
             return;
         }
         if (!WallWalk.bent(self)) {

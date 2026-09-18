@@ -82,7 +82,7 @@ public final class ModContent {
     public static final DeferredItem<ArmorItem> CHITIN_BOOTS = armour("chitin_boots", ArmorItem.Type.BOOTS);
 
     private static DeferredItem<ArmorItem> armour(String name, ArmorItem.Type type) {
-        return ITEMS.registerItem(name, p -> new ArmorItem(CHITIN_MATERIAL, type, p), new Item.Properties().rarity(Rarity.RARE).durability(type.getDurability(37)));
+        return ITEMS.registerItem(name, p -> new ChitinArmorItem(CHITIN_MATERIAL, type, p), new Item.Properties().rarity(Rarity.RARE).durability(type.getDurability(37)));
     }
 
     /** One egg for the one entity type; which creature it spawns is the profile in its data ({@link AberrantEggItem#of}). */

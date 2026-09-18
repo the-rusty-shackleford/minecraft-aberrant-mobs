@@ -85,6 +85,7 @@ public final class WallWalkGameTests {
      * no connection to tick it
      */
     private static void step(ServerPlayer p, double forward) {
+        WallWalk.input(p, new com.chunkworks.aberrantmobs.domain.frame.ClingIntent(true, forward > 0, p.getYRot(), p.getXRot()));
         WallWalk.walk(p, forward);
     }
 
@@ -200,6 +201,158 @@ public final class WallWalkGameTests {
             }
             helper.succeed();
         });
+    }
+
+    /** Partitions: ordinary push; brief Jump; wrong view; backward movement; deliberate hold. */
+    @GameTest(template = "tall", batch = "cling_intent")
+    public void bumpsAndIncidentalInputNeverAttach(GameTestHelper helper) {
+        fill(helper, 0, 0, 0, 14, FLOOR - 1, 14, Blocks.STONE);
+        fill(helper, 10, FLOOR, 0, 14, 14, 14, Blocks.STONE);
+        for (int mode=0; mode<6; mode++) {
+            ServerPlayer p = wearer(helper, 9.69, 7.5, true);
+            try {
+                for (int tick=0; tick<8; tick++) {
+                    boolean jump = mode != 0 && (mode != 1 || tick < 3);
+                    float yaw = mode == 2 ? 0 : -90;
+                    float pitch = mode == 3 ? 90 : 0;
+                    WallWalk.input(p, new com.chunkworks.aberrantmobs.domain.frame.ClingIntent(jump, mode != 4, yaw, pitch));
+                    WallWalk.walk(p, 0.15);
+                }
+                helper.assertValueEqual(WallWalk.frameOf(p).gravity(), mode == 5 ? Gravity.EAST : Gravity.DOWN,
+                        "entry partition " + mode);
+                helper.assertTrue(helper.getLevel().noCollision(p), "valid player box after input partition " + mode);
+            } finally { p.discard(); }
+        }
+        helper.succeed();
+    }
+
+    /** Ordinary floor ledges stay ordinary even with the full set. */
+    @GameTest(template = "tall", batch = "cling_ledge")
+    public void walkingOffAnOrdinaryLedgeDoesNotInventSupport(GameTestHelper helper) {
+        fill(helper, 0, 0, 0, 14, 14, 14, Blocks.AIR);
+        fill(helper, 0, 0, 0, 6, 3, 14, Blocks.STONE);
+        ServerPlayer p = wearer(helper, 5.5, 7.5, true);
+        try {
+            for (int tick=0; tick<20; tick++) {
+                WallWalk.walk(p, 0.15);
+                helper.assertValueEqual(WallWalk.frameOf(p), Frame.WORLD, "ordinary ledge tick " + tick);
+            }
+            helper.assertTrue(!p.onGround() && p.getY() < helper.absoluteVec(new Vec3(0,4,0)).y,
+                    "normal unsupported fall after the ledge");
+        } finally { p.discard(); }
+        helper.succeed();
+    }
+
+    /** Existing hold stays attached; release/new press detaches safely; held Jump cannot reattach. */
+    @GameTest(template = "tall", batch = "cling_release")
+    public void jumpReleasesWallAndCeilingWithAReattachmentGuard(GameTestHelper helper) {
+        fill(helper, 0, 0, 0, 14, 3, 14, Blocks.STONE);
+        fill(helper, 10, 4, 0, 14, 14, 14, Blocks.STONE);
+        fill(helper, 0, 14, 0, 14, 14, 14, Blocks.STONE);
+        for (Gravity gravity : new Gravity[] {Gravity.EAST, Gravity.UP}) {
+            ServerPlayer p = wearer(helper, 6, 7.5, true);
+            try {
+                FrameCarrier c = (FrameCarrier)p;
+                c.aberrantmobs$setFrame(Frame.of(gravity));
+                p.setPos(helper.absoluteVec(gravity == Gravity.EAST ? new Vec3(10,8,7.5) : new Vec3(6,14,7.5)));
+                c.aberrantmobs$setGesture(new com.chunkworks.aberrantmobs.domain.frame.ClingGesture(true,4,0,false,false));
+                WallWalk.input(p, new com.chunkworks.aberrantmobs.domain.frame.ClingIntent(true,true,0,0));
+                WallWalk.prepare(p);
+                helper.assertValueEqual(WallWalk.frameOf(p).gravity(), gravity, "entry hold keeps " + gravity);
+                WallWalk.input(p, new com.chunkworks.aberrantmobs.domain.frame.ClingIntent(false,false,0,0));
+                WallWalk.input(p, new com.chunkworks.aberrantmobs.domain.frame.ClingIntent(true,false,0,0));
+                WallWalk.prepare(p);
+                helper.assertValueEqual(WallWalk.frameOf(p), Frame.WORLD, "fresh jump releases " + gravity);
+                helper.assertTrue(helper.getLevel().noCollision(p), "upright release fits " + gravity);
+                helper.assertTrue(p.getDeltaMovement().dot(WallWalk.vec3(Frame.of(gravity).up())) > 0.4,
+                        "jump moves away from " + gravity);
+                p.setYRot(-90);
+                for (int tick=0; tick<20; tick++) {
+                    WallWalk.input(p, new com.chunkworks.aberrantmobs.domain.frame.ClingIntent(true,true,-90,0));
+                    WallWalk.walk(p, 0.15);
+                    helper.assertValueEqual(WallWalk.frameOf(p), Frame.WORLD, "held release cannot stick again");
+                }
+            } finally { p.discard(); }
+        }
+        helper.succeed();
+    }
+
+    /** Attached convex edges need an actual face; removed support releases to world gravity. */
+    @GameTest(template = "tall", batch = "cling_corner")
+    public void wrapsOntoRealLedgeAndLetsGoWhenTheSurfaceDisappears(GameTestHelper helper) {
+        fill(helper, 0, 0, 0, 14, 14, 14, Blocks.AIR);
+        fill(helper, 10, 0, 0, 14, 8, 14, Blocks.STONE);
+        ServerPlayer p = wearer(helper, 5.5, 7.5, true);
+        try {
+            FrameCarrier c = (FrameCarrier)p;
+            c.aberrantmobs$setFrame(Frame.of(Gravity.EAST));
+            p.setPos(helper.absoluteVec(new Vec3(10,8.7,7.5)));
+            p.setYRot(0);
+            for (int tick=0; tick<8 && WallWalk.bent(p); tick++) WallWalk.walk(p, 0.15);
+            helper.assertValueEqual(WallWalk.frameOf(p), Frame.WORLD, "climbed over the real top edge");
+            helper.assertTrue(p.onGround() && helper.getLevel().noCollision(p), "stood on the top, clear of rock");
+            c.aberrantmobs$setFrame(Frame.of(Gravity.EAST));
+            p.setPos(helper.absoluteVec(new Vec3(10,6,7.5)));
+            fill(helper, 10, 0, 0, 14, 8, 14, Blocks.AIR);
+            WallWalk.walk(p, 0.15);
+            helper.assertValueEqual(WallWalk.frameOf(p), Frame.WORLD, "removed wall cannot pull through empty space");
+        } finally { p.discard(); }
+        helper.succeed();
+    }
+
+    /** A real convex-corner endpoint is replayed exactly, while unsupported/forged endpoints retain normal checks. */
+    @GameTest(template = "tall", batch = "cling_edge_replay")
+    public void serverReplaysTheActualOuterCornerWithoutTrustingTheEndpoint(GameTestHelper helper) {
+        fill(helper, 0, 0, 0, 14, 14, 14, Blocks.AIR);
+        fill(helper, 10, 0, 0, 14, 8, 14, Blocks.STONE);
+        ServerPlayer client = wearer(helper,5,7.5,true), server = wearer(helper,5,7.5,true);
+        Vec3 start = helper.absoluteVec(new Vec3(10,9.25,7.5));
+        try {
+            for (ServerPlayer p : new ServerPlayer[] {client,server}) {
+                ((FrameCarrier)p).aberrantmobs$setFrame(Frame.of(Gravity.EAST));
+                p.setPos(start);
+                p.setYRot(0);
+                p.setOnGround(true);
+            }
+            WallWalk.walk(client,0.15);
+            helper.assertValueEqual(WallWalk.frameOf(client),Frame.WORLD,"client goes over the convex top edge");
+            helper.assertTrue(client.onGround(),"client landed on the real top face");
+            Vec3 endpoint = client.position();
+            client.discard();
+            Vec3 reported = endpoint.subtract(start);
+            Vec3 attempted = WallWalk.replayMove(server,reported);
+            helper.assertTrue(attempted.distanceTo(reported)>0.2,"fixture exercises the corner displacement");
+            server.move(MoverType.PLAYER,attempted);
+            WallWalk.rule(server);
+            helper.assertValueEqual(WallWalk.frameOf(server),Frame.WORLD,"server followed the same corner");
+            helper.assertTrue(server.position().distanceTo(endpoint)<1e-5,"all reported coordinates match actual supported stance");
+            helper.assertTrue(server.onGround() && helper.getLevel().noCollision(server),"server is safely supported");
+            ((FrameCarrier)server).aberrantmobs$setFrame(Frame.of(Gravity.EAST));
+            server.setPos(start);
+            Vec3 forged = reported.add(0,-2,0);
+            helper.assertValueEqual(WallWalk.replayMove(server,forged),forged,"penetrating endpoint gets no stance exception");
+        } finally { client.discard(); server.discard(); }
+        helper.succeed();
+    }
+
+    /** The client's airborne forward acceleration at a wall is 0.0196 blocks per tick. */
+    @GameTest(template = "tall", batch = "cling_air_entry")
+    public void heldJumpCanAttachWhileTheEntryJumpIsStillRising(GameTestHelper helper) {
+        fill(helper,0,0,0,14,3,14,Blocks.STONE);
+        fill(helper,10,4,0,14,14,14,Blocks.STONE);
+        ServerPlayer p=wearer(helper,9.69,7.5,true);
+        try {
+            p.setPos(helper.absoluteVec(new Vec3(9.69,5,7.5)));
+            p.setOnGround(false);
+            for (int i=0;i<4;i++) {
+                WallWalk.input(p,new com.chunkworks.aberrantmobs.domain.frame.ClingIntent(true,true,-90,0));
+                p.move(MoverType.PLAYER,new Vec3(0.0196,0.16,0));
+                WallWalk.rule(p);
+            }
+            helper.assertValueEqual(WallWalk.frameOf(p).gravity(),Gravity.EAST,"attach during the deliberate entry jump");
+            helper.assertTrue(p.getDeltaMovement().y == 0,"no outward jump remains after entry");
+        } finally { p.discard(); }
+        helper.succeed();
     }
 
 }

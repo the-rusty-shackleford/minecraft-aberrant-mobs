@@ -17,6 +17,8 @@
  */
 package com.chunkworks.aberrantmobs.wallwalk;
 
+import com.chunkworks.aberrantmobs.domain.frame.ClingIntent;
+import com.chunkworks.aberrantmobs.domain.frame.ClingGesture;
 import com.chunkworks.aberrantmobs.domain.frame.Blend;
 import com.chunkworks.aberrantmobs.domain.frame.Frame;
 import net.minecraft.world.phys.Vec3;
@@ -30,6 +32,17 @@ import org.jetbrains.annotations.Nullable;
  * on {@code Player} by a mixin.
  */
 public interface FrameCarrier {
+    /** effects: returns this player's immutable manual-input history. */
+    ClingGesture aberrantmobs$gesture();
+    /** effects: replaces the input history. */
+    void aberrantmobs$setGesture(ClingGesture gesture);
+    /** effects: returns the latest manual controls, without any requested position or frame. */
+    ClingIntent aberrantmobs$intent();
+    /** effects: records the controls and their receipt tick for stale-input rejection. */
+    void aberrantmobs$setIntent(ClingIntent intent, int tick);
+    /** effects: returns the player tick of the latest input sample. */
+    int aberrantmobs$inputTick();
+
     Frame aberrantmobs$frame();
 
     void aberrantmobs$setFrame(Frame frame);

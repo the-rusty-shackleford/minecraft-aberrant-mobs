@@ -103,7 +103,8 @@ public final class MultiplayerClient {
             mc.getConnection().sendChat("AB_JOIN");
             LOG.info("multiplayer: joined {}", mc.player.getGameProfile().getName());
         }
-        mc.options.keyUp.setDown(ROLE.equals("wearer") && (stage.equals("walk") || stage.equals("wrap")));
+        mc.options.keyUp.setDown(ROLE.equals("wearer") && (stage.equals("bump") || stage.equals("walk") || stage.equals("wrap") || stage.equals("outer-walk")));
+        mc.options.keyJump.setDown(ROLE.equals("wearer") && (stage.equals("walk") || stage.equals("jump-release")));
         if (stage.equals("done")) {
             mc.options.keyUp.setDown(false);
             LOG.info("multiplayer: PASS all checks ran ({})", ROLE);
@@ -115,20 +116,24 @@ public final class MultiplayerClient {
         if (wearer == null) { if (age > 180) fail(mc, "tracked wearer missing; client players=" + mc.level.players().stream().map(p -> p.getGameProfile().getName()).toList()); return; }
         boolean ok = false;
         if (stage.equals("ready")) ok = WallWalk.wears(wearer) && mc.getConnection() != null && !mc.getConnection().getConnection().isMemoryConnection();
+        else if (stage.equals("bumped")) ok = !WallWalk.bent(wearer) && wearer.getX() > 15.6;
+        else if (stage.equals("jumped")) ok = !WallWalk.bent(wearer) && WallWalk.wears(wearer) && mc.level.noCollision(wearer);
+        else if (stage.equals("outer-ready")) ok = WallWalk.frameOf(wearer).gravity() == Gravity.EAST && Math.abs(wearer.getX()-10)<0.01;
+        else if (stage.equals("outer-done")) ok = !WallWalk.bent(wearer) && wearer.getY()>69.99 && mc.level.noCollision(wearer);
         else if (stage.equals("climbed")) ok = WallWalk.frameOf(wearer).gravity() == Gravity.EAST && wearer.getY() > 69;
         else if (stage.equals("wrapped")) ok = WallWalk.frameOf(wearer).gravity() == Gravity.UP;
         else if (stage.startsWith("frame:")) {
             Gravity wanted = Gravity.valueOf(stage.substring(6));
             ok = WallWalk.frameOf(wearer).gravity() == wanted && WallWalk.wears(wearer)
                     && wearer.getBoundingBox().contains(wearer.getEyePosition());
-        } else if (stage.equals("ceiling")) ok = WallWalk.frameOf(wearer).gravity() == Gravity.UP;
+        } else if ((stage.equals("ceiling") || stage.equals("ceiling-again"))) ok = WallWalk.frameOf(wearer).gravity() == Gravity.UP;
         else if (stage.equals("released")) ok = WallWalk.frameOf(wearer).gravity() == Gravity.DOWN
                 && !WallWalk.wears(wearer) && mc.level.noCollision(wearer);
         if (ok) {
             if (ROLE.equals("observer") && (stage.startsWith("frame:") || stage.equals("climbed") || stage.equals("released")))
                 Screenshot.grab(mc.gameDirectory, "multiplayer-" + stage.replace(':', '-') + ".png", mc.getMainRenderTarget(), message -> LOG.info("{}", message.getString()));
             pass(mc, stage + " observed on " + ROLE + ": " + wearer.position() + " " + WallWalk.frameOf(wearer));
-        } else if (age > 180 && !stage.equals("walk") && !stage.equals("wrap") && !stage.isEmpty()) fail(mc, "state mismatch in " + stage + ": " + wearer.position() + " " + WallWalk.frameOf(wearer));
+        } else if (age > 180 && !stage.equals("walk") && !stage.equals("wrap") && !stage.equals("bump") && !stage.equals("jump-release") && !stage.equals("outer-walk") && !stage.isEmpty()) fail(mc, "state mismatch in " + stage + ": " + wearer.position() + " " + WallWalk.frameOf(wearer));
     }
 
     private static Vec3 receivedMotion(Player player) {

@@ -17,6 +17,8 @@
  */
 package com.chunkworks.aberrantmobs.mixin;
 
+import com.chunkworks.aberrantmobs.domain.frame.ClingIntent;
+import com.chunkworks.aberrantmobs.domain.frame.ClingGesture;
 import com.chunkworks.aberrantmobs.domain.frame.Blend;
 import com.chunkworks.aberrantmobs.domain.frame.Frame;
 import com.chunkworks.aberrantmobs.wallwalk.FrameCarrier;
@@ -54,6 +56,20 @@ public abstract class PlayerMixin implements FrameCarrier {
     @Unique
     @Nullable
     private Vec3 aberrantmobs$movePre;
+
+    @Unique
+    private ClingGesture aberrantmobs$gesture = ClingGesture.IDLE;
+    @Unique
+    private ClingIntent aberrantmobs$intent = ClingIntent.NONE;
+    @Unique
+    private int aberrantmobs$inputTick = Integer.MIN_VALUE / 2;
+    @Override public ClingGesture aberrantmobs$gesture() { return aberrantmobs$gesture; }
+    @Override public void aberrantmobs$setGesture(ClingGesture gesture) { aberrantmobs$gesture = gesture; }
+    @Override public ClingIntent aberrantmobs$intent() { return aberrantmobs$intent; }
+    @Override public void aberrantmobs$setIntent(ClingIntent intent, int tick) {
+        aberrantmobs$intent = intent; aberrantmobs$inputTick = tick;
+    }
+    @Override public int aberrantmobs$inputTick() { return aberrantmobs$inputTick; }
 
     @Inject(method = "defineSynchedData", at = @At("TAIL"))
     private void aberrantmobs$defineFrame(SynchedEntityData.Builder builder, CallbackInfo ci) {

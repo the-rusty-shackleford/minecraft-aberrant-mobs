@@ -23,5 +23,7 @@
   "item.aberrantmobs.chitin_boots": "Chitin Boots",
   "item.aberrantmobs.aberrant_spawn_egg": "Aberrant Spawn Egg",
   "item.aberrantmobs.aberrant_spawn_egg.of": "%s Spawn Egg",
-  "itemGroup.aberrantmobs": "Aberrant Mobs"
+  "itemGroup.aberrantmobs": "Aberrant Mobs",
+  "item.aberrantmobs.chitin_armor.attach": "Full set: hold %s and move toward the wall you're facing.",
+  "item.aberrantmobs.chitin_armor.detach": "While attached: release and press %s again to let go."
 }

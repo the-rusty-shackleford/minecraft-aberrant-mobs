@@ -149,7 +149,7 @@ final class FrameTest {
         assertEquals(10.3, s.get().feet().x(), 1e-9, "the feet on the face");
         assertEquals(64.9, s.get().feet().y(), 1e-9, "at the old box's middle");
         assertEquals(0.0, s.get().yaw(), 1e-9, "facing up the wall: the frame's forward");
-        assertTrue(Transition.intoWall(Frame.WORLD, feet, 0.6, 1.8, new Vec(0.01, 0, 0), Vec.X.times(-1), free).isEmpty(), "creeping does not take it");
+        assertTrue(Transition.intoWall(Frame.WORLD, feet, 0.6, 1.8, new Vec(0.005, 0, 0), Vec.X.times(-1), free).isEmpty(), "creeping does not take it");
         assertTrue(Transition.intoWall(Frame.WORLD, feet, 0.6, 1.8, new Vec(0, -0.1, 0), Vec.Y, free).isEmpty(), "its own floor is not a wall");
         assertTrue(Transition.intoWall(Frame.WORLD, feet, 0.6, 1.8, new Vec(0.1, 0, 0), Vec.X.times(-1), b -> false).isEmpty(), "no room on the wall");
         Optional<Transition.Stance> ceiling = Transition.intoWall(Frame.of(Gravity.EAST), s.get().feet(), 0.6, 1.8, new Vec(0, 0.1, 0), Vec.Y.times(-1), free);
@@ -163,13 +163,13 @@ final class FrameTest {
     @Test
     void overAnEdgeWrapsOntoTheLedgeAndReleaseLandsTheLeastWayUp() {
         Vec feet = new Vec(10.0, 64, 10.5);
-        Optional<Transition.Stance> s = Transition.overEdge(Frame.WORLD, feet, 0.6, 1.8, new Vec(0.1, 0, 0), b -> true);
+        Optional<Transition.Stance> s = Transition.overEdge(Frame.WORLD, feet, 0.6, 1.8, new Vec(0.1, 0, 0), new Vec(9.7, 63.69, 10.5), b -> true);
         assertTrue(s.isPresent());
         assertEquals(Gravity.WEST, s.get().frame().gravity(), "the ledge's east face pulls west");
-        assertTrue(s.get().feet().x() > 10.0 && s.get().feet().y() < 64.0, "just past and under the edge: " + s.get().feet());
+        assertTrue(s.get().feet().x() == 9.7 && s.get().feet().y() < 64.0, "just past and under the edge: " + s.get().feet());
         assertTrue(Frame.headingOf(s.get().yaw()).near(s.get().frame().toLocal(Vec.Y.times(-1)), 1e-9), "facing down the face");
-        assertTrue(Transition.overEdge(Frame.WORLD, feet, 0.6, 1.8, new Vec(0.001, 0, 0), b -> true).isEmpty(), "standing still");
-        assertTrue(Transition.overEdge(Frame.WORLD, feet, 0.6, 1.8, new Vec(0.1, 0, 0), b -> false).isEmpty(), "no face to take");
+        assertTrue(Transition.overEdge(Frame.WORLD, feet, 0.6, 1.8, new Vec(0.001, 0, 0), new Vec(9.7, 63.69, 10.5), b -> true).isEmpty(), "standing still");
+        assertTrue(Transition.overEdge(Frame.WORLD, feet, 0.6, 1.8, new Vec(0.1, 0, 0), new Vec(9.7, 63.69, 10.5), b -> false).isEmpty(), "no face to take");
         // On a wall to the east (its face at x = 10.3, gravity east, up west): letting go moves the feet west until the world's box clears the wall.
         Vec onWall = new Vec(10.3, 66, 10.5);
         Optional<Transition.Stance> r = Transition.release(Frame.of(Gravity.EAST), onWall, 0.6, 1.8, b -> b.hi().x() <= 10.3 + 1e-9);
