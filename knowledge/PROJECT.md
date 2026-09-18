@@ -414,3 +414,22 @@ the exact approved jar, SHA-256
 from the passing clean build and final presentation/multiplayer gates recorded above.
 The release includes deliberate chitin controls and continuous presentation.
 Publication and deployment verification will be appended after completion.
+
+
+## Release and deployment verified — 2026-09-18
+
+[Aberrant Mobs 1.3.0](https://github.com/the-rusty-shackleford/minecraft-aberrant-mobs/releases/tag/v1.3.0)
+is published from `9290a76e27b36ab4656f4f96495a7cee67d47587` and deployed in pack **1.41.0**. The downloaded GitHub
+asset, the approved playtest artifact and the installed server jar match byte for byte
+(SHA-1 `fce40376c2a95cf8fc57f8400abe906c20a1867e`).
+
+Pack staging verified that only the Aberrant Mobs entry and pack version changed
+from 1.40.1; every other download and override byte is preserved. The published
+archives match staging, and the actual HTTP player download serves 1.41.0 with the
+expected hash. A fresh RCON check found zero players immediately before restart.
+The new server startup began at 2026-09-18T22:56:42.731000+00:00 and reached ready at 22:56:52 UTC,
+explicitly loading Aberrant Mobs 1.3.0. Mod Hub reports no differences, both loader
+versions remain 21.1.248, and the measured overall rate is 20 TPS (0.237 ms/tick).
+The world selection, seed configuration, operators and Distant Horizons configuration
+were preserved. No startup error names this mod. Rusty updates their normal Prism
+instance through Mod Hub; no personal instance was changed during this release.
