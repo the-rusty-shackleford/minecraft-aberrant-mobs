@@ -403,3 +403,14 @@ jar; its existing test room and reset function remain available. The previous te
 jar and player state were backed up before the refresh. Rusty's personal feel review
 is the next checkpoint. Version 1.3.0 remains local and unreleased; there was no push,
 tag, pack assembly, deployment or live-server restart.
+
+
+## Release approval — 2026-09-18
+
+Rusty approved the updated personal playtest and explicitly requested release of
+1.3.0. This supersedes the local holds above and in D-0018/D-0019. The release uses
+the exact approved jar, SHA-256
+`b4870de3f4304644b812ee77a0934933e8c65ceb43413c9f1f468c0927d2ca22`,
+from the passing clean build and final presentation/multiplayer gates recorded above.
+The release includes deliberate chitin controls and continuous presentation.
+Publication and deployment verification will be appended after completion.

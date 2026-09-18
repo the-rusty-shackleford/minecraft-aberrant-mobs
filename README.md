@@ -29,6 +29,13 @@ the clicks and a low recorded rumble replaces the idle breath without changing i
 rare timing. Sources and cuts are in
 `devtools/art/sounds/SOURCES.md` (D-0016).
 
+## Chitin controls in 1.3.0
+
+Hold Jump while moving forward toward the wall you are looking at to attach. Walk
+around supported corners, then release and press Jump again to jump away. Camera
+turns ease over half a second; walking animation and bob follow every supporting
+surface. Update both client and server to 1.3.0.
+
 ## In creative
 
 The creative inventory has an **Aberrant Mobs** page (the Stolen Face is its icon): chitin,
