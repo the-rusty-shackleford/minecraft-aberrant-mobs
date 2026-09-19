@@ -39,7 +39,7 @@ import net.minecraft.util.ExtraCodecs;
  * {@link TreeJson} with the verbs registered in {@link Verbs}, so a
  * condition naming no sense, a mode entered that is not there or a verb
  * nobody knows is refused at load, naming its path -- its habitat (where
- * it spawns on its own) and its loot table. Every field is checked in its
+ * it spawns and remains throughout its lifetime) and its loot table. Every field is checked in its
  * compact constructor, so a bad file is refused at load naming the field,
  * never at first sight. A creature without a mind stands, and is moved by
  * the booth and the tests.
@@ -68,23 +68,25 @@ public record CreatureProfile(ResourceLocation model, double scale, RigSpec rig,
     }
 
     /**
-     * Where the creature comes into the world on its own: the depths it
+     * Where the creature spawns and remains: the depths it
      * keeps to, the most light it bears, its weight among the profiles
      * that could spawn at a site, how far from its kind it stays, how many
      * a level holds. A profile without one never spawns naturally.
      */
-    public record Habitat(int yMin, int yMax, int maxLight, int weight, int exclusion, int cap) {
+    public record Habitat(int yMin, int yMax, int maxLight, int weight, int exclusion, int cap, boolean sunlightSensitive) {
         public static final Codec<Habitat> CODEC = RecordCodecBuilder.create(i -> i.group(
-                Codec.INT.optionalFieldOf("y_min", -58).forGetter(Habitat::yMin),
-                Codec.INT.optionalFieldOf("y_max", 0).forGetter(Habitat::yMax),
+                Codec.INT.optionalFieldOf("y_min", -32).forGetter(Habitat::yMin),
+                Codec.INT.optionalFieldOf("y_max", -8).forGetter(Habitat::yMax),
                 Codec.INT.optionalFieldOf("max_light", 0).forGetter(Habitat::maxLight),
                 Codec.INT.optionalFieldOf("weight", 2).forGetter(Habitat::weight),
                 Codec.INT.optionalFieldOf("exclusion", 128).forGetter(Habitat::exclusion),
-                Codec.INT.optionalFieldOf("cap", 6).forGetter(Habitat::cap)
+                Codec.INT.optionalFieldOf("cap", 6).forGetter(Habitat::cap),
+                Codec.BOOL.optionalFieldOf("sunlight_sensitive", false).forGetter(Habitat::sunlightSensitive)
         ).apply(i, Habitat::new));
 
         public Habitat {
-            rules();   // refused here if malformed
+            // Compact record constructors have not assigned their fields yet. Validate the parameters.
+            new com.chunkworks.aberrantmobs.domain.Habitat.Rules(yMin, yMax, maxLight, exclusion, cap);
             if (weight <= 0) {
                 throw new IllegalArgumentException("a habitat's weight is positive: " + weight);
             }

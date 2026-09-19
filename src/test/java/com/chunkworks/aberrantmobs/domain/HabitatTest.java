@@ -38,9 +38,9 @@ final class HabitatTest {
     void deepAndDarkIsDepthAndNoLight() {
         Habitat.Rules r = Habitat.FACE_STEALER;
         assertTrue(Habitat.deepAndDark(r, -30, 0, 0));
-        assertTrue(Habitat.deepAndDark(r, 0, 0, 0) && Habitat.deepAndDark(r, -58, 0, 0), "the ends included");
-        assertFalse(Habitat.deepAndDark(r, 1, 0, 0), "too high");
-        assertFalse(Habitat.deepAndDark(r, -59, 0, 0), "too deep");
+        assertTrue(Habitat.deepAndDark(r, -8, 0, 0) && Habitat.deepAndDark(r, -32, 0, 0), "the ends included");
+        assertFalse(Habitat.deepAndDark(r, -7, 0, 0), "too high");
+        assertFalse(Habitat.deepAndDark(r, -33, 0, 0), "too deep");
         assertFalse(Habitat.deepAndDark(r, -30, 1, 0), "a glimmer of sky");
         assertFalse(Habitat.deepAndDark(r, -30, 0, 1), "a torch");
         assertTrue(Habitat.deepAndDark(new Habitat.Rules(-58, 0, 7, 0, 0), -30, 7, 3), "a laxer rule bears some light");
@@ -80,4 +80,21 @@ final class HabitatTest {
         Cells cavern = (x, y, z) -> Math.abs(x) <= 20 && Math.abs(z) <= 20 ? Cells.Kind.AIR : Cells.Kind.ROCK;
         assertTrue(Habitat.siteInWall(cavern, new Cell(0, 5, 0), Habitat.SITE_DEPTH).isEmpty(), "a cavern too wide to cross");
     }
+    // Extent partitions: exact faces, interior, either face straddled, wholly
+    // outside, zero height, reversed/nonfinite input. Block rows include yMax.
+    @Test
+    void entireBodyMustFitBothBoundaryFaces() {
+        Habitat.Rules r=Habitat.FACE_STEALER;
+        assertTrue(Habitat.containsHeight(r,-32,-7));
+        assertTrue(Habitat.containsHeight(r,-28,-24));
+        assertTrue(Habitat.containsHeight(r,-20,-20));
+        assertFalse(Habitat.containsHeight(r,-32.001,-28));
+        assertFalse(Habitat.containsHeight(r,-12,-6.999));
+        assertFalse(Habitat.containsHeight(r,0,4));
+        assertFalse(Habitat.containsHeight(r,-40,-36));
+        assertThrows(IllegalArgumentException.class,()->Habitat.containsHeight(r,1,0));
+        assertThrows(IllegalArgumentException.class,()->Habitat.containsHeight(r,Double.NaN,0));
+        assertThrows(IllegalArgumentException.class,()->Habitat.containsHeight(r,-32,Double.POSITIVE_INFINITY));
+    }
+
 }

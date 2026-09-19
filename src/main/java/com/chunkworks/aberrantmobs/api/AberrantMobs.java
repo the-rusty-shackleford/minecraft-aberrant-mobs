@@ -42,6 +42,9 @@ public final class AberrantMobs {
     /** The bite: fatal through armour, but a blow like any other to whatever listens for one. */
     public static final ResourceKey<DamageType> DEVOURED = ResourceKey.create(Registries.DAMAGE_TYPE, id("devoured"));
 
+    /** Direct sunlight; separate from fire, to which some creatures are immune. */
+    public static final ResourceKey<DamageType> SUNLIGHT = ResourceKey.create(Registries.DAMAGE_TYPE, id("sunlight"));
+
     public static ResourceLocation id(String path) {
         return ResourceLocation.fromNamespaceAndPath(NAMESPACE, path);
     }

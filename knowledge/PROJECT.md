@@ -433,3 +433,32 @@ versions remain 21.1.248, and the measured overall rate is 20 TPS (0.237 ms/tick
 The world selection, seed configuration, operators and Distant Horizons configuration
 were preserved. No startup error names this mod. Rusty updates their normal Prism
 instance through Mod Hub; no personal instance was changed during this release.
+
+
+## Habitat and chase — 1.3.1 candidate (2026-09-19)
+
+Rusty approved D-0020: Face-Stealers remain wholly within Y -32 through -8,
+excluding the Deep Dark. Spawn pockets, crawling, digging, falling, pounces and
+attacks enforce the territory. Existing invalid creatures are removed without loot
+as they load; valid ones retain their health and acquire the new behavior. Direct
+sunlight at any segment deals one heart per second. Sustained chase speed is 4.8
+blocks/second, allowing a sprinting player to open a gap on clear ground.
+
+Session verification so far: the five original habitat regressions failed against
+the old code; the old chase caught a sprinting player. The updated full headless
+suite passes 131 domain and 51 real-server tests, including actual sprint travel
+under hunt AI, natural pocket spawning, both full-body boundaries, queued attacks,
+saved NBT, Deep Dark, daylight, shade, torches and night. The test-only protocol
+profile is generated from the shipped body and mind without a habitat.
+
+Rusty requested deployment together with the gun HUD repair, preceded by a complete
+world reset with a fresh seed. The live server must be empty at the reset/restart.
+Final client, artifact and deployment verification will be appended once complete.
+
+Final release gate passed in this session: `build` ran 131 domain tests, all 51
+real-server GameTests and the complete shader client booth. The lighting fixtures
+wait for real light propagation before making assertions; the spawn check uses a
+bounded rock pocket and a relative post-spawn delay. The old-code regressions and
+sprint comparison remain recorded in D-0020. The 1.3.1 jar excludes all test classes,
+structures and the surface-only protocol fixture. The release is authorized for
+pack 1.48.0 together with the HUD fix, new random world and requested Chunky task.

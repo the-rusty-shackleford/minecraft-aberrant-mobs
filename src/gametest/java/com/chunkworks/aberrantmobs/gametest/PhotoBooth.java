@@ -194,7 +194,7 @@ public final class PhotoBooth {
         ServerLevel level = sp.serverLevel();
         level.setDayTime(6000L);
         double y = level.getMinBuildHeight() + 4;   // the flat preset's grass tops at -60
-        Aberrant a = Aberrant.create(level, FaceStealerGameTests.FACE_STEALER, X, y, Z, -90.0f);
+        Aberrant a = Aberrant.create(level, FaceStealerGameTests.PROTOCOL_FIXTURE, X, y, Z, -90.0f);
         if (a == null) {
             LOG.error("booth: FAIL the Face-Stealer profile is registered -- Aberrant.create returned null");
             return;

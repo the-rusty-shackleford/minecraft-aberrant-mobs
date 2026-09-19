@@ -34,7 +34,7 @@ rare timing. Sources and cuts are in
 Hold Jump while moving forward toward the wall you are looking at to attach. Walk
 around supported corners, then release and press Jump again to jump away. Camera
 turns ease over half a second; walking animation and bob follow every supporting
-surface. Update both client and server to 1.3.0.
+surface. Update both client and server to 1.3.1.
 
 ## In creative
 
@@ -44,10 +44,9 @@ creature profile loaded, each named after its creature ("Face-Stealer Spawn Egg"
 same items sit on the vanilla pages too: the drops under Ingredients, the armour under
 Combat, the eggs under Spawn Eggs. There is one egg item, `aberrantmobs:aberrant_spawn_egg`;
 which creature it spawns is the profile in its entity data, so a datapack that adds a
-creature gets its egg for free. An egg, a command or a spawner puts a creature down
-wherever it is used, at its profile's health, taking the creature whose habitat fits the
-spot when the egg names none, else the first known; only the world's own spawns insist on
-a fitting habitat. A creature in creative is a spectacle, not a hunt: it hears every
+creature gets its egg for free. An egg, command or spawner creates the requested
+creature at its profile's health. A habitat-bound creature placed outside its territory
+is removed on its first server tick, just like an existing saved creature outside it. A creature in creative is a spectacle, not a hunt: it hears every
 player, but only a survival or adventure player is prey.
 
 ## A creature
@@ -59,7 +58,7 @@ player, but only a survival or adventure player is prey.
   "model": "aberrantmobs:face_stealer",      // assets/<ns>/aberrantmobs/model/<name>.bbmodel, saved as it is
   "scale": 0.09375,                           // model units to blocks (optional, a sixteenth; the Face-Stealer's is one and a half)
   "body": {"width": 3.75, "height": 3.75, "eye_height": 2.4},   // the box the world collides with, blocks
-  "stats": {"health": 84, "speed": 0.45, "blows": 5}   // no blow takes more than a fifth of it: five to kill, however hard the weapon
+  "stats": {"health": 84, "speed": 0.24, "blows": 5}   // no blow takes more than a fifth of it: five to kill, however hard the weapon
 }
 ```
 
@@ -132,8 +131,8 @@ click and hiss) and leaps as the coil ends.
 
 ## Where it lives, what it leaves, how it sounds
 
-A profile with a `habitat` spawns on its own (`{"y_min": -58, "y_max": 0, "max_light":
-0, "weight": 2, "exclusion": 128, "cap": 6}`): the biome modifier offers the entity type
+A profile with a `habitat` spawns on its own (`{"y_min": -32, "y_max": -8, "max_light":
+0, "weight": 2, "exclusion": 128, "cap": 6, "sunlight_sensitive": true}`): the biome modifier offers the entity type
 to every overworld biome, and `SpawnRules` takes a site only when it is deep and dark
 enough for some habitat, not in the deep dark, with a wall beside the cave thick enough
 to bore into (`domain/Habitat`: across the cave's air, then seven of rock ending in a
@@ -141,8 +140,39 @@ pocket of rock five across), no other creature within the exclusion and fewer th
 cap in the level. The creature then takes the profile whose habitat fits (by weight),
 bores its pocket, five across, seven blocks into that wall and starts there, so the
 first sign of it is digging.
-Once it stalks or hunts it persists; a lit base is safe, since it will not spawn in
-light. A command or an egg puts it anywhere.
+The Face-Stealer lives in the deepslate mining band, **Y -32 through -8**, outside the
+Deep Dark. Shallow caves and ordinary surface iron mining are outside its territory.
+Both end block rows are included, but the full body and spawn pocket must fit; a
+head at an endpoint cannot leave half the creature across the boundary. Paths and
+digs treat forbidden territory as impassable. Crawling, falling and every tick of a
+pounce enforce the boundary too. Targets outside it cannot be grabbed or bitten,
+including a victim moved outside after a bite was queued.
+
+The full chase is **0.24 blocks/tick (4.8 blocks/second)**, down from 0.45. A sprinting
+player can open a gap on clear ground; walking, obstacles and close-range pounces
+remain dangerous. Quiet approaches and wandering use the same profile speed with
+their existing multipliers. The pounce retains its brief burst and wind-up.
+
+Once it stalks or hunts it persists. Persistence does not exempt it from the habitat:
+on the first tick after loading, existing out-of-band or Deep Dark creatures are
+removed without loot or experience. Existing in-band creatures keep their saved
+health and immediately use the new speed, boundaries and sunlight behavior. No
+world scan, respawn command or new NBT flag is required; unloaded chunks are checked
+when they load. Eggs, spawners and summons have the same lifetime restriction.
+
+Direct daytime sky exposure on any body segment deals **one heart per second**
+through the carapace. Cover, nighttime and rain prevent sunlight damage; torches
+do not cause it. Sunlight is its own damage type because the creature remains
+immune to ordinary fire. Normal damage listeners and invulnerability still apply.
+Artificial light prevents natural spawning but does not repel an existing hunter.
+
+Habitat depth and sunlight sensitivity are profile data; `sunlight_sensitive`
+defaults to false for other creatures. A profile without a habitat has no natural
+spawn or territory restriction. Deep Dark checks conservatively include the biome
+samples Minecraft can select near a biome edge, keeping a small buffer beside it.
+The pure `Habitat.containsHeight` rule covers full vertical extents; `LevelCells`
+checks loaded terrain and biome samples without loading chunks. Actual collision
+and attachment use real terrain, so the boundary creates no invisible climbing wall.
 
 Killed, it drops its profile's loot table (`"loot"`): for the Face-Stealer twelve to
 eighteen **Chitin** (more with Looting), its **Cracked Carapace** (the weak plate, the
@@ -396,6 +426,7 @@ tests until the crawl arrives.
 
 ```
 export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 PATH="$JAVA_HOME/bin:$PATH"
+./gradlew runGameTestServer -PhabitatTests # shipped-profile spawn, saved NBT, boundaries, sunlight and sprint pursuit
 ./gradlew test                   # JUnit on the pure layer: the rig, the body, the feet, the clips, the crawl, the mind, the ears
 ./gradlew check                  # plus the gametests and the photo booth (needs a display; -PskipBooth, -PskipGameTests)
 ./gradlew runPlaytest            # the dread in a real cave: the log's numbers first, then the frames (needs a display)
@@ -479,3 +510,12 @@ The survival photo booth verifies sixty position snapshots sent after the ordina
 movement packets, avoiding comparisons of live entities from different threads.
 Missing samples, position disagreements and server movement-rejection warnings fail
 the gate. This instrumentation belongs only to the test mod.
+
+
+The surface locomotion/combat fixtures and standard photo booth use a generated
+`protocol_fixture` profile containing the shipped body, stats and mind with no habitat.
+It exists only in the gametest source set; the production jar has no fixture or
+testing exemption. Habitat tests use the unmodified shipped `face_stealer` profile.
+If the desktop exhausts inotify instances, `disableConfigWatcher = true` in the
+disposable run directory's `config/fml.toml` disables NeoForge's config hot-reload
+watcher for that test process; it does not change the server or player configs.

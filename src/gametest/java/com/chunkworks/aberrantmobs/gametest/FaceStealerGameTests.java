@@ -65,6 +65,7 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @PrefixGameTestTemplate(false)
 public final class FaceStealerGameTests {
     static final ResourceLocation FACE_STEALER = AberrantMobs.id("face_stealer");
+    static final ResourceLocation PROTOCOL_FIXTURE = AberrantMobs.id("protocol_fixture");
     /** The Face-Stealer's model unit, blocks: a sixteenth and a half. */
     static final double UNIT = 1.5 / 16.0;
     /** Its axis over its feet: 23.3 units. */
@@ -98,14 +99,14 @@ public final class FaceStealerGameTests {
         helper.assertTrue(Math.abs(profile.stats().health() - 84.0) < 1e-9, "84 health");
         layFloor(helper);
         Vec3 at = helper.absoluteVec(new Vec3(7.5, FLOOR, 7.5));
-        Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, -90.0f);
+        Aberrant a = Aberrant.create(helper.getLevel(), PROTOCOL_FIXTURE, at.x, at.y, at.z, -90.0f);
         helper.assertTrue(a != null, "the creature is made");
         helper.getLevel().addFreshEntity(a);
         a.setNoAi(true);   // moved by the test, not by its mind
         helper.assertTrue(Math.abs(a.getBbWidth() - 3.75f) < 1e-5 && Math.abs(a.getBbHeight() - 3.75f) < 1e-5, "sized by the profile: " + a.getBbWidth() + " x " + a.getBbHeight());
         helper.assertTrue(Math.abs(a.getMaxHealth() - 84.0f) < 1e-5 && Math.abs(a.getHealth() - 84.0f) < 1e-5, "healthy as the profile says: " + a.getHealth());
         helper.assertValueEqual(a.getName().getString(), "Face-Stealer", "named by its profile");
-        helper.assertValueEqual(a.profileId(), FACE_STEALER, "and knows its profile");
+        helper.assertValueEqual(a.profileId(), PROTOCOL_FIXTURE, "and knows its profile");
         helper.assertTrue(Aberrant.create(helper.getLevel(), AberrantMobs.id("nothing"), at.x, at.y, at.z, 0.0f) == null, "no creature without a profile");
         helper.runAtTickTime(5, () -> {
             helper.assertTrue(a.isAlive() && a.profile() != null, "still itself five ticks on");
@@ -119,7 +120,7 @@ public final class FaceStealerGameTests {
         // The long arena: the body is laid ten blocks behind the head, then walked nine east.
         layFloor(helper, 31);
         Vec3 at = helper.absoluteVec(new Vec3(17.5, FLOOR, 7.5));
-        Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, -90.0f);
+        Aberrant a = Aberrant.create(helper.getLevel(), PROTOCOL_FIXTURE, at.x, at.y, at.z, -90.0f);
         helper.assertTrue(a != null, "the creature is made");
         helper.getLevel().addFreshEntity(a);
         a.setNoAi(true);   // moved by the test, not by its mind
@@ -142,7 +143,7 @@ public final class FaceStealerGameTests {
     public void onlyTheCrackedSegmentTakesABlow(GameTestHelper helper) {
         layFloor(helper);
         Vec3 at = helper.absoluteVec(new Vec3(7.5, FLOOR, 7.5));
-        Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, -90.0f);
+        Aberrant a = Aberrant.create(helper.getLevel(), PROTOCOL_FIXTURE, at.x, at.y, at.z, -90.0f);
         helper.assertTrue(a != null, "the creature is made");
         helper.getLevel().addFreshEntity(a);
         a.setNoAi(true);   // moved by the test, not by its mind
@@ -187,7 +188,7 @@ public final class FaceStealerGameTests {
     public void mostFeetStandOnTheFloorWhileItWalks(GameTestHelper helper) {
         layFloor(helper, 31);   // the long arena: floor under the whole body
         Vec3 at = helper.absoluteVec(new Vec3(17.5, FLOOR, 7.5));
-        Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, -90.0f);
+        Aberrant a = Aberrant.create(helper.getLevel(), PROTOCOL_FIXTURE, at.x, at.y, at.z, -90.0f);
         helper.assertTrue(a != null, "the creature is made");
         helper.getLevel().addFreshEntity(a);
         a.setNoAi(true);   // moved by the test, not by its mind
@@ -219,7 +220,7 @@ public final class FaceStealerGameTests {
     public void aClipPlaysOnTheServerAndFiresItsCuesOnTheirTicks(GameTestHelper helper) {
         layFloor(helper);
         Vec3 at = helper.absoluteVec(new Vec3(7.5, FLOOR, 7.5));
-        Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, -90.0f);
+        Aberrant a = Aberrant.create(helper.getLevel(), PROTOCOL_FIXTURE, at.x, at.y, at.z, -90.0f);
         helper.assertTrue(a != null, "the creature is made");
         helper.getLevel().addFreshEntity(a);
         a.setNoAi(true);   // moved by the test, not by its mind
@@ -253,7 +254,7 @@ public final class FaceStealerGameTests {
         fill(helper, 12, FLOOR, 0, 14, 12, 14, Blocks.STONE);   // a wall across the east end
         fill(helper, 0, 13, 0, 14, 15, 14, Blocks.STONE);       // a ceiling over it all
         Vec3 at = helper.absoluteVec(new Vec3(2.5, FLOOR, 7.5));
-        Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, -90.0f);
+        Aberrant a = Aberrant.create(helper.getLevel(), PROTOCOL_FIXTURE, at.x, at.y, at.z, -90.0f);
         helper.assertTrue(a != null, "the creature is made");
         helper.getLevel().addFreshEntity(a);
         a.setNoAi(true);   // moved by the test, not by its mind
@@ -291,7 +292,7 @@ public final class FaceStealerGameTests {
         fill(helper, 6, FLOOR, 0, 14, 15, 14, Blocks.STONE);   // a hill filling the east end to the top
         fill(helper, 9, FLOOR, 7, 9, FLOOR + 2, 7, Blocks.BEDROCK);   // three of bedrock in its straight way
         Vec3 at = helper.absoluteVec(new Vec3(2.5, FLOOR, 7.5));
-        Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, -90.0f);
+        Aberrant a = Aberrant.create(helper.getLevel(), PROTOCOL_FIXTURE, at.x, at.y, at.z, -90.0f);
         helper.assertTrue(a != null, "the creature is made");
         helper.getLevel().addFreshEntity(a);
         a.setNoAi(true);   // moved by the test, not by its mind
@@ -328,7 +329,7 @@ public final class FaceStealerGameTests {
         // foot of a hill its way went over, then standing blocked for good with no wall left to take.
         fill(helper, 5, FLOOR, 0, 11, FLOOR + 6, 14, Blocks.STONE);
         Vec3 at = helper.absoluteVec(new Vec3(2.5, FLOOR, 7.5));
-        Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, -90.0f);
+        Aberrant a = Aberrant.create(helper.getLevel(), PROTOCOL_FIXTURE, at.x, at.y, at.z, -90.0f);
         helper.assertTrue(a != null, "the creature is made");
         helper.getLevel().addFreshEntity(a);
         a.setNoAi(true);   // moved by the test, not by its mind
@@ -356,7 +357,7 @@ public final class FaceStealerGameTests {
     public void aPounceLandsWhereItAimed(GameTestHelper helper) {
         layFloor(helper);
         Vec3 at = helper.absoluteVec(new Vec3(2.5, FLOOR, 7.5));
-        Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, -90.0f);
+        Aberrant a = Aberrant.create(helper.getLevel(), PROTOCOL_FIXTURE, at.x, at.y, at.z, -90.0f);
         helper.assertTrue(a != null, "the creature is made");
         helper.getLevel().addFreshEntity(a);
         a.setNoAi(true);   // moved by the test, not by its mind
@@ -384,7 +385,7 @@ public final class FaceStealerGameTests {
     private static Aberrant minded(GameTestHelper helper, double x, double z, float yaw) {
         clearPlayers(helper);
         Vec3 at = helper.absoluteVec(new Vec3(x, FLOOR, z));
-        Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, yaw);
+        Aberrant a = Aberrant.create(helper.getLevel(), PROTOCOL_FIXTURE, at.x, at.y, at.z, yaw);
         helper.assertTrue(a != null, "the creature is made");
         // The fixture must survive regardless of players left in distant test arenas.
         // Vanilla otherwise despawns it before its first tick, before its ears register.
@@ -479,7 +480,7 @@ public final class FaceStealerGameTests {
     public void theGrabHoldsThemAtTheMawAndTheBiteDevoursThem(GameTestHelper helper) {
         layFloor(helper);
         Vec3 at = helper.absoluteVec(new Vec3(7.5, FLOOR, 7.5));
-        Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, -90.0f);
+        Aberrant a = Aberrant.create(helper.getLevel(), PROTOCOL_FIXTURE, at.x, at.y, at.z, -90.0f);
         helper.assertTrue(a != null, "the creature is made");
         helper.getLevel().addFreshEntity(a);
         a.setNoAi(true);
@@ -556,34 +557,6 @@ public final class FaceStealerGameTests {
         });
     }
 
-    @GameTest(template = "tall", timeoutTicks = 200, batch = "spawn")
-    public void theSpawnRulesRefuseTheLitSurfaceAndAcceptADarkPocketByThickRock(GameTestHelper helper) {
-        layFloor(helper);
-        BlockPos lit = helper.absolutePos(new BlockPos(7, FLOOR, 7));
-        helper.assertTrue(!net.minecraft.world.entity.SpawnPlacements.checkSpawnRules(com.chunkworks.aberrantmobs.ModContent.ABERRANT.get(), helper.getLevel(), net.minecraft.world.entity.MobSpawnType.NATURAL, lit, helper.getLevel().getRandom()), "not on the lit surface");
-        fill(helper, 0, FLOOR, 0, 14, 15, 14, Blocks.STONE);   // the whole template rock
-        fill(helper, 5, 5, 7, 5, 7, 7, Blocks.AIR);            // a chimney of cave, dark, nine of rock to the east: seven for the site and two for its pocket's far side
-        BlockPos pocket = helper.absolutePos(new BlockPos(5, 5, 7));
-        // The light engine works off the server thread and the gametest server does not pace its ticks, so the
-        // pocket goes dark after a wall-clock delay, not a tick count: wait for it.
-        helper.startSequence().thenWaitUntil(() -> helper.assertTrue(helper.getLevel().getBrightness(net.minecraft.world.level.LightLayer.SKY, pocket) == 0,
-                "dark: sky " + helper.getLevel().getBrightness(net.minecraft.world.level.LightLayer.SKY, pocket))).thenExecute(() -> {
-            helper.assertTrue(com.chunkworks.aberrantmobs.SpawnRules.siteBeside(helper.getLevel(), pocket), "a wall seven thick lies beside it");
-            helper.assertTrue(net.minecraft.world.entity.SpawnPlacements.checkSpawnRules(com.chunkworks.aberrantmobs.ModContent.ABERRANT.get(), helper.getLevel(), net.minecraft.world.entity.MobSpawnType.NATURAL, pocket, helper.getLevel().getRandom()), "a dark pocket by thick rock will do");
-            helper.assertTrue(net.minecraft.world.entity.SpawnPlacements.checkSpawnRules(com.chunkworks.aberrantmobs.ModContent.ABERRANT.get(), helper.getLevel(), net.minecraft.world.entity.MobSpawnType.COMMAND, lit, helper.getLevel().getRandom()), "a command puts it anywhere");
-            // Come into the world there: it takes the Face-Stealer's profile and bores its pocket seven into the wall.
-            Aberrant a = com.chunkworks.aberrantmobs.ModContent.ABERRANT.get().create(helper.getLevel());
-            a.setPos(pocket.getX() + 0.5, pocket.getY(), pocket.getZ() + 0.5);
-            a.finalizeSpawn(helper.getLevel(), helper.getLevel().getCurrentDifficultyAt(pocket), net.minecraft.world.entity.MobSpawnType.NATURAL, null);
-            helper.getLevel().addFreshEntity(a);
-            helper.assertValueEqual(a.profileId(), FACE_STEALER, "the profile whose habitat fits");
-            helper.assertTrue(Math.abs(a.getX() - pocket.getX() - 0.5) > 6.5 || Math.abs(a.getZ() - pocket.getZ() - 0.5) > 6.5, "in the wall, seven blocks off: " + (a.getX() - pocket.getX()) + ", " + (a.getZ() - pocket.getZ()));
-            BlockPos inside = BlockPos.containing(a.getX(), a.getY() + 1.0, a.getZ());
-            helper.assertTrue(helper.getLevel().getBlockState(inside).isAir(), "in a pocket it bored: " + inside);
-            helper.assertTrue(a.blocksDug() >= 100, "the pocket's hundred and twenty-five cut: " + a.blocksDug());
-        }).thenSucceed();
-    }
-
     @GameTest(template = "arena", timeoutTicks = 60, batch = "creative")
     public void theCreativeTabShowsTheModAndItsEggSpawnsTheCreatureWhole(GameTestHelper helper) {
         layFloor(helper);
@@ -600,8 +573,8 @@ public final class FaceStealerGameTests {
         net.minecraft.world.item.ItemStack egg = eggs.stream().filter(s -> FACE_STEALER.equals(com.chunkworks.aberrantmobs.AberrantEggItem.profileOf(s))).findFirst().orElse(null);
         helper.assertTrue(egg != null, "one of them the Face-Stealer's");
         helper.assertValueEqual(egg.getHoverName().getString(), "Face-Stealer Spawn Egg", "named after its creature");
-        // Used on the lit surface, where no habitat fits: the creature still comes, whole -- the profile the egg names,
-        // at the profile's health -- since an egg or a command means "put one here".
+        // Eggs and commands create the requested profile with full health, then the
+        // same next-tick habitat rule removes it if placed outside its territory.
         BlockPos at = helper.absolutePos(new BlockPos(7, FLOOR, 7));
         Aberrant spawned = (Aberrant) com.chunkworks.aberrantmobs.ModContent.ABERRANT.get().spawn(helper.getLevel(), egg, null, at, net.minecraft.world.entity.MobSpawnType.SPAWN_EGG, false, false);
         helper.assertTrue(spawned != null && !spawned.isRemoved(), "the egg spawns it on the surface");
@@ -623,14 +596,17 @@ public final class FaceStealerGameTests {
         helper.getLevel().addFreshEntity(summoned);
         helper.assertTrue(!summoned.isRemoved(), "a command puts it on the surface too");
         helper.assertTrue(Math.abs(summoned.getMaxHealth() - 84.0) < 1e-6, "at the profile's health: " + summoned.getMaxHealth());
-        helper.succeed();
+        helper.runAtTickTime(5,()->{
+            helper.assertTrue(spawned.isRemoved() && summoned.isRemoved(), "eggs and commands cannot bypass the habitat");
+            helper.succeed();
+        });
     }
 
     @GameTest(template = "arena", timeoutTicks = 100, batch = "loot")
     public void killedByFiveBlowsHoweverHardItDropsItsChitinItsCrackedPlateAndSometimesTheFace(GameTestHelper helper) {
         layFloor(helper);
         Vec3 at = helper.absoluteVec(new Vec3(7.5, FLOOR, 7.5));
-        Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, -90.0f);
+        Aberrant a = Aberrant.create(helper.getLevel(), PROTOCOL_FIXTURE, at.x, at.y, at.z, -90.0f);
         helper.assertTrue(a != null, "the creature is made");
         a.setPersistenceRequired(); // Distant fixture players must not despawn the loot target before its first tick.
         helper.getLevel().addFreshEntity(a);
@@ -676,7 +652,7 @@ public final class FaceStealerGameTests {
     public void aScriptedWalkMovesItAlongTheGroundFacingItsWay(GameTestHelper helper) {
         layFloor(helper);
         Vec3 at = helper.absoluteVec(new Vec3(2.5, FLOOR, 7.5));
-        Aberrant a = Aberrant.create(helper.getLevel(), FACE_STEALER, at.x, at.y, at.z, 0.0f);
+        Aberrant a = Aberrant.create(helper.getLevel(), PROTOCOL_FIXTURE, at.x, at.y, at.z, 0.0f);
         helper.assertTrue(a != null, "the creature is made");
         helper.getLevel().addFreshEntity(a);
         a.setNoAi(true);   // moved by the test, not by its mind

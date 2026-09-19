@@ -25,5 +25,7 @@
   "item.aberrantmobs.aberrant_spawn_egg.of": "%s Spawn Egg",
   "itemGroup.aberrantmobs": "Aberrant Mobs",
   "item.aberrantmobs.chitin_armor.attach": "Full set: hold %s and move toward the wall you're facing.",
-  "item.aberrantmobs.chitin_armor.detach": "While attached: release and press %s again to let go."
+  "item.aberrantmobs.chitin_armor.detach": "While attached: release and press %s again to let go.",
+  "death.attack.aberrantmobs.sunlight": "%1$s withered in the sunlight",
+  "death.attack.aberrantmobs.sunlight.player": "%1$s withered in the sunlight while fighting %2$s"
 }

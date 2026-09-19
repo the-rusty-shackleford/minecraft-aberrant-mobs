@@ -38,6 +38,27 @@ sourceSets {
     gametest
 }
 
+// Surface locomotion/combat fixtures use the shipped body and mind without a
+// habitat. This generated profile is test-only; habitat tests use the shipped
+// face_stealer profile unchanged. No production escape hatch is introduced.
+var fixtureInput = layout.projectDirectory.file('src/main/resources/data/aberrantmobs/aberrantmobs/creature/face_stealer.json').asFile
+var fixtureOutput = layout.buildDirectory.dir('generated/protocolFixture').get().asFile
+var generateProtocolFixture = tasks.register('generateProtocolFixture') {
+    inputs.file(fixtureInput)
+    outputs.dir(fixtureOutput)
+    doLast {
+        def profile = new groovy.json.JsonSlurper().parse(fixtureInput)
+        profile.remove('habitat')
+        def file = new File(fixtureOutput, 'data/aberrantmobs/aberrantmobs/creature/protocol_fixture.json')
+        file.parentFile.mkdirs()
+        file.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(profile))
+        def lang = new File(fixtureOutput, 'assets/aberrantmobs/lang/en_us.json')
+        lang.parentFile.mkdirs()
+        lang.text = '{"creature.aberrantmobs.protocol_fixture":"Face-Stealer"}'
+    }
+}
+sourceSets.gametest.resources.srcDir(generateProtocolFixture)
+
 var copyGameTestStructures = tasks.register("copyGameTestStructures", Copy) {
     from "devtools/gameteststructures"
     into "run/gameteststructures"
@@ -116,7 +137,7 @@ neoForge {
         gameTestServer {
             type = "gameTestServer"
             sourceSet = sourceSets.gametest
-            systemProperty 'neoforge.enabledGameTestNamespaces', mod_id
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.hasProperty('habitatTests') ? 'aberrant_habitat' : mod_id + ',aberrant_habitat'
             taskBefore copyGameTestStructures
         }
         photoBooth {

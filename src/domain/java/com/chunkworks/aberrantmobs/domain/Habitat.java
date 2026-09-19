@@ -41,8 +41,8 @@ public final class Habitat {
         }
     }
 
-    /** The Face-Stealer's: between -58 and 0, pitch dark, none within 128 blocks, six to a level. */
-    public static final Rules FACE_STEALER = new Rules(-58, 0, 0, 128, 6);
+    /** The Face-Stealer's: between -32 and -8, pitch dark, none within 128 blocks, six to a level. */
+    public static final Rules FACE_STEALER = new Rules(-32, -8, 0, 128, 6);
     /** A pocket reaches this far from its centre in every direction: five cells across, room for a head 3.75 wide. */
     public static final int POCKET_RADIUS = 2;
     /** A site is bored this deep into the wall, blocks: the pocket's far side, leaving four of rock between the cave and the pocket. */
@@ -53,6 +53,19 @@ public final class Habitat {
     /** effects: returns whether a site at {@code y} with sky light {@code sky} and block light {@code block} is deep and dark enough under {@code rules} */
     public static boolean deepAndDark(Rules rules, int y, int sky, int block) {
         return y >= rules.yMin() && y <= rules.yMax() && sky <= rules.maxLight() && block <= rules.maxLight();
+    }
+
+    /**
+     * requires: finite {@code bottom <= top}
+     * effects: returns whether the entire vertical extent is inside the habitat's
+     * block rows, including both end rows; the upper face of yMax is yMax + 1
+     * throws: IllegalArgumentException for an invalid extent
+     */
+    public static boolean containsHeight(Rules rules, double bottom, double top) {
+        if (!Double.isFinite(bottom) || !Double.isFinite(top) || bottom > top) {
+            throw new IllegalArgumentException("a finite ordered vertical extent");
+        }
+        return bottom >= rules.yMin() && top <= (double) rules.yMax() + 1.0;
     }
 
     /** effects: returns whether every cell within {@link #POCKET_RADIUS} of {@code centre} in every direction is rock: a pocket may be bored there */

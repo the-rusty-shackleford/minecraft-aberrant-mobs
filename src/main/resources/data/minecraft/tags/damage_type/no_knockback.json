@@ -1,4 +1,7 @@
 {
   "replace": false,
-  "values": ["aberrantmobs:devoured"]
+  "values": [
+    "aberrantmobs:devoured",
+    "aberrantmobs:sunlight"
+  ]
 }

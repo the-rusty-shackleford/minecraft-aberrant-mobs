@@ -54,6 +54,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import net.minecraft.core.Holder;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
@@ -238,6 +239,11 @@ public class Aberrant extends Monster {
     private Body legsOf;
     @Nullable
     private LevelCells cells;
+    private LevelCells terrain;
+    @Nullable private CreatureProfile cellsProfile;
+    private static final int SUNLIGHT_INTERVAL = 20;
+    private static final float SUNLIGHT_DAMAGE = 2.0f;
+
     private final Animator animator = new Animator();
     @Nullable
     private String lastCue;
@@ -393,16 +399,14 @@ public class Aberrant extends Monster {
     private void takeProfile() {
         CreatureProfile p = profile();
         if (p != null && !level().isClientSide()) {
-            boolean has = getAttribute(Attributes.MAX_HEALTH).getBaseValue() == p.stats().health()
-                    && getAttribute(Attributes.MOVEMENT_SPEED).getBaseValue() == p.stats().speed()
-                    && entityData.get(DATA_WEAK) >= 0;
-            if (!has) {
-                getAttribute(Attributes.MAX_HEALTH).setBaseValue(p.stats().health());
-                getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(p.stats().speed());
+            boolean initialized = entityData.get(DATA_WEAK) >= 0;
+            getAttribute(Attributes.MAX_HEALTH).setBaseValue(p.stats().health());
+            getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(p.stats().speed());
+            if (!initialized) {
                 setHealth((float) p.stats().health());
-                if (entityData.get(DATA_WEAK) < 0) {
-                    crack(random.nextLong());
-                }
+                crack(random.nextLong());
+            } else if (getHealth() > getMaxHealth()) {
+                setHealth(getMaxHealth());
             }
         }
         refreshDimensions();
@@ -681,8 +685,12 @@ public class Aberrant extends Monster {
             setProfileId(chosen);
         }
         if (wild) {
-            LevelCells cells = new LevelCells(server);
-            Habitat.siteInWall(cells, Cell.containing(new Vec(getX(), getY(), getZ())), Habitat.SITE_DEPTH).ifPresent(site -> {
+            var siteFound = SpawnRules.siteFor(server, blockPosition(), profile());
+            if (siteFound.isEmpty()) {
+                discard();
+                return data;
+            }
+            siteFound.ifPresent(site -> {
                 List<Cell> pocket = new java.util.ArrayList<>();
                 int r = Habitat.POCKET_RADIUS;
                 for (int dx = -r; dx <= r; dx++) {
@@ -708,7 +716,8 @@ public class Aberrant extends Monster {
         List<Holder.Reference<CreatureProfile>> fitting = new java.util.ArrayList<>();
         int total = 0;
         for (Holder.Reference<CreatureProfile> p : server.registryAccess().registryOrThrow(AberrantMobs.CREATURES).holders().toList()) {
-            if (p.value().habitat().isPresent() && Habitat.deepAndDark(p.value().habitat().get().rules(), blockPosition().getY(), sky, block)) {
+            if (p.value().habitat().isPresent() && Habitat.deepAndDark(p.value().habitat().get().rules(), blockPosition().getY(), sky, block)
+                    && SpawnRules.siteFor(server, blockPosition(), p.value()).isPresent()) {
                 fitting.add(p);
                 total += p.value().habitat().get().weight();
             }
@@ -842,10 +851,64 @@ public class Aberrant extends Monster {
     }
 
     private LevelCells cells() {
-        if (cells == null) {
-            cells = new LevelCells(level());
+        CreatureProfile p = profile();
+        if (cells == null || p != cellsProfile) {
+            cellsProfile = p;
+            cells = new LevelCells(level(), p == null ? null : p.habitat().map(CreatureProfile.Habitat::rules).orElse(null));
         }
         return cells;
+    }
+
+    private LevelCells terrain() {
+        if (terrain == null) terrain = new LevelCells(level());
+        return terrain;
+    }
+
+    /** effects: returns the body's half extent plus its maximum ripple, safe on any of its six supporting faces */
+    public static double habitatMargin(CreatureProfile p) {
+        double extent=Math.max(Math.max(p.body().width(),p.body().height()),
+                Math.max(p.body().segment().width(),p.body().segment().height()))/2;
+        var wave=p.rig().undulation();
+        return extent + Math.max(wave.amplitudeMoving(),wave.amplitudeRest()) * (1+wave.verticalRatio());
+    }
+
+    private boolean headFits(Vec head, CreatureProfile p) {
+        double r=habitatMargin(p);
+        return cells().permits(new AABB(head.x()-r,head.y()-r,head.z()-r,head.x()+r,head.y()+r,head.z()+r));
+    }
+
+    /** effects: returns whether this point is in the creature's permitted territory */
+    public boolean habitatAllows(Vec point) {
+        return cells().permits(new AABB(point.x(),point.y(),point.z(),point.x(),point.y(),point.z()));
+    }
+
+    /** effects: returns whether the potential victim's whole box lies in this creature's territory */
+    public boolean canHunt(LivingEntity victim) {
+        return !isRemoved() && cells().permits(victim.getBoundingBox());
+    }
+
+    private void leaveInvalidHabitat() {
+        release();
+        discard();
+    }
+
+    private void sunlightTick(CreatureProfile p) {
+        if (tickCount % SUNLIGHT_INTERVAL != 0 || p.habitat().isEmpty()
+                || !p.habitat().get().sunlightSensitive() || !level().isDay()
+                || !level().dimensionType().hasSkyLight() || isInWaterRainOrBubble()) return;
+        for (AberrantPart part : parts) {
+            if (part.getBbWidth() < 0.1) continue;
+            BlockPos at=BlockPos.containing(part.getX(),part.getBoundingBox().maxY,part.getZ());
+            if (level().canSeeSky(at) && !level().isRainingAt(at)
+                    && level().getFluidState(at).isEmpty()) {
+                // Environmental exposure reaches living tissue, irrespective of the cracked segment.
+                // This is sunlight rather than fire: the entity type is deliberately fire immune.
+                // The normal health pipeline and damage listeners still apply.
+                super.hurt(new DamageSource(level().registryAccess().registryOrThrow(Registries.DAMAGE_TYPE)
+                        .getHolderOrThrow(AberrantMobs.SUNLIGHT)),SUNLIGHT_DAMAGE);
+                return;
+            }
+        }
     }
 
     /**
@@ -903,7 +966,7 @@ public class Aberrant extends Monster {
     public boolean pounce(Vec point) {
         Body body = body();
         CreatureProfile p = profile();
-        if (crawl == null || body == null || p == null || crawl.airborne()) {
+        if (crawl == null || body == null || p == null || crawl.airborne() || !habitatAllows(point)) {
             return false;
         }
         // A target on another face has another up. A floor launch aimed above
@@ -911,11 +974,18 @@ public class Aberrant extends Monster {
         // Resolve only the target's immediate support; an airborne target retains
         // the existing current-up fallback. This runs once per pounce, not per tick.
         Crawl.Rules rules = rules(body, p);
-        Crawl.Pose destination = Crawl.attach(cells(), point, crawl.heading(), rules, Cells.CAST_STEP * 2);
+        Crawl.Pose destination = Crawl.attach(terrain(), point, crawl.heading(), rules, Cells.CAST_STEP * 2);
         Vec aim = destination == null ? point.plus(up().times(rules.clearance())) : destination.centre();
         Optional<Vec> v = Leap.velocity(crawl.centre(), aim, Vec.ZERO, POUNCE_SPEED, Leap.GRAVITY);
         if (v.isEmpty()) {
             return false;
+        }
+        if (!headFits(aim,p)) return false;
+        for (int tick=1; tick<=Leap.MAX_TICKS; tick++) {
+            Vec at=Leap.at(crawl.centre(),v.get(),Leap.GRAVITY,tick);
+            if (!headFits(at,p)) return false;
+            if (at.minus(aim).length()<1e-6) break;
+            if (tick==Leap.MAX_TICKS) return false;
         }
         flight = v.get();
         flightTicks = 0;
@@ -951,15 +1021,16 @@ public class Aberrant extends Monster {
     /** effects: one server tick of the crawl: the head stepped by its wish, flown by its leap, its dig readied; the entity placed on the head */
     private void crawlTick(Body body, CreatureProfile p) {
         Crawl.Rules rules = rules(body, p);
-        LevelCells cells = cells();
+        LevelCells cells = terrain();
         if (crawl == null) {
             Crawl.Pose start = Crawl.attach(cells, axis(), facing(), rules, 3.0);
-            crawl = start != null ? start : new Crawl.Pose(axis(), facing(), Crawl.Normal.NONE);
+            crawl = start != null && headFits(start.centre(),p) ? start : new Crawl.Pose(axis(), facing(), Crawl.Normal.NONE);
         }
+        Crawl.Pose previous=crawl;
         if (flight != null) {
             fly(cells, rules);
         } else {
-            Vec wish = wish(cells, rules);
+            Vec wish = wish(cells(), rules);
             boolean dig = mayDig && wayThroughRock(cells, Crawl.DIG_AHEAD + rules.bore());
             boolean climb = wayRises(rules.lookahead() + 1.0);
             Crawl.Step step = Crawl.step(cells, crawl, wish, wish.equals(Vec.ZERO) ? 0.0 : crawlSpeed, rules, dig, climb);
@@ -976,6 +1047,13 @@ public class Aberrant extends Monster {
             } else {
                 pendingDig = null;
             }
+        }
+        if (!headFits(crawl.centre(),p)) {
+            crawl=previous;
+            flight=null;
+            pendingDig=null;
+            lastBlocked=true;
+            path=null;
         }
         place();
     }
@@ -1176,8 +1254,19 @@ public class Aberrant extends Monster {
 
     @Override
     public void tick() {
-        super.tick();
         CreatureProfile p = profile();
+        if (!level().isClientSide() && p != null) {
+            // Applies to old NBT, eggs, commands and externally teleported entities alike,
+            // before any AI, passenger attack or pending animation cue can run.
+            if (!headFits(axis(),p)) {
+                leaveInvalidHabitat();
+                return;
+            }
+            if (crawl != null && crawl.centre().minus(axis()).length()>0.01) resetCrawl();
+            if (held() != null && !canHunt(held())) release();
+        }
+        super.tick();
+        if (isRemoved()) return;
         Body body = body();
         if (!level().isClientSide() && body != null && p != null) {
             if (p.mind().isPresent() && !isNoAi()) {
@@ -1207,6 +1296,15 @@ public class Aberrant extends Monster {
             // Placed on the server alone, a client's parts sat at the world's origin and a sword aimed at the crack
             // only ever met the head's box, and clanged; a blast, applied on the server, landed.
             placeParts(chain);
+            if (!level().isClientSide()) {
+                for (AberrantPart part : parts) {
+                    if (part.getBbWidth()>0.1 && !cells().permits(part.getBoundingBox())) {
+                        leaveInvalidHabitat();
+                        return;
+                    }
+                }
+                if (isAlive()) sunlightTick(p);
+            }
         }
         for (String cue : animator.advance()) {
             onCue(cue);
@@ -1385,7 +1483,7 @@ public class Aberrant extends Monster {
      * clip plays and pinches on its cue; returns whether it was taken
      */
     public boolean grab(LivingEntity victim) {
-        if (holding() || !getPassengers().isEmpty() || victim.getVehicle() != null) {
+        if (!canHunt(victim) || holding() || !getPassengers().isEmpty() || victim.getVehicle() != null) {
             return false;
         }
         Vec at = new Vec(victim.getX(), victim.getY() + victim.getBbHeight() / 2.0, victim.getZ());
@@ -1436,6 +1534,7 @@ public class Aberrant extends Monster {
         if (victim == null || !(level() instanceof ServerLevel server)) {
             return;
         }
+        if (!canHunt(victim)) { release(); return; }
         Holder<net.minecraft.world.damagesource.DamageType> type = server.registryAccess().registryOrThrow(Registries.DAMAGE_TYPE).getHolderOrThrow(AberrantMobs.DEVOURED);
         victim.hurt(new DamageSource(type, this), DEVOUR);
         if (victim.isAlive()) {
@@ -1451,7 +1550,7 @@ public class Aberrant extends Monster {
     /** effects: the pincers close: the held one is pinched */
     private void pinch() {
         LivingEntity victim = held();
-        if (victim != null) {
+        if (victim != null && canHunt(victim)) {
             victim.hurt(damageSources().mobAttack(this), PINCH);
         }
     }

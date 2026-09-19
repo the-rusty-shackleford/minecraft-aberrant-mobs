@@ -190,7 +190,7 @@ public final class Playtest {
                     }
                     int x = centre.getX() + dx, z = centre.getZ() + dz;
                     level.getChunk(x >> 4, z >> 4);
-                    for (int y = -8; y >= -56; y--) {
+                    for (int y = -12; y >= -28; y--) {
                         BlockPos p = new BlockPos(x, y, z);
                         if (!level.getBlockState(p).isAir() || !level.getBlockState(p.above()).isAir() || !level.getBlockState(p.above(2)).isAir()) {
                             continue;

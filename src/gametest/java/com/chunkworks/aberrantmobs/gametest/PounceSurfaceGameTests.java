@@ -76,7 +76,7 @@ public final class PounceSurfaceGameTests {
             }
         }
         Vec3 at=h.absoluteVec(start), aim=h.absoluteVec(target);
-        Aberrant creature=Aberrant.create(h.getLevel(), ResourceLocation.fromNamespaceAndPath("aberrantmobs","face_stealer"),at.x,at.y,at.z,-90);
+        Aberrant creature=Aberrant.create(h.getLevel(), FaceStealerGameTests.PROTOCOL_FIXTURE,at.x,at.y,at.z,-90);
         h.assertTrue(creature != null,"creature exists");
         creature.setNoAi(true);
         creature.setPersistenceRequired();

@@ -143,7 +143,7 @@ public final class SensesReader {
         Player best = null;
         double bestDistance = range;
         for (Player p : level.getEntities(EntityTypeTest.forClass(Player.class), a.getBoundingBox().inflate(range), Player::isAlive)) {
-            if (!fairGame(p)) {
+            if (!fairGame(p) || !a.canHunt(p)) {
                 continue;
             }
             double d = p.distanceTo(a);

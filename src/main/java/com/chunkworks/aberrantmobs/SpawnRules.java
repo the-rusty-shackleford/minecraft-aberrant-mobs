@@ -22,6 +22,7 @@ import com.chunkworks.aberrantmobs.api.CreatureProfile;
 import com.chunkworks.aberrantmobs.domain.Cell;
 import com.chunkworks.aberrantmobs.domain.Habitat;
 import net.minecraft.core.BlockPos;
+import java.util.Optional;
 import net.minecraft.core.Holder;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
@@ -70,7 +71,7 @@ public final class SpawnRules {
                 continue;
             }
             Habitat.Rules rules = p.value().habitat().get().rules();
-            if (Habitat.deepAndDark(rules, pos.getY(), sky, block) && siteBeside(server, pos) && roomFor(server, pos, rules)) {
+            if (Habitat.deepAndDark(rules, pos.getY(), sky, block) && siteFor(server, pos, p.value()).isPresent() && roomFor(server, pos, rules)) {
                 return true;
             }
         }
@@ -80,6 +81,21 @@ public final class SpawnRules {
     /** effects: returns whether a wall beside {@code pos} is thick enough for a pocket */
     public static boolean siteBeside(ServerLevel level, BlockPos pos) {
         return Habitat.siteInWall(new LevelCells(level), new Cell(pos.getX(), pos.getY(), pos.getZ()), Habitat.SITE_DEPTH).isPresent();
+    }
+
+    /** effects: returns a dark rock pocket that contains this profile's full body inside its habitat, or empty */
+    public static Optional<Cell> siteFor(ServerLevel level, BlockPos pos, CreatureProfile profile) {
+        if (profile.habitat().isEmpty()) return Optional.empty();
+        Habitat.Rules rules = profile.habitat().get().rules();
+        if (!Habitat.deepAndDark(rules,pos.getY(),level.getBrightness(LightLayer.SKY,pos),level.getBrightness(LightLayer.BLOCK,pos))) return Optional.empty();
+        LevelCells cells = new LevelCells(level,rules);
+        return Habitat.siteInWall(cells,new Cell(pos.getX(),pos.getY(),pos.getZ()),Habitat.SITE_DEPTH)
+                .filter(site -> {
+                    double axisY=site.y()-Habitat.POCKET_RADIUS+0.2+profile.body().height()/2;
+                    double margin=Aberrant.habitatMargin(profile);
+                    return cells.permits(new AABB(site.x()+0.5-margin,axisY-margin,site.z()+0.5-margin,
+                            site.x()+0.5+margin,axisY+margin,site.z()+0.5+margin));
+                });
     }
 
     /** effects: returns whether no creature stands within the rules' exclusion of {@code pos} and the level holds fewer than the cap */

@@ -40,6 +40,7 @@ public final class DigWorld {
     public static int dig(ServerLevel level, Entity digger, List<Cell> rock, boolean loud) {
         int n = 0;
         for (Cell c : rock) {
+            if (digger instanceof Aberrant a && !a.habitatAllows(c.centre())) continue;
             BlockPos pos = new BlockPos(c.x(), c.y(), c.z());
             BlockState state = level.getBlockState(pos);
             if (state.isAir()) {

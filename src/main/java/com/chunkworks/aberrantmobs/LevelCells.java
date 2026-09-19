@@ -19,6 +19,10 @@ package com.chunkworks.aberrantmobs;
 
 import com.chunkworks.aberrantmobs.api.AberrantMobs;
 import com.chunkworks.aberrantmobs.domain.Cells;
+import com.chunkworks.aberrantmobs.domain.Habitat;
+import javax.annotation.Nullable;
+import net.minecraft.world.level.biome.Biomes;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.tags.BlockTags;
@@ -47,10 +51,45 @@ public final class LevelCells implements Cells {
     public static final TagKey<Block> UNDIGGABLE = TagKey.create(Registries.BLOCK, AberrantMobs.id("undiggable"));
 
     private final LevelReader level;
+    @Nullable private final Habitat.Rules habitat;
+
     private final BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
 
+    /** effects: reads terrain without a habitat restriction */
     public LevelCells(LevelReader level) {
+        this(level, null);
+    }
+
+    /** effects: reads terrain, treating cells outside {@code habitat} or in the Deep Dark as hard; null means unrestricted */
+    public LevelCells(LevelReader level, @Nullable Habitat.Rules habitat) {
         this.level = level;
+        this.habitat = habitat;
+    }
+
+    /**
+     * requires: a finite box
+     * effects: returns whether the whole box fits the habitat, without loading chunks.
+     * Checks every possible quart biome used by Minecraft's fuzzy biome lookup,
+     * conservatively keeping a small margin beside the Deep Dark's boundary.
+     * A reader without a habitat imposes no restriction.
+     */
+    public boolean permits(AABB box) {
+        if (habitat == null) return true;
+        if (!Habitat.containsHeight(habitat, box.minY, box.maxY)) return false;
+        int x0 = ((int) Math.floor(box.minX) - 2) >> 2;
+        int y0 = ((int) Math.floor(box.minY) - 2) >> 2;
+        int z0 = ((int) Math.floor(box.minZ) - 2) >> 2;
+        int x1 = (((int) Math.floor(box.maxX) - 2) >> 2) + 1;
+        int y1 = (((int) Math.floor(box.maxY) - 2) >> 2) + 1;
+        int z1 = (((int) Math.floor(box.maxZ) - 2) >> 2) + 1;
+        for (int x=x0; x<=x1; x++) for (int z=z0; z<=z1; z++) {
+            ChunkAccess chunk = level.getChunk(x >> 2, z >> 2, ChunkStatus.FULL, false);
+            if (chunk == null) return false;
+            for (int y=y0; y<=y1; y++) {
+                if (chunk.getNoiseBiome(x,y,z).is(Biomes.DEEP_DARK)) return false;
+            }
+        }
+        return true;
     }
 
     @Override
@@ -59,7 +98,10 @@ public final class LevelCells implements Cells {
         if (chunk == null) {
             return Kind.HARD;
         }
-        BlockState state = chunk.getBlockState(cursor.set(x, y, z));
+        cursor.set(x,y,z);
+        if (habitat != null && (y < habitat.yMin() || y > habitat.yMax()
+                || level.getBiome(cursor).is(Biomes.DEEP_DARK))) return Kind.HARD;
+        BlockState state = chunk.getBlockState(cursor);
         if (!state.getFluidState().isEmpty()) {
             return Kind.FLUID;
         }

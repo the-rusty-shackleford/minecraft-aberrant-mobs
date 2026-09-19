@@ -27,3 +27,4 @@ type: index
 | D-0017 | Collision-validated stance replay, destination-surface pounces and independent TCP client verification |
 | D-0018 | Deliberate Jump entry, supported corners and a fresh Jump to release |
 | D-0019 | Continuous camera/body poses and surface-relative walking animation |
+| D-0020 | Lifetime habitat confinement, sunlight vulnerability, saved-state enforcement and escapable sprint pursuit |
