@@ -1,20 +1,4 @@
-/*
- * Aberrant Mobs - a protocol for monsters.
- * Copyright (C) 2026 Rusty Shackleford and nfx
- *
- * This program is free software: you can redistribute it and/or modify it
- * under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or (at your
- * option) any later version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License
- * for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <https://www.gnu.org/licenses/>.
- */
+/* Copyright (C) 2026 Rusty Shackleford and nfx. SPDX-License-Identifier: AGPL-3.0-or-later */
 package com.chunkworks.aberrantmobs.domain;
 
 import java.util.HashMap;
@@ -22,164 +6,155 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Freakishly long ears: what a creature believes about where a noise came
- * from. Every sound it hears (a position, a loudness, a tick, a source)
- * replaces what it last heard from that source; its estimate is the
- * source whose loudness over distance is greatest among sounds not yet
- * forgotten, reported with an error that grows with the distance and
- * shrinks with the loudness -- exact within {@link #SURE_RANGE}, at the
- * far end no more than a bearing: the reported point is the true one
- * moved sideways (never past it, never back) by the error along a
- * direction drawn from the seed and re-drawn every {@link #RE_ROLL} ticks,
- * so a guess drifts rather than jitters. Immutable.
+ * Immutable sound memory and uncertain localisation. AF: each source has a last heard location,
+ * accumulated confidence and the time of its last loud noise; seed chooses a stable sideways
+ * error. RI: finite positive loudness, nonnegative sound ticks, confidence in [0,1], one bounded
+ * record per source. No player position is read independently of a sound.
  *
- * <p>RI: every sound's loudness > 0; ticks >= 0.
- * AF: AF(sounds, seed) = "the creature last heard, from each source, the
- *     sound recorded, and errs by {@code seed}".
+ * A single block break at 512 blocks has roughly 256 blocks of lateral error, around 47 at 256,
+ * and none within 64. Repeated nearby sounds from the same source slowly halve that uncertainty;
+ * approaching improves it further. Silence dissipates confidence and eventually the memory.
+ * Error stays horizontal so it cannot invent a destination outside the underground depth band.
  */
 public final class Hearing {
-    /** Beyond this nothing is heard, blocks. */
-    public static final double RANGE = 320.0;
-    /** Error grows this much per block of distance, per unit of loudness. */
-    public static final double ERROR_PER_BLOCK = 0.5;
-    /** Within this the estimate is exact, blocks. */
-    public static final double SURE_RANGE = 24.0;
-    /** The error's direction is drawn afresh this often, ticks. */
-    public static final int RE_ROLL = 600;
-    /** A sound older than this is forgotten, ticks. */
+    public static final double RANGE = 512.0;
+    public static final double SURE_RANGE = 64.0;
     public static final int DECAY = 2400;
-    /** A sound at least this loud within {@link #LOUD_TICKS} is a loud one. */
     public static final double LOUD = 6.0;
     public static final int LOUD_TICKS = 100;
+    private static final double FAR_ERROR = 256.0;
+    private static final double CONFIDENCE_PER_SECOND = 0.02;
+    private static final int CONFIDENCE_GRACE = 80;
+    private static final int CONFIDENCE_FADE = 1200;
+    private static final double RELOCATED = 64.0;
+    private static final int TICKS_PER_SECOND = 20;
 
-    /** A noise: where, how loud (a step 1, a block 6, a blast 20), when, from whom. */
+    /** AF: a source made a noise at pos on tick. RI: finite positive loudness and nonnegative tick. */
     public record Sound(Vec pos, double loudness, int tick, String source) {
+        /** requires: nothing; effects: creates a sound value; throws: IllegalArgumentException for invalid fields. */
         public Sound {
-            if (pos == null || !(loudness > 0) || tick < 0 || source == null) {
-                throw new IllegalArgumentException("a sound has a place, a loudness, a tick and a source");
-            }
+            if (pos == null || !Double.isFinite(loudness) || loudness <= 0 || tick < 0 || source == null)
+                throw new IllegalArgumentException("a sound has a place, finite positive loudness, a tick and a source");
         }
     }
 
-    /** What the ears say: where the noise seems to be, how far that may be off, how old it is, whether a loud one was recent, and the true distance. */
+    /**
+     * AF: apparent source location, its uncertainty, age, recent loudness and distance to the last
+     * actual sound. RI: finite nonnegative error/distance, nonnegative age, non-null bearing.
+     */
     public record Estimate(Vec bearing, double error, int age, boolean loud, double distance) {}
 
-    public static final Hearing SILENT = new Hearing(Map.of(), 0L);
+    /** AF: last noise and accumulated localisation evidence. RI: confidence in [0,1]. */
+    private record Track(Sound sound, double confidence, int loudTick) {}
 
-    private final Map<String, Sound> sounds;
+    public static final Hearing SILENT = new Hearing(Map.of(), 0L);
+    private final Map<String, Track> sounds;
     private final long seed;
 
-    private Hearing(Map<String, Sound> sounds, long seed) {
+    private Hearing(Map<String, Track> sounds, long seed) {
         this.sounds = Map.copyOf(sounds);
         this.seed = seed;
     }
 
-    /** effects: returns ears that have heard nothing, erring by {@code seed} */
+    /** requires: nothing; effects: returns empty sound memory with the given bearing seed; throws: nothing. */
     public static Hearing seeded(long seed) {
         return new Hearing(Map.of(), seed);
     }
 
     /**
-     * effects: returns these ears having heard {@code sound} from
-     * {@code listener}: unchanged when it is beyond {@link #RANGE}, else
-     * replacing what was last heard from its source
+     * requires: non-null sound/listener; effects: records an in-range sound, gradually improving
+     * confidence for continuing nearby noise; ignores out-of-order and out-of-range sounds.
+     * Duplicate-tick events cannot increase confidence. throws: nothing.
      */
     public Hearing heard(Sound sound, Vec listener) {
-        if (sound.pos().minus(listener).length() > RANGE) {
-            return this;
+        if (sound.pos().minus(listener).length() > RANGE) return this;
+        Track previous = sounds.get(sound.source());
+        if (previous != null && sound.tick() < previous.sound().tick()) return this;
+        double confidence = 0;
+        int loudTick = -LOUD_TICKS - 1;
+        if (previous != null && sound.tick() - previous.sound().tick() <= DECAY
+                && sound.pos().minus(previous.sound().pos()).length() <= RELOCATED) {
+            int elapsed = sound.tick() - previous.sound().tick();
+            double evidence = CONFIDENCE_PER_SECOND * Math.min(1.0, sound.loudness() / LOUD)
+                    * Math.min(elapsed, TICKS_PER_SECOND) / TICKS_PER_SECOND;
+            confidence = Math.min(1.0, confidence(previous, sound.tick()) + evidence);
+            loudTick = previous.loudTick();
         }
-        Map<String, Sound> s = new HashMap<>(sounds);
-        s.put(sound.source(), sound);
-        return new Hearing(s, seed);
+        if (sound.loudness() >= LOUD) loudTick = sound.tick();
+        Map<String, Track> updated = new HashMap<>(sounds);
+        updated.put(sound.source(), new Track(sound, confidence, loudTick));
+        return new Hearing(updated, seed);
     }
 
-    /** effects: returns these ears with every sound older than {@link #DECAY} at {@code tick} forgotten */
+    /** requires: nonnegative tick; effects: forgets expired sound records; throws: nothing. */
     public Hearing forgotten(int tick) {
-        Map<String, Sound> s = new HashMap<>();
-        for (Map.Entry<String, Sound> e : sounds.entrySet()) {
-            if (tick - e.getValue().tick() <= DECAY) {
-                s.put(e.getKey(), e.getValue());
-            }
-        }
-        return s.size() == sounds.size() ? this : new Hearing(s, seed);
+        Map<String, Track> retained = new HashMap<>();
+        for (var entry : sounds.entrySet())
+            if (tick - entry.getValue().sound().tick() <= DECAY) retained.put(entry.getKey(), entry.getValue());
+        return retained.size() == sounds.size() ? this : new Hearing(retained, seed);
     }
 
     /**
-     * effects: returns the estimate at {@code tick} for a listener at
-     * {@code listener}: of the sounds not yet forgotten, the one loudest
-     * for its distance, its bearing erred as the class says; nothing when
-     * nothing is remembered
+     * requires: listener and nonnegative tick; effects: estimates the strongest remembered sound
+     * for its distance, using only sound locations and accumulated evidence; throws: nothing.
      */
     public Optional<Estimate> estimate(Vec listener, int tick) {
-        Sound best = null;
+        Track best = null;
         double bestScore = -1;
         boolean loud = false;
-        for (Sound s : sounds.values()) {
-            int age = tick - s.tick();
-            if (age > DECAY) {
-                continue;
-            }
-            if (s.loudness() >= LOUD && age <= LOUD_TICKS) {
-                loud = true;
-            }
-            double score = s.loudness() / (1.0 + s.pos().minus(listener).length());
-            if (score > bestScore) {
-                bestScore = score;
-                best = s;
-            }
+        for (Track track : sounds.values()) {
+            Sound sound = track.sound();
+            int age = tick - sound.tick();
+            if (age < 0 || age > DECAY) continue;
+            if (tick - track.loudTick() <= LOUD_TICKS) loud = true;
+            double score = sound.loudness() / (1.0 + sound.pos().minus(listener).length());
+            if (score > bestScore) { best = track; bestScore = score; }
         }
-        if (best == null) {
-            return Optional.empty();
-        }
-        return Optional.of(estimate(best, listener, tick, loud));
+        return best == null ? Optional.empty() : Optional.of(estimate(best, listener, tick, loud));
     }
 
     /**
-     * effects: returns the estimate at {@code tick} for a listener at
-     * {@code listener} of the last sound from {@code source} alone, erred
-     * as the class says, its {@code loud} whether that sound was loud and
-     * recent; nothing when none from that source is remembered -- how a
-     * creature that has lost sight of its prey follows its footsteps
+     * requires: source, listener and nonnegative tick; effects: estimates only this source's last
+     * heard position, or nothing for an absent/expired sound; throws: nothing.
      */
     public Optional<Estimate> estimateFrom(String source, Vec listener, int tick) {
-        Sound s = sounds.get(source);
-        if (s == null || tick - s.tick() > DECAY) {
+        Track track = sounds.get(source);
+        if (track == null || tick < track.sound().tick() || tick - track.sound().tick() > DECAY)
             return Optional.empty();
+        return Optional.of(estimate(track, listener, tick, tick - track.loudTick() <= LOUD_TICKS));
+    }
+
+    private static double confidence(Track track, int tick) {
+        double lost = Math.max(0, tick - track.sound().tick() - CONFIDENCE_GRACE) / (double) CONFIDENCE_FADE;
+        return Math.max(0, track.confidence() - lost);
+    }
+
+    private Estimate estimate(Track track, Vec listener, int tick, boolean loud) {
+        Sound sound = track.sound();
+        Vec delta = sound.pos().minus(listener);
+        double distance = delta.length();
+        double progress = Math.clamp((distance - SURE_RANGE) / (RANGE - SURE_RANGE), 0, 1);
+        double loudness = Math.pow(Math.clamp(sound.loudness(), 1, 20) / LOUD, -0.15);
+        double error = Math.min(distance * .75, FAR_ERROR * progress * progress * loudness)
+                * (1 - .5 * confidence(track, tick));
+        Vec bearing = sound.pos();
+        if (error > 0) {
+            double horizontal = Math.hypot(delta.x(), delta.z());
+            Vec sideways = horizontal > 1e-9 ? new Vec(-delta.z() / horizontal, 0, delta.x() / horizontal) : Vec.X;
+            double sign = unit(seed ^ (sound.source().hashCode() * 0x9E3779B97F4A7C15L)) < .5 ? -1 : 1;
+            bearing = bearing.plus(sideways.times(sign * error));
         }
-        return Optional.of(estimate(s, listener, tick, s.loudness() >= LOUD && tick - s.tick() <= LOUD_TICKS));
+        return new Estimate(bearing, error, tick - sound.tick(), loud, distance);
     }
 
-    private Estimate estimate(Sound best, Vec listener, int tick, boolean loud) {
-        Vec d = best.pos().minus(listener);
-        double distance = d.length();
-        double error = distance <= SURE_RANGE ? 0.0 : Math.min(distance, distance * ERROR_PER_BLOCK / best.loudness());
-        Vec bearing = best.pos();
-        if (error > 0 && distance > 1e-9) {
-            bearing = best.pos().plus(sideways(d.times(1.0 / distance), tick / RE_ROLL).times(error));
-        }
-        return new Estimate(bearing, error, tick - best.tick(), loud, distance);
+    private static double unit(long value) {
+        value += 0x9E3779B97F4A7C15L;
+        value = (value ^ (value >>> 30)) * 0xBF58476D1CE4E5B9L;
+        value = (value ^ (value >>> 27)) * 0x94D049BB133111EBL;
+        value ^= value >>> 31;
+        return (value >>> 11) * 0x1.0p-53;
     }
 
-    /** effects: returns a unit vector perpendicular to {@code dir}, turned about it by an angle drawn from the seed and {@code epoch} */
-    private Vec sideways(Vec dir, int epoch) {
-        Vec any = Math.abs(dir.y()) < 0.9 ? Vec.Y : Vec.X;
-        Vec u = any.cross(dir).normalized();
-        Vec v = dir.cross(u);
-        double angle = 2 * Math.PI * unit(seed ^ (epoch * 0x9E3779B97F4A7C15L));
-        return u.times(Math.cos(angle)).plus(v.times(Math.sin(angle)));
-    }
-
-    /** effects: returns a number in [0, 1) mixed from {@code x} */
-    private static double unit(long x) {
-        x += 0x9E3779B97F4A7C15L;
-        x = (x ^ (x >>> 30)) * 0xBF58476D1CE4E5B9L;
-        x = (x ^ (x >>> 27)) * 0x94D049BB133111EBL;
-        x ^= x >>> 31;
-        return (x >>> 11) * 0x1.0p-53;
-    }
-
-    /** effects: returns how many sources are remembered */
-    public int remembered() {
-        return sounds.size();
-    }
+    /** requires: nothing; effects: returns the number of remembered sources; throws: nothing. */
+    public int remembered() { return sounds.size(); }
 }

@@ -34,7 +34,8 @@ rare timing. Sources and cuts are in
 Hold Jump while moving forward toward the wall you are looking at to attach. Walk
 around supported corners, then release and press Jump again to jump away. Camera
 turns ease over half a second; walking animation and bob follow every supporting
-surface. Update both client and server to 1.3.1.
+surface. The released version is 1.3.1. The local 1.4.0 candidate adds named
+summons, explicit egg/command refusals and progressive long-range hearing; it is unreleased.
 
 ## In creative
 
@@ -44,9 +45,11 @@ creature profile loaded, each named after its creature ("Face-Stealer Spawn Egg"
 same items sit on the vanilla pages too: the drops under Ingredients, the armour under
 Combat, the eggs under Spawn Eggs. There is one egg item, `aberrantmobs:aberrant_spawn_egg`;
 which creature it spawns is the profile in its entity data, so a datapack that adds a
-creature gets its egg for free. An egg, command or spawner creates the requested
-creature at its profile's health. A habitat-bound creature placed outside its territory
-is removed on its first server tick, just like an existing saved creature outside it. A creature in creative is a spectacle, not a hunt: it hears every
+creature gets its egg for free. Egg use and manual summons validate the configured creature
+before it enters the world. An invalid location produces a message explaining the habitat
+restriction, and a failed egg use preserves the egg. Peaceful difficulty also produces a
+clear refusal. Spawners and existing saved creatures remain subject to the lifetime
+habitat check. A creature in creative is a spectacle, not a hunt: it hears every
 player, but only a survival or adventure player is prey.
 
 ## A creature
@@ -62,9 +65,24 @@ player, but only a survival or adventure player is prey.
 }
 ```
 
-Every creature is the one entity type `aberrantmobs:aberrant`; the profile id rides its
-synced data. `/summon aberrantmobs:aberrant ~ ~ ~ {Profile:"aberrantmobs:face_stealer"}`.
-The name is `creature.<ns>.<name>` in the lang file.
+Summon the Face-Stealer with:
+
+```mcfunction
+/summon aberrantmobs:face_stealer
+/summon aberrantmobs:face_stealer ~ ~ ~ {NoAI:1b}
+```
+
+Use a suitable underground space within its habitat. Every loaded creature profile
+automatically gets `/summon <namespace>:<profile_name>`, including command completion,
+optional coordinates and optional NBT. Commands retain vanilla's operator permission
+requirement. A profile ID matching an existing registered entity ID does not shadow that
+entity's command; use the generic form for such a profile.
+
+Creatures still share the entity type `aberrantmobs:aberrant`; profile names are command
+branches, not additional entity types. Existing saves, selectors and the generic command
+`/summon aberrantmobs:aberrant ~ ~ ~ {Profile:"aberrantmobs:face_stealer"}` remain supported.
+That command now reports an invalid habitat immediately too. The display name remains
+`creature.<ns>.<name>` in the lang file.
 
 ## The mind
 
@@ -244,22 +262,35 @@ untouched: every hook returns at once for the world's frame.
 
 ## The ears
 
-It hears what the world hears (`Ears`): every game event a player causes -- a step
-(one; two sprinting; nothing sneaking, so silence is a defence), a block broken or
-placed (six), a splash, a blow, a blast (twenty) -- within 320 blocks reaches every
-creature as a sound; other mobs' sounds and its own digging are nothing to it. Its ears
-(`domain/Hearing`) keep the last sound from each source and report the one loudest for
-its distance, with an error of half a block per block of distance divided by the
-loudness, exact within 24 blocks: the bearing it heads for is the true point moved
-sideways by that error along a direction drawn from its seed and re-drawn every 600
-ticks, so a guess drifts rather than jitters, and at three hundred blocks a step is no
-more than a direction. A sound older than 2400 ticks is forgotten.
+Hearing follows real game events (`Ears`): footsteps, sprinting, mining, building,
+splashes, blows and explosions. Sneaking footsteps, other mobs and the creature's
+own digging do not alert it. The hearing limit is **512 blocks**.
+
+- **Around 512 blocks:** one broken block gives only a broad direction, about 256
+  blocks of lateral uncertainty.
+- **Around 256 blocks:** it has a useful general bearing, about 47 blocks off for
+  a single block break.
+- **Within 64 blocks:** it localises the sound exactly.
+
+Continued noise from the same source gradually sharpens that estimate. Repeated
+block breaking once per second reaches maximum confidence in about fifty seconds,
+halving the uncertainty; approaching makes it more precise again. Even sustained
+noise cannot pinpoint someone from the edge of hearing range. After four seconds
+of silence confidence fades over a minute, and after two minutes the sound is
+forgotten. Moving more than 64 blocks from the previous sound resets its accumulated
+bearing. The estimate follows heard positions, not a silent player's current location.
+
+The direction of the error is stable and horizontal, keeping the apparent source
+at its actual depth. Louder noises help moderately, without letting one explosion
+reveal an exact distant location. This uses existing loaded creatures and does not
+force chunks, create additional monsters or change natural-spawn rarity. Server
+simulation distance and terrain still affect whether a distant hunter can approach.
 
 Keeping you: a player in survival or adventure within 64 blocks is its target and its
 position is known exactly, seen or not; out of that range, or out of range and sight, it
 is known for 2400 ticks (two minutes) from the last time, at its last position -- and the
 ears keep that position fresh: the last sound from that very player (by their id), if
-newer, is where they are now taken to be, exact within 24 blocks and erred beyond
+newer, is where they are now taken to be, exact within 64 blocks and erred beyond
 (`SensesReader`, `Hearing.estimateFrom`). Running is heard; sneaking away is not.
 
 ## What you hear
@@ -519,3 +550,5 @@ testing exemption. Habitat tests use the unmodified shipped `face_stealer` profi
 If the desktop exhausts inotify instances, `disableConfigWatcher = true` in the
 disposable run directory's `config/fml.toml` disables NeoForge's config hot-reload
 watcher for that test process; it does not change the server or player configs.
+
+Current local 1.4.0 checks are recorded in [manual spawning and hearing verification](devtools/verification/manual-spawning-and-hearing.md).

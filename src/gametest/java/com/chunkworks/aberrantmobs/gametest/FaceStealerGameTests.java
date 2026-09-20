@@ -101,6 +101,7 @@ public final class FaceStealerGameTests {
         Vec3 at = helper.absoluteVec(new Vec3(7.5, FLOOR, 7.5));
         Aberrant a = Aberrant.create(helper.getLevel(), PROTOCOL_FIXTURE, at.x, at.y, at.z, -90.0f);
         helper.assertTrue(a != null, "the creature is made");
+        a.setPersistenceRequired(); // Fixture lifetime must not depend on remote mock players.
         helper.getLevel().addFreshEntity(a);
         a.setNoAi(true);   // moved by the test, not by its mind
         helper.assertTrue(Math.abs(a.getBbWidth() - 3.75f) < 1e-5 && Math.abs(a.getBbHeight() - 3.75f) < 1e-5, "sized by the profile: " + a.getBbWidth() + " x " + a.getBbHeight());
@@ -122,6 +123,7 @@ public final class FaceStealerGameTests {
         Vec3 at = helper.absoluteVec(new Vec3(17.5, FLOOR, 7.5));
         Aberrant a = Aberrant.create(helper.getLevel(), PROTOCOL_FIXTURE, at.x, at.y, at.z, -90.0f);
         helper.assertTrue(a != null, "the creature is made");
+        a.setPersistenceRequired(); // Fixture lifetime must not depend on remote mock players.
         helper.getLevel().addFreshEntity(a);
         a.setNoAi(true);   // moved by the test, not by its mind
         helper.assertTrue(a.body() != null, "the server read the model from the jar");
@@ -145,6 +147,7 @@ public final class FaceStealerGameTests {
         Vec3 at = helper.absoluteVec(new Vec3(7.5, FLOOR, 7.5));
         Aberrant a = Aberrant.create(helper.getLevel(), PROTOCOL_FIXTURE, at.x, at.y, at.z, -90.0f);
         helper.assertTrue(a != null, "the creature is made");
+        a.setPersistenceRequired(); // Fixture lifetime must not depend on remote mock players.
         helper.getLevel().addFreshEntity(a);
         a.setNoAi(true);   // moved by the test, not by its mind
         int weak = a.weakSegment();
@@ -190,6 +193,7 @@ public final class FaceStealerGameTests {
         Vec3 at = helper.absoluteVec(new Vec3(17.5, FLOOR, 7.5));
         Aberrant a = Aberrant.create(helper.getLevel(), PROTOCOL_FIXTURE, at.x, at.y, at.z, -90.0f);
         helper.assertTrue(a != null, "the creature is made");
+        a.setPersistenceRequired(); // Fixture lifetime must not depend on remote mock players.
         helper.getLevel().addFreshEntity(a);
         a.setNoAi(true);   // moved by the test, not by its mind
         a.setScriptedWalk(new com.chunkworks.aberrantmobs.domain.Vec(0.3, 0.0, 0.0), 40);
@@ -222,6 +226,7 @@ public final class FaceStealerGameTests {
         Vec3 at = helper.absoluteVec(new Vec3(7.5, FLOOR, 7.5));
         Aberrant a = Aberrant.create(helper.getLevel(), PROTOCOL_FIXTURE, at.x, at.y, at.z, -90.0f);
         helper.assertTrue(a != null, "the creature is made");
+        a.setPersistenceRequired(); // Fixture lifetime must not depend on remote mock players.
         helper.getLevel().addFreshEntity(a);
         a.setNoAi(true);   // moved by the test, not by its mind
         helper.assertTrue(a.clipPlaying() == null && a.lastCue() == null, "nothing plays at first");
@@ -256,6 +261,7 @@ public final class FaceStealerGameTests {
         Vec3 at = helper.absoluteVec(new Vec3(2.5, FLOOR, 7.5));
         Aberrant a = Aberrant.create(helper.getLevel(), PROTOCOL_FIXTURE, at.x, at.y, at.z, -90.0f);
         helper.assertTrue(a != null, "the creature is made");
+        a.setPersistenceRequired(); // Fixture lifetime must not depend on remote mock players.
         helper.getLevel().addFreshEntity(a);
         a.setNoAi(true);   // moved by the test, not by its mind
         a.setScriptedWalk(new com.chunkworks.aberrantmobs.domain.Vec(0.3, 0.0, 0.0), 180);
@@ -294,6 +300,7 @@ public final class FaceStealerGameTests {
         Vec3 at = helper.absoluteVec(new Vec3(2.5, FLOOR, 7.5));
         Aberrant a = Aberrant.create(helper.getLevel(), PROTOCOL_FIXTURE, at.x, at.y, at.z, -90.0f);
         helper.assertTrue(a != null, "the creature is made");
+        a.setPersistenceRequired(); // Fixture lifetime must not depend on remote mock players.
         helper.getLevel().addFreshEntity(a);
         a.setNoAi(true);   // moved by the test, not by its mind
         Vec3 goal = helper.absoluteVec(new Vec3(13.5, FLOOR + AXIS, 7.5));
@@ -331,6 +338,7 @@ public final class FaceStealerGameTests {
         Vec3 at = helper.absoluteVec(new Vec3(2.5, FLOOR, 7.5));
         Aberrant a = Aberrant.create(helper.getLevel(), PROTOCOL_FIXTURE, at.x, at.y, at.z, -90.0f);
         helper.assertTrue(a != null, "the creature is made");
+        a.setPersistenceRequired(); // Fixture lifetime must not depend on remote mock players.
         helper.getLevel().addFreshEntity(a);
         a.setNoAi(true);   // moved by the test, not by its mind
         Vec3 goal = helper.absoluteVec(new Vec3(13.5, FLOOR + AXIS, 7.5));
@@ -359,6 +367,7 @@ public final class FaceStealerGameTests {
         Vec3 at = helper.absoluteVec(new Vec3(2.5, FLOOR, 7.5));
         Aberrant a = Aberrant.create(helper.getLevel(), PROTOCOL_FIXTURE, at.x, at.y, at.z, -90.0f);
         helper.assertTrue(a != null, "the creature is made");
+        a.setPersistenceRequired(); // Fixture lifetime must not depend on remote mock players.
         helper.getLevel().addFreshEntity(a);
         a.setNoAi(true);   // moved by the test, not by its mind
         Vec3 spot = helper.absoluteVec(new Vec3(9.5, FLOOR, 7.5));
@@ -390,6 +399,7 @@ public final class FaceStealerGameTests {
         // The fixture must survive regardless of players left in distant test arenas.
         // Vanilla otherwise despawns it before its first tick, before its ears register.
         a.setPersistenceRequired();
+        a.setPersistenceRequired(); // Fixture lifetime must not depend on remote mock players.
         helper.getLevel().addFreshEntity(a);
         return a;
     }
@@ -410,7 +420,7 @@ public final class FaceStealerGameTests {
             helper.assertValueEqual(a.mode(), "prowl", "a step heard: prowling");
             helper.assertValueEqual(a.verb(), "approach", "toward it");
             com.chunkworks.aberrantmobs.domain.Hearing.Estimate e = a.hearing().estimate(a.axis(), a.tickCount).orElseThrow();
-            helper.assertTrue(e.error() >= 100.0, "only a vague bearing at that range: " + e.error());
+            helper.assertTrue(e.error() >= 20.0 && e.error() <= 90.0, "a useful general bearing at that range: " + e.error());
             // Bound for the bearing: two hundred and more east of it. (Its heading this tick is the way's first leg,
             // which in a walled arena may well run sideways first; it is not the measure.)
             helper.assertTrue(a.crawlTarget() != null && a.crawlTarget().x() - a.axis().x() > 200.0, "bound that way: " + a.crawlTarget());
@@ -482,6 +492,7 @@ public final class FaceStealerGameTests {
         Vec3 at = helper.absoluteVec(new Vec3(7.5, FLOOR, 7.5));
         Aberrant a = Aberrant.create(helper.getLevel(), PROTOCOL_FIXTURE, at.x, at.y, at.z, -90.0f);
         helper.assertTrue(a != null, "the creature is made");
+        a.setPersistenceRequired(); // Fixture lifetime must not depend on remote mock players.
         helper.getLevel().addFreshEntity(a);
         a.setNoAi(true);
         net.minecraft.server.level.ServerPlayer p = survivor(helper, 9.5, 7.5, 90.0f);
@@ -609,6 +620,7 @@ public final class FaceStealerGameTests {
         Aberrant a = Aberrant.create(helper.getLevel(), PROTOCOL_FIXTURE, at.x, at.y, at.z, -90.0f);
         helper.assertTrue(a != null, "the creature is made");
         a.setPersistenceRequired(); // Distant fixture players must not despawn the loot target before its first tick.
+        a.setPersistenceRequired(); // Fixture lifetime must not depend on remote mock players.
         helper.getLevel().addFreshEntity(a);
         a.setNoAi(true);
         helper.assertValueEqual(a.getDefaultLootTable().location(), AberrantMobs.id("creature/face_stealer"), "the profile's loot table");
@@ -654,6 +666,7 @@ public final class FaceStealerGameTests {
         Vec3 at = helper.absoluteVec(new Vec3(2.5, FLOOR, 7.5));
         Aberrant a = Aberrant.create(helper.getLevel(), PROTOCOL_FIXTURE, at.x, at.y, at.z, 0.0f);
         helper.assertTrue(a != null, "the creature is made");
+        a.setPersistenceRequired(); // Fixture lifetime must not depend on remote mock players.
         helper.getLevel().addFreshEntity(a);
         a.setNoAi(true);   // moved by the test, not by its mind
         a.setScriptedWalk(new com.chunkworks.aberrantmobs.domain.Vec(0.3, 0.0, 0.0), 30);

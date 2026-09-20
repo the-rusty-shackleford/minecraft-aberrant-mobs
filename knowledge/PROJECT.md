@@ -474,3 +474,20 @@ The requested Chunky hexagon is running in the new Overworld at X/Z 0, 0 with a
 15,000-block radius. The client pack applies 125% entity distance through Pack
 Keeper; Rusty imports it in Prism. This completes the release authorization
 recorded above, superseding any earlier local-candidate wording.
+
+
+## Manual spawning and hearing — local 1.4.0 candidate (2026-09-20)
+
+[D-0021](decisions/D-0021.md) adds profile-named `/summon` commands and validates
+eggs/manual summons before world insertion. Rusty explicitly retained the habitat
+restriction and requested a clear failure message. Rejected eggs are preserved.
+
+[D-0022](decisions/D-0022.md) supersedes the older hearing numbers above: range 512,
+exact localisation within 64, useful intermediate bearings, and slowly accumulating
+confidence from sustained same-source noise. Silence dissipates confidence; no
+additional natural spawns or chunk loads are introduced.
+
+This session passed 136 JUnit and 57 real-server tests and built the 1.4.0 jar.
+See [the verification record](../devtools/verification/manual-spawning-and-hearing.md)
+for reproductions, a repaired fixture-lifetime defect and coverage limits. Unreleased;
+Rusty's engineering instruction did not authorize publication or deployment.

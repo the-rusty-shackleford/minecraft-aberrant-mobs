@@ -877,6 +877,15 @@ public class Aberrant extends Monster {
         return cells().permits(new AABB(head.x()-r,head.y()-r,head.z()-r,head.x()+r,head.y()+r,head.z()+r));
     }
 
+    /**
+     * requires: configured profile and position; effects: reports whether the initial body margin
+     * meets the same habitat check used before every server tick; throws: nothing.
+     */
+    public boolean fitsHabitat() {
+        CreatureProfile p = profile();
+        return p != null && headFits(axis(), p);
+    }
+
     /** effects: returns whether this point is in the creature's permitted territory */
     public boolean habitatAllows(Vec point) {
         return cells().permits(new AABB(point.x(),point.y(),point.z(),point.x(),point.y(),point.z()));

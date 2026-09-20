@@ -137,7 +137,7 @@ neoForge {
         gameTestServer {
             type = "gameTestServer"
             sourceSet = sourceSets.gametest
-            systemProperty 'neoforge.enabledGameTestNamespaces', project.hasProperty('habitatTests') ? 'aberrant_habitat' : mod_id + ',aberrant_habitat'
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.hasProperty('manualSpawnTests') ? 'aberrant_manual_spawn' : project.hasProperty('habitatTests') ? 'aberrant_habitat' : mod_id + ',aberrant_habitat,aberrant_manual_spawn'
             taskBefore copyGameTestStructures
         }
         photoBooth {
