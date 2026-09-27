@@ -90,6 +90,31 @@ public final class Habitat {
      * {@code depth} must be rock, and the last the centre of a pocket of
      * rock ({@link #pocketOfRock}); nothing when no wall is thick enough
      */
+    /**
+     * requires: bore >= 0, the crawl's: how far from the head's centre the
+     * corridor it bores reaches, blocks; effects: returns how far into a
+     * wall an ambush post sits, cells: one more than the bore rounded up,
+     * so the corridor around a head there never reaches the cell against
+     * the cave. A one-block wall stays between the head and the prey, and
+     * there is nothing to see from the cave.
+     */
+    public static int ambushDepth(double bore) {
+        return (int) Math.ceil(bore) + 1;
+    }
+
+    /**
+     * effects: returns the cell an ambusher waits in for prey that will come
+     * back through {@code returned} (the last cell of the cave the prey was
+     * seen in inside the band): {@code depth} (an {@link #ambushDepth}) into
+     * the nearest wall thick enough for a pocket, by {@link #siteInWall};
+     * nothing when no wall is. With habitat-aware cells, rock outside the
+     * band reads as hard, so a pocket that would straddle the band's edge is
+     * refused here too.
+     */
+    public static Optional<Cell> ambushPost(Cells cells, Cell returned, int depth) {
+        return siteInWall(cells, returned, depth);
+    }
+
     public static Optional<Cell> siteInWall(Cells cells, Cell floor, int depth) {
         int[][] dirs = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
         for (int[] d : dirs) {

@@ -81,6 +81,13 @@ public final class SensesReader {
                     && angle(a.facing(), new Vec(toTarget.x(), 0, toTarget.z())) <= tree.tunable("face_cone_deg", FACE_CONE_DEG);
             s.flag("target.eye_contact", a.gazeNoting(eyes));   // a stare, not a glance: eight of the last ten ticks
             s.flag("target.underground", !level.canSeeSky(target.blockPosition()));
+            // Inside the band means the whole of them, the way the grab and the pounce judge it. The last
+            // spot they stood inside it is where they will come back through: the ambush's anchor.
+            boolean inBand = a.canHunt(target);
+            s.flag("target.in_band", inBand);
+            if (inBand) {
+                memory = memory.withPoint("target.last_in_band", pos);
+            }
             memory = memory.withPoint("target.last_pos", pos).withTimer("seen", (int) tree.tunable("memory", KNOWN_TICKS));
             a.noteTarget(target.getUUID());
         } else if (a.targetId() != null) {
@@ -89,7 +96,11 @@ public final class SensesReader {
             int keep = (int) tree.tunable("memory", KNOWN_TICKS);
             Optional<Hearing.Estimate> heard = a.hearing().estimateFrom(a.targetId().toString(), head, a.tickCount);
             if (heard.isPresent() && heard.get().age() < keep && keep - heard.get().age() > memory.timer("seen")) {
-                memory = memory.withPoint("target.last_pos", heard.get().bearing()).withTimer("seen", keep - heard.get().age());
+                Vec bearing = heard.get().bearing();
+                memory = memory.withPoint("target.last_pos", bearing).withTimer("seen", keep - heard.get().age());
+                if (a.habitatAllows(bearing)) {
+                    memory = memory.withPoint("target.last_in_band", bearing);
+                }
             }
         }
         Vec last = memory.point("target.last_pos");
@@ -99,6 +110,17 @@ public final class SensesReader {
             s.point("target.last_pos", last);
             if (!seen) {
                 s.number("target.distance", last.minus(head).length());
+                s.flag("target.in_band", a.habitatAllows(last));   // where the ears put them, as a point
+            }
+            // Where to lie in wait: beside the spot they left the band through, or, never having had them
+            // inside it, beside where they are, brought into the band.
+            Vec returned = memory.point("target.last_in_band");
+            if (returned != null) {
+                s.point("target.last_in_band", returned);
+            }
+            Vec post = a.ambushPost(returned != null ? returned : last);
+            if (post != null) {
+                s.point("ambush.post", post);
             }
         }
         if (!seen) {
@@ -143,7 +165,9 @@ public final class SensesReader {
         Player best = null;
         double bestDistance = range;
         for (Player p : level.getEntities(EntityTypeTest.forClass(Player.class), a.getBoundingBox().inflate(range), Player::isAlive)) {
-            if (!fairGame(p) || !a.canHunt(p)) {
+            // Prey is only ever taken up inside the band; the one it has is not lost for stepping out of
+            // it (the lurk needs to know they are out, and where), only for going out of range.
+            if (!fairGame(p) || !a.canHunt(p) && !p.getUUID().equals(a.targetId())) {
                 continue;
             }
             double d = p.distanceTo(a);

@@ -110,8 +110,8 @@ mode; the new mode decides once more the same tick), `timer` (set), `wait` (pati
 start it, hold while it runs, fire once and clear), `cooldown` (fire, then hold while it
 runs). Conditions are `&&`, `||`, `!`, parentheses, flags (`hurt`), comparisons
 (`target.distance < 4`), and timers (`timer.no_bite == 0`; never set reads as zero). The
-senses (`domain/mind/Senses`): `target.seen/known/in_sight/eye_contact/underground`,
-`target.distance/pos/last_pos/look`, `hurt`, `hurt_hard`, `health`, `y`, `light`,
+senses (`domain/mind/Senses`): `target.seen/known/in_sight/eye_contact/underground/in_band`,
+`target.distance/pos/last_pos/last_in_band/look`, `ambush.post`, `hurt`, `hurt_hard`, `health`, `y`, `light`,
 `on_wall`, `airborne`, `underground`, `blocked`, `heard.any/bearing/error/age/distance/
 loud`, `grab.held/survived`, `random`, `home`. A condition naming anything else, a mode
 entered that is not there, or a verb nobody registered is refused when the pack loads,
@@ -125,6 +125,17 @@ target's look is within `eye_cone_deg` of the head and the head faces them, for 
 ticks: a stare, not a glance), the mind
 decides, and the verb is begun, ticked or ended. The memory (mode, timers, points, seed)
 is saved with the entity, so a reload does not forget a hunt.
+
+Prey is taken up only inside the creature's band (below); the prey it has is not lost for
+stepping out of it, only for going out of range, and `target.in_band` says which. The
+shipped Face-Stealer does not chase prey out of its band: it lurks (D-0023). From stalk or
+hunt, prey known outside the band sends it, quietly and digging, to `ambush.post`: just past
+its bore's reach into the nearest wall thick enough for a pocket beside
+`target.last_in_band`, the last spot the prey stood inside the band (the shaft or stair they
+went down by), so a wall one block thick stays between its head and the shaft and there is
+nothing to see. There it holds. Prey back inside the band within six blocks is grabbed from
+the wall; farther, stalked again; staring, hunted. Once the prey is no longer known it leaves
+for roam when its five-minute ambush clock, set on taking the post, has run out.
 
 ## The grab, the bite, the face
 
@@ -391,7 +402,11 @@ floor, so a bore wider than three is planned down its middle and not along its w
 air with none dearer, rock at the cost of digging it (cheap hunting, dear stalking),
 hard and fluid never -- nor any rock within the bore's reach of them, two cells for the
 Face-Stealer, so the bore that follows never breaches bedrock or water -- bounded by a
-budget; cut off by water or bedrock, it
+budget. A vertical step between two cells of air with no wall beside the destination
+costs as air with none: rising or dropping through air is done along a wall, so the way
+out of a chamber goes along its floor to a wall or through the rock, never straight up
+the headroom a head on the floor cannot take (a shaft, walled all round, is climbed at
+the air rate). Cut off by water or bedrock, it
 takes the way to the nearest reachable cell instead, never a straight line a pool would
 hold it on. The search knows how deep in rock the target lies (the taxicab distance to
 the nearest air, looked for up to eight cells out) and charges every way that many cells

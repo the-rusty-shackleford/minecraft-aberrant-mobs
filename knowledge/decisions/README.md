@@ -30,3 +30,4 @@ type: index
 | D-0020 | Lifetime habitat confinement, sunlight vulnerability, saved-state enforcement and escapable sprint pursuit |
 | D-0021 | Profile-named summon commands and explicit manual-spawn refusals |
 | D-0022 | Progressive 512-block hearing, exact within 64 blocks |
+| D-0023 | Prey that leaves the band is lurked for just past the corridor's reach into the wall beside where it left, behind a wall one thick, and grabbed on its return |

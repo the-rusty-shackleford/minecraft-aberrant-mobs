@@ -847,7 +847,12 @@ public class Aberrant extends Monster {
 
     /** effects: returns the crawl's measures for this body: the axis height as its clearance, the bore and the lookahead from its width */
     private Crawl.Rules rules(Body body, CreatureProfile p) {
-        return new Crawl.Rules(body.axisHeight(), p.body().width() * 0.6, p.body().width() * 0.64);
+        return new Crawl.Rules(body.axisHeight(), bore(p), p.body().width() * 0.64);
+    }
+
+    /** effects: returns how far from the head's centre the crawl bores, blocks: the corridor's reach */
+    private static double bore(CreatureProfile p) {
+        return p.body().width() * 0.6;
     }
 
     private LevelCells cells() {
@@ -894,6 +899,37 @@ public class Aberrant extends Monster {
     /** effects: returns whether the potential victim's whole box lies in this creature's territory */
     public boolean canHunt(LivingEntity victim) {
         return !isRemoved() && cells().permits(victim.getBoundingBox());
+    }
+
+    @Nullable private Vec ambushAnchor, ambushPost;
+
+    /**
+     * effects: returns where to lie in wait for prey that has left the band: {@code anchor} is
+     * their last spot inside it, or their last known spot, and is first brought inside the band by
+     * the body's margin; the post is just past the corridor's reach ({@link Habitat#ambushDepth})
+     * into the nearest wall thick enough for a pocket, else the anchor itself. Null without a
+     * profile. Cached per anchor: the wall search reads a few hundred cells, and the anchor stands
+     * still for the whole of a lurk.
+     */
+    @Nullable
+    public Vec ambushPost(Vec anchor) {
+        CreatureProfile p = profile();
+        if (p == null) {
+            return null;
+        }
+        Vec inside = anchor;
+        Habitat.Rules rules = p.habitat().map(CreatureProfile.Habitat::rules).orElse(null);
+        if (rules != null) {
+            int m = (int) Math.ceil(habitatMargin(p));
+            double y = Math.max(rules.yMin() + m, Math.min(rules.yMax() - m, anchor.y()));
+            inside = new Vec(anchor.x(), y, anchor.z());
+        }
+        if (ambushAnchor != null && ambushPost != null && ambushAnchor.minus(inside).length() < 0.5) {
+            return ambushPost;
+        }
+        ambushAnchor = inside;
+        ambushPost = Habitat.ambushPost(cells(), Cell.containing(inside), Habitat.ambushDepth(bore(p))).map(Cell::centre).orElse(inside);
+        return ambushPost;
     }
 
     private void leaveInvalidHabitat() {
@@ -1022,6 +1058,17 @@ public class Aberrant extends Monster {
         return blocksDug;
     }
 
+    private Vec lastWish = Vec.ZERO;
+    private boolean lastDigWanted;
+
+    /** effects: returns the crawl's state this tick in words, for a report or a test: the way, the wish, the dig and the strike */
+    public String crawlReport() {
+        return "target " + target + ", way " + (path == null ? "none" : path.size() + " cells at " + pathAt)
+                + ", replan in " + replanIn + ", wish " + lastWish + ", dig wanted " + lastDigWanted + ", may dig " + mayDig
+                + ", strike pending " + (pendingDig == null ? "none" : pendingDig.size() + " cells") + ", animator busy " + animator.busy()
+                + ", blocked " + lastBlocked + ", speed " + crawlSpeed + ", ticks " + crawlTicks;
+    }
+
     /** effects: returns whether it is still under way toward a target, through a scripted walk, or in the air */
     public boolean crawling() {
         return target != null || crawlTicks > 0 || flight != null;
@@ -1043,6 +1090,8 @@ public class Aberrant extends Monster {
             boolean dig = mayDig && wayThroughRock(cells, Crawl.DIG_AHEAD + rules.bore());
             boolean climb = wayRises(rules.lookahead() + 1.0);
             Crawl.Step step = Crawl.step(cells, crawl, wish, wish.equals(Vec.ZERO) ? 0.0 : crawlSpeed, rules, dig, climb);
+            lastWish = wish;
+            lastDigWanted = dig;
             crawl = step.pose();
             if (step.blocked() && !lastBlocked && LOG.isDebugEnabled()) {
                 LOG.debug("{} refused: head {} heading {} on {} wishing {} digging {}", getId(), crawl.centre(), crawl.heading(), crawl.normal(), wish, dig);
@@ -1367,7 +1416,7 @@ public class Aberrant extends Monster {
         if (!memory.mode().equals(entityData.get(DATA_MODE))) {
             String was = entityData.get(DATA_MODE);
             entityData.set(DATA_MODE, memory.mode());
-            if (memory.mode().equals("stalk") || memory.mode().equals("hunt")) {
+            if (memory.mode().equals("stalk") || memory.mode().equals("hunt") || memory.mode().equals("lurk")) {
                 setPersistenceRequired();   // it knows you: it does not despawn
             }
             if (memory.mode().equals("hunt") && !was.isEmpty()) {

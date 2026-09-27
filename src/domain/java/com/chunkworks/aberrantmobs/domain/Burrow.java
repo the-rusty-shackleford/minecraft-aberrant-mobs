@@ -149,7 +149,7 @@ public final class Burrow {
                 if (t.closed[j]) {
                     continue;
                 }
-                double tentative = here + passage.cost(costs);
+                double tentative = here + stepCost(t.passage(key), passage, DY[k] != 0, wallBeside(t, nx, ny, nz), costs);
                 if (tentative < t.g[j]) {
                     t.g[j] = tentative;
                     t.came[j] = key;
@@ -256,6 +256,32 @@ public final class Burrow {
     /** effects: returns whether a solid cell lies within {@code hold} cells of {@code c} along one of the six axes: a face a head there can ride */
     static boolean supported(Cells cells, Cell c, int hold) {
         return supported(cells, c.x(), c.y(), c.z(), hold);
+    }
+
+    /**
+     * effects: returns what a step from a cell that is {@code from} to a
+     * neighbour that is {@code to} costs under {@code costs}: what passing
+     * {@code to} costs, raised to the air-with-none rate for a vertical step
+     * between two cells of air with no wall beside the destination. Rising or
+     * dropping through air is done along a wall: a head on a chamber's floor
+     * has no way up its headroom, however near the ceiling.
+     */
+    static double stepCost(Passage from, Passage to, boolean vertical, boolean wallBesideTo, Costs costs) {
+        double cost = to.cost(costs);
+        if (vertical && to != Passage.ROCK && from != Passage.ROCK && !wallBesideTo) {
+            cost = Math.max(cost, costs.unsupported());
+        }
+        return cost;
+    }
+
+    /** effects: returns whether a solid cell stands beside {@code (x, y, z)}: the next cell over along one of the four horizontal axes, a wall to rise or drop along */
+    static boolean wallBeside(Cells cells, int x, int y, int z) {
+        for (int k = 0; k < 6; k++) {
+            if (DY[k] == 0 && cells.at(x + DX[k], y, z + DZ[k]).solid()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean supported(Cells cells, int x, int y, int z, int hold) {

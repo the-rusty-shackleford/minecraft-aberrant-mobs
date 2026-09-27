@@ -80,6 +80,26 @@ final class HabitatTest {
         Cells cavern = (x, y, z) -> Math.abs(x) <= 20 && Math.abs(z) <= 20 ? Cells.Kind.AIR : Cells.Kind.ROCK;
         assertTrue(Habitat.siteInWall(cavern, new Cell(0, 5, 0), Habitat.SITE_DEPTH).isEmpty(), "a cavern too wide to cross");
     }
+    // Post partitions: a wall beside the cave, a cave crossed first, no wall
+    // thick enough, a pocket that would straddle the band's floor (hard).
+    @Test
+    void anAmbushPostSitsJustPastTheCorridorsReachAndNeverAcrossTheBandsFloor() {
+        assertEquals(3, Habitat.ambushDepth(1.5), "a bore of 1.5: the head three in leaves the first cell");
+        assertEquals(4, Habitat.ambushDepth(2.25), "the shipped body's bore of 2.25: four in");
+        assertEquals(1, Habitat.ambushDepth(0), "no corridor at all: the first cell of the wall");
+        Cells cave = (x, y, z) -> x == 0 ? Cells.Kind.AIR : Cells.Kind.ROCK;
+        assertEquals(Optional.of(new Cell(3, 5, 0)), Habitat.ambushPost(cave, new Cell(0, 5, 0), 3),
+                "three into the east wall: the cell against the cave stays, a wall one thick");
+        Cells wide = (x, y, z) -> x >= 0 && x <= 3 ? Cells.Kind.AIR : Cells.Kind.ROCK;
+        assertEquals(Optional.of(new Cell(6, 5, 0)), Habitat.ambushPost(wide, new Cell(0, 5, 0), 3), "the cave is crossed first");
+        Cells thin = (x, y, z) -> x == 0 || Math.abs(x) > 3 || Math.abs(z) > 3 ? Cells.Kind.AIR : Cells.Kind.ROCK;
+        assertTrue(Habitat.ambushPost(thin, new Cell(0, 5, 0), 3).isEmpty(), "a wall three thick has no room for the pocket behind the post");
+        // Habitat-aware cells read rock under the band's floor as hard: a post whose pocket would reach it is refused.
+        Cells banded = (x, y, z) -> x == 0 ? Cells.Kind.AIR : y < -32 ? Cells.Kind.HARD : Cells.Kind.ROCK;
+        assertTrue(Habitat.ambushPost(banded, new Cell(0, -31, 0), 3).isEmpty(), "one over the floor: the pocket would straddle it");
+        assertEquals(Optional.of(new Cell(3, -30, 0)), Habitat.ambushPost(banded, new Cell(0, -30, 0), 3), "two over the floor: the pocket fits");
+    }
+
     // Extent partitions: exact faces, interior, either face straddled, wholly
     // outside, zero height, reversed/nonfinite input. Block rows include yMax.
     @Test

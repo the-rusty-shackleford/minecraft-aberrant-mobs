@@ -128,6 +128,28 @@ final class BurrowTest {
     }
 
     @Test
+    void theWayOutOfAChamberLeavesAlongItsFloorNotUpThroughItsHeadroom() {
+        // A chamber five wide and four high in rock, its floor two under the axis cell (the hold), and a
+        // target in the rock two up and eight over. The head cannot go up the chamber's air from its floor;
+        // the way goes along the floor to a wall and rises beside it, or digs.
+        Cells chamber = (x, y, z) -> Math.abs(x) <= 2 && Math.abs(z) <= 2 && y >= -1 && y <= 2 ? Cells.Kind.AIR : Cells.Kind.ROCK;
+        List<Cell> p = Burrow.plan(chamber, new Cell(0, 0, 0), new Cell(-8, 2, 0), Burrow.HUNT, ONE, Burrow.BUDGET).orElseThrow();
+        assertEquals(new Cell(-8, 2, 0), p.get(p.size() - 1));
+        for (int i = 1; i < p.size(); i++) {
+            Cell from = p.get(i - 1), to = p.get(i);
+            if (to.y() != from.y() && chamber.at(from) == Cells.Kind.AIR && chamber.at(to) == Cells.Kind.AIR) {
+                assertTrue(Burrow.wallBeside(chamber, to.x(), to.y(), to.z()), "it rises through the chamber's air only along a wall: " + p);
+            }
+        }
+        // A shaft one wide has walls all round: it is climbed straight up at the air rate.
+        Cells shaft = (x, y, z) -> x == 0 && z == 0 && y >= 0 && y <= 6 ? Cells.Kind.AIR : Cells.Kind.ROCK;
+        List<Cell> up = Burrow.plan(shaft, new Cell(0, 0, 0), new Cell(0, 6, 0), Burrow.HUNT, ONE, Burrow.BUDGET).orElseThrow();
+        assertEquals(7, up.size(), "straight up the shaft: " + up);
+        assertFalse(Burrow.wallBeside(chamber, 0, 1, 0), "the chamber's middle has no wall beside it");
+        assertTrue(Burrow.wallBeside(chamber, -2, 1, 0), "its west edge has");
+    }
+
+    @Test
     void airByAFaceIsPreferredToAirWithNone() {
         // From the floor to a point 4 up and 4 over: hugging the floor then a column of rock beats a diagonal through the void.
         Cells column = (x, y, z) -> y <= -1 || (x == 6 && y <= 8) ? Cells.Kind.ROCK : Cells.Kind.AIR;
@@ -246,7 +268,7 @@ final class BurrowTest {
                 return dist.get(c);
             }
             for (Cell n : c.neighbours()) {
-                double cost = Burrow.passage(cells, n, 1, 2).cost(costs);
+                double cost = step(cells, c, n, costs);
                 if (Double.isInfinite(cost) || done.contains(n)) {
                     continue;
                 }
@@ -264,9 +286,15 @@ final class BurrowTest {
     private static double costOf(Cells cells, List<Cell> path, Burrow.Costs costs) {
         double sum = 0;
         for (int i = 1; i < path.size(); i++) {
-            sum += Burrow.passage(cells, path.get(i), 1, 2).cost(costs);
+            sum += step(cells, path.get(i - 1), path.get(i), costs);
         }
         return sum;
+    }
+
+    /** effects: returns what the step from {@code c} to its neighbour {@code n} costs for the one-sixteenth body, by the planner's own step rule over the world's passages */
+    private static double step(Cells cells, Cell c, Cell n, Burrow.Costs costs) {
+        return Burrow.stepCost(Burrow.passage(cells, c, 1, 2), Burrow.passage(cells, n, 1, 2), n.y() != c.y(),
+                Burrow.wallBeside(cells, n.x(), n.y(), n.z()), costs);
     }
 
     @Test

@@ -40,9 +40,11 @@ public final class Senses {
     /** The flags a tree may test. */
     public static final Set<String> FLAGS = Set.of(
             "target.seen", "target.known", "target.in_sight", "target.eye_contact", "target.underground", "target.blessed",
+            "target.in_band",
             "hurt", "hurt_hard", "on_wall", "underground", "grab.held", "grab.survived", "heard.any", "heard.loud", "blocked", "airborne");
     /** The points a verb may be sent to. */
-    public static final Set<String> POINTS = Set.of("target.pos", "target.last_pos", "target.look", "heard.bearing", "home");
+    public static final Set<String> POINTS = Set.of(
+            "target.pos", "target.last_pos", "target.look", "target.last_in_band", "ambush.post", "heard.bearing", "home");
     /** A timer's value, from the memory, is read as a number under this prefix. */
     public static final String TIMER = "timer.";
 

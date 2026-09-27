@@ -476,6 +476,30 @@ Keeper; Rusty imports it in Prism. This completes the release authorization
 recorded above, superseding any earlier local-candidate wording.
 
 
+## The lurk — in the 1.4.0 candidate (2026-09-27)
+
+Rusty found a Face-Stealer rigid beside their mining shaft at y −33 and asked why; it was
+hunting prey below the band D-0020 confines it to, and the planner's refusal of every
+out-of-band cell left it replanning into nothing. Offered scarier answers than pacing the
+floor, Rusty chose the ambush: [D-0023](decisions/D-0023.md). Prey that leaves the band is
+lurked for just past the corridor's reach into the wall beside where it left (four cells for
+the shipped body, a wall one thick between), grabbed from the wall on its return, stalked
+again if it returns farther off, waited for five minutes past the last knowing of it. The
+senses now keep the prey they have when it steps out of the band (they still take up prey
+only inside it), with `target.in_band`, `target.last_in_band` and `ambush.post` in the
+vocabulary. Found on the way and fixed: the planner charged a way straight up a chamber's
+headroom as air by a face, which a head on the floor cannot take; a vertical step through
+air with no wall beside it now costs as air with none (`Burrow.stepCost`), so the way out of
+a chamber goes along its floor to a wall or through the rock. `Aberrant.crawlReport()` says
+the crawl's state in words for a test or a report.
+
+147 JUnit (nine on the lurk against the shipped tree, the post, the chamber's way) and all
+58 real-server GameTests pass, the new scene among them: seen in a shaft, gone below it,
+lurked for, the post beside the shaft, the head there behind an intact wall, the prey taken
+on coming back up. The photo booth was not run (client-side rendering is untouched).
+**Unreleased**, on top of the unreleased 1.4.0 candidate below; Rusty has not authorised
+publication or deployment.
+
 ## Manual spawning and hearing — local 1.4.0 candidate (2026-09-20)
 
 [D-0021](decisions/D-0021.md) adds profile-named `/summon` commands and validates

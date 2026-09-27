@@ -183,6 +183,73 @@ public final class HabitatGameTests {
         });
     }
 
+    /**
+     * Prey that leaves the band is not chased into it: the creature takes a post three cells into the
+     * wall beside where they left, behind a wall one thick, and takes them when they come back through.
+     * A shaft runs from the band's floor to a chamber below it; the prey is seen in the shaft, goes
+     * down, and comes back up.
+     */
+    @GameTest(template="pounce", timeoutTicks=700, batch="habitat_lurk")
+    public void preyThatLeavesTheBandIsAmbushedWhereItLeft(GameTestHelper h) {
+        BlockPos o=origin(h);
+        var level=h.getLevel();
+        for (Aberrant other:level.getEntitiesOfClass(Aberrant.class,new net.minecraft.world.phys.AABB(o).inflate(160))) other.discard();
+        for(int x=4;x<=26;x++) for(int z=10;z<=20;z++) for(int y=-44;y<=-7;y++)
+            level.setBlock(new BlockPos(o.getX()+x,y,o.getZ()+z),Blocks.STONE.defaultBlockState(),3);
+        int sx=o.getX()+8, sz=o.getZ()+15;   // the shaft, and the chamber it drops into below the band
+        for(int y=-42;y<=-8;y++) level.setBlock(new BlockPos(sx,y,sz),Blocks.AIR.defaultBlockState(),3);
+        for(int x=sx-1;x<=sx+1;x++) for(int z=sz-1;z<=sz+1;z++) for(int y=-42;y<=-40;y++)
+            level.setBlock(new BlockPos(x,y,z),Blocks.AIR.defaultBlockState(),3);
+        BlockPos ledge=new BlockPos(sx,-21,sz);   // the prey stands on this inside the band, then digs through it
+        level.setBlock(ledge,Blocks.STONE.defaultBlockState(),3);
+        for(int x=18;x<=22;x++) for(int z=13;z<=17;z++) for(int y=-24;y<=-20;y++)   // the creature's own pocket, twelve cells east
+            level.setBlock(new BlockPos(o.getX()+x,y,o.getZ()+z),Blocks.AIR.defaultBlockState(),3);
+        Aberrant a=Aberrant.create(level,AberrantMobs.id("face_stealer"),o.getX()+20.5,-24,o.getZ()+15.5,90);
+        h.assertTrue(a!=null,"shipped Face-Stealer profile loads");
+        a.setPersistenceRequired();
+        level.addFreshEntity(a);
+        var p=h.makeMockServerPlayerInLevel();
+        p.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
+        p.teleportTo(level,sx+0.5,-20,sz+0.5,90,0);
+        BlockPos post=new BlockPos(sx+4,-20,sz);   // four into the east wall of the shaft (the body's 2.4 of clearance, and one), at the prey's height
+        BlockPos wall=new BlockPos(sx+1,-20,sz);   // the one cell between the post's pocket and the shaft
+        h.startSequence()
+            .thenExecuteAfter(20,()->{
+                h.assertTrue(!level.canSeeSky(p.blockPosition()),"the shaft is roofed: underground");
+                h.assertValueEqual(a.mode(),"stalk","prey seen inside the band is stalked");
+            })
+            .thenExecute(()->{   // they go down through the floor, below the band
+                level.setBlock(ledge,Blocks.AIR.defaultBlockState(),3);
+                p.teleportTo(level,sx+0.5,-42,sz+0.5,90,0);
+            })
+            .thenExecuteAfter(20,()->{
+                h.assertTrue(!a.canHunt(p),"the prey's whole box is below the band");
+                h.assertValueEqual(a.mode(),"lurk","prey out of the band is not chased: lurked for; prey at "+p.position()
+                        +", memory "+a.memory()+", verb "+a.verb()+", target.pos "+a.sense("target.pos")+", last "+a.sense("target.last_pos")
+                        +", post "+a.sense("ambush.post")+", crawl "+a.crawlTarget());
+                h.assertValueEqual(a.verb(),"approach","bound for the post");
+                Vec at=a.sense("ambush.post");
+                h.assertTrue(at!=null && at.near(new Vec(post.getX()+0.5,post.getY()+0.5,post.getZ()+0.5),1e-9),
+                        "the post is four into the wall beside where they left: "+at);
+            })
+            .thenWaitUntil(()->{
+                assertBody(h,a);
+                h.assertTrue(a.axis().minus(new Vec(post.getX()+0.5,post.getY()+0.5,post.getZ()+0.5)).length()<2.5,
+                        "the head reaches the post: "+a.axis()+", dug "+a.blocksDug()+", "+a.crawlReport());
+            })
+            .thenExecuteAfter(10,()->{
+                h.assertValueEqual(a.mode(),"lurk","and waits there");
+                h.assertTrue(level.getBlockState(wall).is(Blocks.STONE),"behind a wall one thick, nothing to see from the shaft");
+                h.assertTrue(a.speed()<0.05,"still: "+a.speed());
+                level.setBlock(ledge,Blocks.STONE.defaultBlockState(),3);   // they come back up
+                p.teleportTo(level,sx+0.5,-20,sz+0.5,90,0);
+            })
+            .thenWaitUntil(()->h.assertTrue(a.holding() || a.verb().equals("grab") || a.mode().equals("hunt"),
+                    "back inside the band and beside the post: taken; mode "+a.mode()+", verb "+a.verb()))
+            .thenExecute(()->{ a.discard(); p.discard(); })
+            .thenSucceed();
+    }
+
     @GameTest(template="pounce", timeoutTicks=400, batch="habitat_shade")
     public void roofAndTorchesProtectFromSunlight(GameTestHelper h) {
         h.getLevel().setDayTime(6000);h.getLevel().setWeatherParameters(6000,0,false,false);
