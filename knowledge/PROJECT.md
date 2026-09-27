@@ -496,9 +496,23 @@ the crawl's state in words for a test or a report.
 147 JUnit (nine on the lurk against the shipped tree, the post, the chamber's way) and all
 58 real-server GameTests pass, the new scene among them: seen in a shaft, gone below it,
 lurked for, the post beside the shaft, the head there behind an intact wall, the prey taken
-on coming back up. The photo booth was not run (client-side rendering is untouched).
-**Unreleased**, on top of the unreleased 1.4.0 candidate below; Rusty has not authorised
-publication or deployment.
+on coming back up.
+
+## Published and deployed — 2026-09-27, pack 1.65.0
+
+Rusty: "Go". The release gate ran as `clean build` on the GPU display with the booth
+iconified: 147 JUnit, all 58 GameTests, and the shader client booth. The booth's first run
+failed one check, "and is drawn walking -- creature pixels 1976" (a floor of 2500 on the
+creature's pixels in a fixed side camera during the scripted walk); a second `runPhotoBooth`
+passed it with every other check, 46 in all, so the first was a framing flake, not the
+change: the scripted walk plans nothing and nothing client-side changed. Version 1.4.0 is
+[published](https://github.com/the-rusty-shackleford/minecraft-aberrant-mobs/releases/tag/v1.4.0)
+(tag v1.4.0; the asset matches the built jar, SHA-1
+`e46c5282b4e45961ed4d216605ac730bf5478cf8`, 841776 bytes) and deployed through Mod Hub in
+pack **1.65.0**, replacing 1.3.1 on the server: restart 18:22:46 UTC with nobody online after
+a two-minute warning, `Done` at 18:23:01, the log noting "aberrantmobs (version 1.3.1 ->
+1.4.0)", 36 baseline errors, 20 TPS, parity clean. The server repo's
+`knowledge/releases/pack-1.65.0.md` has the deployment. Not yet seen in play: a lurk.
 
 ## Manual spawning and hearing — local 1.4.0 candidate (2026-09-20)
 
