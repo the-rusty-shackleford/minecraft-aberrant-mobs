@@ -1,0 +1,12 @@
+{
+  "shots": [
+    {"from": "run/booth/screenshots/booth-face.png", "to": "img/face-stealer.webp"},
+    {"from": "run/booth/screenshots/booth-face-stolen.png", "to": "img/stolen-face.webp"},
+    {"from": "run/booth/screenshots/booth-coil-15.png", "to": "img/coil.webp"},
+    {"from": "run/booth/screenshots/booth-climb-3.png", "to": "img/climb.webp"},
+    {"from": "run/booth/screenshots/booth-dig-2.png", "to": "img/dig.webp"},
+    {"from": "run/booth/screenshots/booth-crack-aim.png", "to": "img/crack.webp"},
+    {"from": "run/booth/screenshots/booth-walk-top.png", "to": "img/from-above.webp"},
+    {"from": "run/booth/screenshots/booth-wallwalk-third.png", "to": "img/chitin.webp"}
+  ]
+}
