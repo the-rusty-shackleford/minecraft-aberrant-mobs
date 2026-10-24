@@ -1,4 +1,4 @@
-The **Face-Stealer** is nfx's centipede: sixteen blocks of plated body and a mask for a face. It
+The **Face-Stealer** is a centipede: sixteen blocks of plated body and a mask for a face. It
 lives in the rock beside the deep caves, **hears you from far away**, digs through stone to reach
 you, and climbs walls and ceilings. If it catches you, it bites, and then it **wears your face**
 until its next victim. Kill it and its chitin makes armour that lets you **walk on walls**.

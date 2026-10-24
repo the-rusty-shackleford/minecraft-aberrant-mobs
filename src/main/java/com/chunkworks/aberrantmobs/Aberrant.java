@@ -1,6 +1,6 @@
 /*
  * Aberrant Mobs - a protocol for monsters.
- * Copyright (C) 2026 Rusty Shackleford and nfx
+ * Copyright (C) 2026 Chunkworks
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -1619,7 +1619,7 @@ public class Aberrant extends Monster {
         entityData.set(DATA_FACE_ID, profile.getId() == null ? "" : profile.getId().toString());
     }
 
-    /** effects: returns the profile whose face it wears, or null for nfx's painted mask */
+    /** effects: returns the profile whose face it wears, or null for the original painted mask */
     @Nullable
     public GameProfile face() {
         String name = entityData.get(DATA_FACE_NAME);

@@ -7,7 +7,7 @@ issueTrackerURL="https://github.com/the-rusty-shackleford/minecraft-aberrant-mob
 modId="${mod_id}"
 version="${mod_version}"
 displayName="${mod_name}"
-authors="Rusty Shackleford, nfx"
+authors="Chunkworks"
 description='''
 A protocol for monsters. A creature is a datapack entry and a Blockbench
 project: this mod owns the rig that stands it up, the body that follows its

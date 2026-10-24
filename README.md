@@ -4,7 +4,7 @@ A protocol for monsters, for NeoForge 1.21.1. A creature is a datapack entry and
 Blockbench project: this mod owns the rig that stands it up, the body that follows its
 head, the mind that reads its senses through a decision tree, the crawling, digging,
 stalking, grabbing and biting its verbs do, and what it drops. The first creature is the
-**Face-Stealer**, nfx's centipede: sixteen blocks of it (the model at a unit of a sixteenth
+**Face-Stealer**, a centipede: sixteen blocks of it (the model at a unit of a sixteenth
 and a half), a mask for a face.
 
 All seven phases of the plan are built (1.0.0): the
@@ -140,7 +140,7 @@ for roam when its five-minute ambush clock, set on taking the post, has run out.
 ## The grab, the bite, the face
 
 Within reach (4.5 blocks of the head's axis), the pincers close (`Aberrant.grab`): the target rides the creature, held
-in the jaws of nfx's head -- against the mask's front at the maw's height, half their own
+in the jaws of the original head -- against the mask's front at the maw's height, half their own
 width before the face, so from their own eyes they see the mask and the pincers, not the
 inside of the head (or at the head's own axis when the jaws have just surfaced inside
 rock, so the held one never hangs in a wall), never steering it, and the grip
@@ -550,7 +550,7 @@ ceiling landing. All six landing surfaces are tested with actual creatures. See 
 
 ## Licence
 
-AGPL-3.0-or-later. Copyright 2026 Rusty Shackleford and nfx.
+AGPL-3.0-or-later. Copyright 2026 Chunkworks.
 
 The survival photo booth verifies sixty position snapshots sent after the ordinary
 movement packets, avoiding comparisons of live entities from different threads.

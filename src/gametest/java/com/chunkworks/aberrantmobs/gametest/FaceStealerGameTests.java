@@ -1,6 +1,6 @@
 /*
  * Aberrant Mobs - a protocol for monsters.
- * Copyright (C) 2026 Rusty Shackleford and nfx
+ * Copyright (C) 2026 Chunkworks
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -624,8 +624,8 @@ public final class FaceStealerGameTests {
         helper.getLevel().addFreshEntity(a);
         a.setNoAi(true);
         helper.assertValueEqual(a.getDefaultLootTable().location(), AberrantMobs.id("creature/face_stealer"), "the profile's loot table");
-        net.minecraft.world.item.ItemStack trophy = com.chunkworks.aberrantmobs.StolenFaceItem.of(new com.mojang.authlib.GameProfile(java.util.UUID.randomUUID(), "nfx"));
-        helper.assertValueEqual(com.chunkworks.aberrantmobs.StolenFaceItem.whose(trophy), "nfx", "a stolen face names its owner");
+        net.minecraft.world.item.ItemStack trophy = com.chunkworks.aberrantmobs.StolenFaceItem.of(new com.mojang.authlib.GameProfile(java.util.UUID.randomUUID(), "Alex"));
+        helper.assertValueEqual(com.chunkworks.aberrantmobs.StolenFaceItem.whose(trophy), "Alex", "a stolen face names its owner");
         net.minecraft.world.entity.player.Player killer = helper.makeMockPlayer(net.minecraft.world.level.GameType.SURVIVAL);
         killer.setPos(a.getX(), a.getY(), a.getZ() - 5.0);
         helper.runAtTickTime(2, () -> {

@@ -1,7 +1,7 @@
-# Copyright (C) 2026 Rusty Shackleford and nfx
+# Copyright (C) 2026 Chunkworks
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """Builds the mod's item/armour art from vanilla pixel templates and authored
-cracks/mask details (see SOURCES.md), leaving nfx's model untouched, and sounds
+cracks/mask details (see SOURCES.md), leaving the original model untouched, and sounds
 (cut from the CC0 recordings in sounds/src, see sounds/SOURCES.md). Run from
 the repo root with `uv run --no-project python devtools/art/build.py [icons] [sounds]`.
 Needs ffmpeg for template decoding and sounds. Bit-exact: an unchanged sound is an unchanged file."""
@@ -56,7 +56,7 @@ def write_png(path: Path, w: int, h: int, pixels: Sequence[Sequence[RGBA]]) -> N
 
 
 CLEAR = (0, 0, 0, 0)
-# The carapace's colours, read off nfx's texture: a dark violet-grey plate with a paler edge.
+# The carapace's colours, read off the original texture: a dark violet-grey plate with a paler edge.
 PLATE = (58, 46, 66, 255)
 PLATE_LIGHT = (92, 78, 104, 255)
 PLATE_DARK = (34, 26, 40, 255)

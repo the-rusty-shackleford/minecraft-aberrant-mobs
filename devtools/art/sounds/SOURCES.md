@@ -49,5 +49,5 @@ Additional sources verified 2026-09-16:
 The low rumble records vibrations from a rowing machine with a LOM Geofón.
 Both additions use endpoint fades and peak normalization only. The old breath
 source is retained for reproducibility of earlier versions. Runtime keeps D-0012’s
-rare, irregular idle timing. Listening suitability is pending Rusty’s review;
+rare, irregular idle timing. Listening suitability is still to be reviewed;
 signal measurements and successful decoding do not establish scariness.

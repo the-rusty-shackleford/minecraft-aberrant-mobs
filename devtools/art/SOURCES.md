@@ -14,5 +14,5 @@ relicense Mojang’s underlying artwork. No unmodified vanilla templates are ven
 | Worn armour layers | `textures/models/armor/netherite_layer_{1,2}.png` |
 
 The orange fissures and the Stolen Face’s stepped bone-mask sprite are authored
-in the generator. The creature’s original Blockbench file by nfx remains untouched.
+in the generator. The creature’s original Blockbench file remains untouched.
 Sound recordings and their licences are listed separately in [sounds/SOURCES.md](sounds/SOURCES.md).

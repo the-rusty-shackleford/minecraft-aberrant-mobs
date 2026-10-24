@@ -1,6 +1,6 @@
 /*
  * Aberrant Mobs - a protocol for monsters.
- * Copyright (C) 2026 Rusty Shackleford and nfx
+ * Copyright (C) 2026 Chunkworks
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * The Face-Stealer's authored animations, in code, on the bones of nfx's
+ * The Face-Stealer's authored animations, in code, on the bones of the original
  * file. Angles are Blockbench's, degrees, about each bone's own pivot: a
  * negative X on a segment rears it (its tail end goes down, its front up,
  * since the segments run tailward along -Z); a Y turn on a forcipule

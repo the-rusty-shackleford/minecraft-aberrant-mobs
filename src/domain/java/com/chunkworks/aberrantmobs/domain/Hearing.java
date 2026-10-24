@@ -1,4 +1,4 @@
-/* Copyright (C) 2026 Rusty Shackleford and nfx. SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (C) 2026 Chunkworks. SPDX-License-Identifier: AGPL-3.0-or-later */
 package com.chunkworks.aberrantmobs.domain;
 
 import java.util.HashMap;

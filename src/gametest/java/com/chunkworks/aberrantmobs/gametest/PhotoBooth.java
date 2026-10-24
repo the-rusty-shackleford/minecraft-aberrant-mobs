@@ -1,6 +1,6 @@
 /*
  * Aberrant Mobs - a protocol for monsters.
- * Copyright (C) 2026 Rusty Shackleford and nfx
+ * Copyright (C) 2026 Chunkworks
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -108,7 +108,7 @@ public final class PhotoBooth {
         }
         Minecraft mc = Minecraft.getInstance();
         if (!muted) {
-            // Silent from the first tick, before the title music: Rusty listens to music while these run.
+            // Silent from the first tick, before the title music: someone may be listening to music while these run.
             mc.options.getSoundSourceOptionInstance(SoundSource.MASTER).set(0.0);
             muted = true;
         }
@@ -277,7 +277,7 @@ public final class PhotoBooth {
             }
         })));
         s.add(new Step(t += 12, () -> shoot(mc, "booth-walk-top")));
-        // The crack under a sword (Rusty's report: the glowing segment only clanged; dynamite worked): once the walk
+        // The crack under a sword (a report: the glowing segment only clanged; dynamite worked): once the walk
         // is over and the body stands still, the booth player, within a sword's reach north of the cracked segment,
         // aims at it; the client's crosshair must find a part of the body, and a blow on it must take health --
         // the server judges the segment from the attacker's look. (Aimed while the body still walked, the blow
@@ -425,7 +425,7 @@ public final class PhotoBooth {
             onServer(mc, sp -> onCreature(sp, a -> verdict("it dug its way in", () -> a.blocksDug() > 82 && a.getX() > hillFace + 2.0 ? null
                     : "dug " + a.blocksDug() + " blocks, at x " + a.getX() + " with the hill's face at " + hillFace)));
         }));
-        // What Rusty met on the surface (2026-09-15): a tree in its way, and things it got stuck on or flipped
+        // What was met on the surface (2026-09-15): a tree in its way, and things it got stuck on or flipped
         // over at. Set down in the open beyond the hill and sent past an oak, digging allowed as the mind allows
         // it; then past a lone pillar of stone. The frames say whether it climbs, chews, hangs or stands.
         s.add(new Step(t += 20, () -> onServer(mc, sp -> onCreature(sp, a -> {
@@ -484,7 +484,7 @@ public final class PhotoBooth {
             sp.getAbilities().flying = false;
             sp.onUpdateAbilities();
             sp.teleportTo(sp.serverLevel(), px, y, Z, -90.0f, 0.0f);
-            // In survival, as Rusty plays: the server's check on every reported move ("moved wrongly", a teleport
+            // In survival, as players play: the server's check on every reported move ("moved wrongly", a teleport
             // back) is skipped for a creative player, and it is that check the wall-walk has to pass.
             sp.setGameMode(GameType.SURVIVAL);
             wallX = wx;

@@ -1,6 +1,6 @@
 """Run the two-client gravity gate with one rendering client at a time.
 
-Copyright 2026 Rusty Shackleford and nfx. AGPL-3.0-or-later.
+Copyright 2026 Chunkworks. AGPL-3.0-or-later.
 Requires: Java 21, DISPLAY naming the already checked test display, no other client.
 Effects: runs only the loopback fixture; logs under run/multiplayer/driver; cleans up
 its own process groups on failure. Never creates a display or touches a live server.
