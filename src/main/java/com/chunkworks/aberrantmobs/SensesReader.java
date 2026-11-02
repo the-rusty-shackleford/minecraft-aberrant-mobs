@@ -85,6 +85,8 @@ public final class SensesReader {
             // spot they stood inside it is where they will come back through: the ambush's anchor.
             boolean inBand = a.canHunt(target);
             s.flag("target.in_band", inBand);
+            // In the pincers' reach with at most one block of rock between (D-0025): a grab can begin.
+            s.flag("target.reachable", a.reachable(target));
             if (inBand) {
                 memory = memory.withPoint("target.last_in_band", pos);
             }

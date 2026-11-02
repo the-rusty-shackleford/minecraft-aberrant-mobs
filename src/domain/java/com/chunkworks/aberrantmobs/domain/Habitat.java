@@ -41,8 +41,8 @@ public final class Habitat {
         }
     }
 
-    /** The Face-Stealer's: between -32 and -8, pitch dark, none within 128 blocks, six to a level. */
-    public static final Rules FACE_STEALER = new Rules(-32, -8, 0, 128, 6);
+    /** The Face-Stealer's: between -32 and -16, pitch dark, none within 128 blocks, six to a level. */
+    public static final Rules FACE_STEALER = new Rules(-32, -16, 0, 128, 6);
     /** A pocket reaches this far from its centre in every direction: five cells across, room for a head 3.75 wide. */
     public static final int POCKET_RADIUS = 2;
     /** A site is bored this deep into the wall, blocks: the pocket's far side, leaving four of rock between the cave and the pocket. */

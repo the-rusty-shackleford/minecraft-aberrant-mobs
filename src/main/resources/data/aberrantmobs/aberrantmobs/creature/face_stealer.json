@@ -18,10 +18,10 @@
   },
   "stats": {
     "health": 84,
-    "speed": 0.24,
+    "speed": 0.22,
     "blows": 5
   },
-  "habitat": {"y_min": -32, "y_max": -8, "max_light": 0, "weight": 2, "exclusion": 128, "cap": 6, "sunlight_sensitive": true},
+  "habitat": {"y_min": -32, "y_max": -16, "max_light": 0, "weight": 2, "exclusion": 128, "cap": 6, "sunlight_sensitive": true},
   "loot": "aberrantmobs:creature/face_stealer",
   "mind": {
     "start": "roam",
@@ -44,7 +44,7 @@
         {"when": "target.in_sight && blocked", "then": {"enter": "hunt"}},
         {"when": "target.in_sight", "then": {"wait": "watched", "ticks": 200, "then": {"enter": "hunt"}}},
         {"when": "target.in_sight && target.distance > 6", "then": {"act": "climb", "away_from": "target.look"}},
-        {"when": "target.distance < 6 && !target.in_sight", "then": {"act": "grab"}},
+        {"when": "target.distance < 6 && !target.in_sight && target.reachable", "then": {"act": "grab"}},
         {"act": "approach", "target": "target.last_pos", "quiet": true, "dig": true}]},
       "hunt": {"select": [
         {"when": "grab.held", "then": {"cooldown": "bite", "ticks": 30, "then": {"act": "bite"}}},
@@ -52,14 +52,14 @@
         {"when": "hurt_hard", "then": {"sequence": [{"act": "release"}, {"timer": "fled", "set": 40}, {"enter": "flee"}]}},
         {"when": "timer.pouncing > 0", "then": {"act": "pounce"}},
         {"when": "target.known && !target.in_band", "then": {"sequence": [{"timer": "ambush", "set": 6000}, {"enter": "lurk"}]}},
-        {"when": "target.distance < 3.75 && timer.no_bite == 0", "then": {"act": "grab"}},
+        {"when": "target.distance < 3.75 && timer.no_bite == 0 && target.reachable", "then": {"act": "grab"}},
         {"when": "target.distance < 9 && target.in_sight && !on_wall && !airborne && timer.no_bite == 0 && timer.pounced == 0", "then": {"sequence": [{"timer": "pounced", "set": 80}, {"timer": "pouncing", "set": 18}, {"act": "pounce"}]}},
         {"when": "!target.known", "then": {"wait": "patience", "ticks": 200, "then": {"enter": "stalk"}}},
         {"act": "chase"}]},
       "lurk": {"select": [
         {"when": "grab.held", "then": {"enter": "hunt"}},
         {"when": "hurt_hard", "then": {"sequence": [{"timer": "fled", "set": 40}, {"enter": "flee"}]}},
-        {"when": "target.known && target.in_band && target.distance < 6", "then": {"act": "grab"}},
+        {"when": "target.known && target.in_band && target.distance < 6 && target.reachable", "then": {"act": "grab"}},
         {"when": "target.known && target.in_band && target.eye_contact", "then": {"enter": "hunt"}},
         {"when": "target.known && target.in_band", "then": {"enter": "stalk"}},
         {"when": "!target.known", "then": {"wait": "ambush", "ticks": 6000, "then": {"enter": "roam"}}},

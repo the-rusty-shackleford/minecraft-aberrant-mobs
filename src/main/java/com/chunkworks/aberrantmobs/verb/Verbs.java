@@ -50,7 +50,8 @@ import net.minecraft.world.entity.LivingEntity;
  *     the target's view for a wall.
  * <li><b>pounce</b>: the coil (the charge, with its click and hiss), then
  *     one leap at {@code target.pos} as the coil ends.
- * <li><b>grab</b>: the pincers close on the target if it is within reach.
+ * <li><b>grab</b>: the pincers close on the target if it is within reach, at once with nothing
+ *     between, a second after bursting one block of rock between (D-0025); never through more.
  * <li><b>release</b>: the pincers open.
  * <li><b>bite</b>: the bite, on the one held.
  * </ul>
@@ -315,7 +316,7 @@ public final class Verbs {
 
         @Override
         public void tick(Aberrant a, Intent intent) {
-            if (a.holding()) {
+            if (a.holding() || a.bursting()) {
                 return;
             }
             LivingEntity target = a.nearestTarget();

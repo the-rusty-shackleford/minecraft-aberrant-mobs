@@ -35,6 +35,7 @@ import com.chunkworks.aberrantmobs.domain.Hearing;
 import com.chunkworks.aberrantmobs.domain.Leap;
 import com.chunkworks.aberrantmobs.domain.Legs;
 import com.chunkworks.aberrantmobs.domain.Pose;
+import com.chunkworks.aberrantmobs.domain.Reach;
 import com.chunkworks.aberrantmobs.domain.Rig;
 import com.chunkworks.aberrantmobs.domain.Trail;
 import com.chunkworks.aberrantmobs.domain.Tunnel;
@@ -200,6 +201,11 @@ public class Aberrant extends Monster {
     private static final double FLINCH_AT = 10.0;
     /** The pincers reach this far from the head's axis, blocks: at the Face-Stealer's size, twice the maw's reach and a little. */
     public static final double GRAB_REACH = 4.5;
+    /**
+     * Through one block of rock the pincers burst it first and close this long after, ticks
+     * (D-0025): time to hear it, turn and sprint out of reach.
+     */
+    public static final int BURST_TICKS = 20;
     /** The pinch as the pincers close, and the bite: finite, beyond any absorption, through the pipeline. */
     public static final float PINCH = 2.0f;
     public static final float DEVOUR = 1.0e6f;
@@ -902,6 +908,9 @@ public class Aberrant extends Monster {
     }
 
     @Nullable private Vec ambushAnchor, ambushPost;
+    /** The one a burst will close on, and the ticks until it does; none while zero. */
+    @Nullable private UUID burstVictim;
+    private int burstTicks;
 
     /**
      * effects: returns where to lie in wait for prey that has left the band: {@code anchor} is
@@ -1330,6 +1339,7 @@ public class Aberrant extends Monster {
             if (p.mind().isPresent() && !isNoAi()) {
                 think(p.mind().get());
             }
+            burstTick((ServerLevel) level());
             crawlTick(body, p);
         }
         double dx = getX() - xo, dy = getY() - yo, dz = getZ() - zo;
@@ -1541,13 +1551,84 @@ public class Aberrant extends Monster {
      * clip plays and pinches on its cue; returns whether it was taken
      */
     public boolean grab(LivingEntity victim) {
-        if (!canHunt(victim) || holding() || !getPassengers().isEmpty() || victim.getVehicle() != null) {
+        if (!canTake(victim) || bursting()) {
+            return false;
+        }
+        Reach.Verdict way = reachTo(victim);
+        if (way.way() == Reach.Way.WALL) {
+            burst(way.wall().orElseThrow(), victim);
+            return false;
+        }
+        return way.way() == Reach.Way.CLEAR && take(victim);
+    }
+
+    /** effects: returns whether {@code victim} is huntable, within the pincers' reach of the head, and free to be taken, whatever lies between */
+    private boolean canTake(LivingEntity victim) {
+        return !holding() && getPassengers().isEmpty() && victim.getVehicle() == null && inReach(victim);
+    }
+
+    /** effects: returns whether {@code victim} is alive, huntable and within the pincers' reach of the head, whatever lies between or is held */
+    private boolean inReach(LivingEntity victim) {
+        if (!victim.isAlive() || !canHunt(victim)) {
             return false;
         }
         Vec at = new Vec(victim.getX(), victim.getY() + victim.getBbHeight() / 2.0, victim.getZ());
-        if (at.minus(axis()).length() > GRAB_REACH + victim.getBbWidth()) {
-            return false;
+        return at.minus(axis()).length() <= GRAB_REACH + victim.getBbWidth();
+    }
+
+    /**
+     * effects: returns how the pincers reach {@code victim} from the head: the best line to its
+     * feet, middle or eyes through the habitat's cells (D-0025)
+     */
+    public Reach.Verdict reachTo(LivingEntity victim) {
+        double x = victim.getX(), y = victim.getY(), z = victim.getZ();
+        return Reach.between(cells(), axis(), List.of(new Vec(x, y + 0.1, z), new Vec(x, y + victim.getBbHeight() / 2.0, z), new Vec(x, victim.getEyeY(), z)));
+    }
+
+    /**
+     * effects: returns whether {@code victim} is in the pincers' reach and behind at most one block
+     * of rock, whether or not something is held: the tree's grab rules stand on it, and while one is
+     * held the grab is the creature holding still for the bite
+     */
+    public boolean reachable(LivingEntity victim) {
+        return inReach(victim) && reachTo(victim).way() != Reach.Way.BLOCKED;
+    }
+
+    /** effects: returns whether the pincers are bursting a wall and about to close */
+    public boolean bursting() {
+        return burstTicks > 0;
+    }
+
+    /**
+     * effects: breaks {@code wall} loudly, screeches, holds still and, {@link #BURST_TICKS}
+     * later, closes on {@code victim} if it is still in reach with nothing between; nothing
+     * when the wall cannot be cut (outside the band)
+     */
+    private void burst(Cell wall, LivingEntity victim) {
+        if (!(level() instanceof ServerLevel server) || DigWorld.dig(server, this, List.of(wall), true) == 0) {
+            return;
         }
+        sound(ModContent.DIG_LOUD.get(), 2.0f);
+        sound(ModContent.SCREECH.get(), 1.6f, 0.8f, 1.0f);
+        burstVictim = victim.getUUID();
+        burstTicks = BURST_TICKS;
+        stopCrawl();
+    }
+
+    /** effects: counts a burst down; at its end the pincers close on its victim if it is still there to take, or on nothing */
+    private void burstTick(ServerLevel server) {
+        if (burstTicks <= 0 || --burstTicks > 0) {
+            return;
+        }
+        Entity e = burstVictim == null ? null : server.getEntity(burstVictim);
+        burstVictim = null;
+        if (e instanceof LivingEntity victim && canTake(victim) && reachTo(victim).way() == Reach.Way.CLEAR) {
+            take(victim);
+        }
+    }
+
+    /** requires: canTake(victim) effects: the pincers close on {@code victim}; returns whether it was taken */
+    private boolean take(LivingEntity victim) {
         if (!victim.startRiding(this, true)) {
             return false;
         }

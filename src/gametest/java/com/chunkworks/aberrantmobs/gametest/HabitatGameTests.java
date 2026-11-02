@@ -67,6 +67,10 @@ public final class HabitatGameTests {
     @GameTest(template="pounce", timeoutTicks=40, batch="habitat_saved")
     public void savedTooDeepCreatureIsRemovedWithoutLoot(GameTestHelper h) { savedOutside(h, -48); }
 
+    /** 1.5.0 lowered the band's top from -8 to -16: a creature saved at -12 under 1.4.0 is gone on load. */
+    @GameTest(template="pounce", timeoutTicks=40, batch="habitat_saved")
+    public void savedCreatureInTheOldTopOfTheBandIsRemovedWithoutLoot(GameTestHelper h) { savedOutside(h, -12); }
+
     private static void savedOutside(GameTestHelper h, int y) {
         floor(h, y-1);
         Aberrant old = creature(h,y);
@@ -85,7 +89,7 @@ public final class HabitatGameTests {
     }
 
     @GameTest(template="pounce", timeoutTicks=40, batch="habitat_pounce")
-    public void cannotPounceAboveHabitat(GameTestHelper h) { pounceOutside(h,-12,-5); }
+    public void cannotPounceAboveHabitat(GameTestHelper h) { pounceOutside(h,-20,-13); }
 
     @GameTest(template="pounce", timeoutTicks=40, batch="habitat_pounce")
     public void cannotPounceBelowHabitat(GameTestHelper h) { pounceOutside(h,-27,-35); }
@@ -121,14 +125,14 @@ public final class HabitatGameTests {
         var level=h.getLevel();
         // Other protocol fixtures do not participate in this isolated spawn-cap experiment.
         for (Aberrant a:level.getEntitiesOfClass(Aberrant.class,new net.minecraft.world.phys.AABB(o).inflate(160))) a.discard();
-        for (int x=0;x<17;x++) for(int z=10;z<21;z++) for(int y=-35;y<=-7;y++)
+        for (int x=0;x<17;x++) for(int z=10;z<21;z++) for(int y=-35;y<=-15;y++)
             level.setBlock(new BlockPos(o.getX()+x,y,o.getZ()+z),Blocks.STONE.defaultBlockState(),3);
-        for(int y:new int[]{-45,-32,-24,-8})
+        for(int y:new int[]{-45,-32,-24,-16})
             level.setBlock(new BlockPos(o.getX()+5,y,o.getZ()+15),Blocks.AIR.defaultBlockState(),3);
         BlockPos valid=new BlockPos(o.getX()+5,-24,o.getZ()+15);
         h.startSequence().thenWaitUntil(()->h.assertTrue(level.getBrightness(net.minecraft.world.level.LightLayer.SKY,valid)==0,"light engine finished the enclosed cave"))
                 .thenExecute(()->{
-                    for(int y:new int[]{-45,-32,-8,10,70}) {
+                    for(int y:new int[]{-45,-32,-16,-8,10,70}) {
                         BlockPos bad=new BlockPos(valid.getX(),y,valid.getZ());
                         h.assertTrue(!natural(h,bad),"outside band or pocket straddles its boundary at "+y);
                     }
@@ -155,7 +159,7 @@ public final class HabitatGameTests {
     private static void assertBody(GameTestHelper h,Aberrant a) {
         h.assertTrue(a.isAlive(),"creature stays alive at the boundary");
         for(var part:a.getParts()) if(part.getBbWidth()>0.1)
-            h.assertTrue(part.getBoundingBox().minY>=-32 && part.getBoundingBox().maxY<=-7,"entire segment stays in band: "+part.getBoundingBox());
+            h.assertTrue(part.getBoundingBox().minY>=-32 && part.getBoundingBox().maxY<=-15,"entire segment stays in band: "+part.getBoundingBox());
     }
 
     @GameTest(template="pounce", timeoutTicks=190, batch="habitat_crawl")
@@ -177,7 +181,7 @@ public final class HabitatGameTests {
         for(int t=5;t<=160;t++) h.runAtTickTime(t,()->assertBody(h,a));
         h.runAtTickTime(165,()->{
             h.assertTrue(a.getX()>startX+2,"actual pursuit progresses before the boundary");
-            for(int x=23;x<29;x++) for(int z=0;z<31;z++) for(int y:new int[]{-33,-7,0})
+            for(int x=23;x<29;x++) for(int z=0;z<31;z++) for(int y:new int[]{-33,-15,0})
                 h.assertTrue(h.getLevel().getBlockState(new BlockPos(o.getX()+x,y,o.getZ()+z)).is(Blocks.STONE),"no dig outside allowed rows");
             a.discard();h.succeed();
         });
@@ -194,10 +198,10 @@ public final class HabitatGameTests {
         BlockPos o=origin(h);
         var level=h.getLevel();
         for (Aberrant other:level.getEntitiesOfClass(Aberrant.class,new net.minecraft.world.phys.AABB(o).inflate(160))) other.discard();
-        for(int x=4;x<=26;x++) for(int z=10;z<=20;z++) for(int y=-44;y<=-7;y++)
+        for(int x=4;x<=26;x++) for(int z=10;z<=20;z++) for(int y=-44;y<=-15;y++)
             level.setBlock(new BlockPos(o.getX()+x,y,o.getZ()+z),Blocks.STONE.defaultBlockState(),3);
         int sx=o.getX()+8, sz=o.getZ()+15;   // the shaft, and the chamber it drops into below the band
-        for(int y=-42;y<=-8;y++) level.setBlock(new BlockPos(sx,y,sz),Blocks.AIR.defaultBlockState(),3);
+        for(int y=-42;y<=-16;y++) level.setBlock(new BlockPos(sx,y,sz),Blocks.AIR.defaultBlockState(),3);
         for(int x=sx-1;x<=sx+1;x++) for(int z=sz-1;z<=sz+1;z++) for(int y=-42;y<=-40;y++)
             level.setBlock(new BlockPos(x,y,z),Blocks.AIR.defaultBlockState(),3);
         BlockPos ledge=new BlockPos(sx,-21,sz);   // the prey stands on this inside the band, then digs through it
@@ -250,6 +254,84 @@ public final class HabitatGameTests {
             .thenSucceed();
     }
 
+    /**
+     * D-0025: the pincers reach through at most one block of rock. Two rows of floor between the head and
+     * a player standing on them, within reach: no grab, nothing broken.
+     */
+    @GameTest(template="pounce", timeoutTicks=60, batch="habitat_burst")
+    public void noGrabThroughTwoBlocksOfFloor(GameTestHelper h) {
+        floor(h,-25);floor(h,-20);floor(h,-19);
+        Aberrant a=creature(h,-24);
+        var p=h.makeMockServerPlayerInLevel();p.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
+        p.moveTo(a.getX(),-18,a.getZ(),0,0);
+        h.runAtTickTime(5,()->{
+            h.assertTrue(a.canHunt(p),"the player stands inside the band");
+            h.assertTrue(p.position().add(0,p.getBbHeight()/2,0).distanceTo(new net.minecraft.world.phys.Vec3(a.axis().x(),a.axis().y(),a.axis().z()))<=Aberrant.GRAB_REACH+p.getBbWidth(),
+                    "within the pincers' reach");
+            h.assertTrue(!a.reachable(p),"two blocks of rock between: out of reach");
+            h.assertTrue(!a.grab(p) && !a.holding() && !a.bursting(),"no grab, no burst");
+            BlockPos under=BlockPos.containing(a.getX(),-20,a.getZ());
+            h.assertTrue(h.getLevel().getBlockState(under).is(Blocks.STONE) && h.getLevel().getBlockState(under.above()).is(Blocks.STONE),"the floor is whole");
+            a.discard();p.discard();h.succeed();
+        });
+    }
+
+    /** effects: a wall one block thick at x 18 between the creature at x 15.5 and a player at x 19.5, on a floor at -25 */
+    private static net.minecraft.server.level.ServerPlayer behindOneWall(GameTestHelper h, Aberrant[] made) {
+        BlockPos o=origin(h);
+        floor(h,-25);
+        for(int z=0;z<31;z++) for(int y=-24;y<=-19;y++)
+            h.getLevel().setBlock(new BlockPos(o.getX()+18,y,o.getZ()+z),Blocks.STONE.defaultBlockState(),3);
+        made[0]=creature(h,-24);
+        var p=h.makeMockServerPlayerInLevel();p.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
+        p.moveTo(o.getX()+19.5,-24,o.getZ()+15.5,90,0);
+        return p;
+    }
+
+    /** D-0025: one block between, the creature bursts it loudly, and a second later takes a player who stayed. */
+    @GameTest(template="pounce", timeoutTicks=80, batch="habitat_burst")
+    public void oneBlockIsBurstAndAPlayerWhoStaysIsTaken(GameTestHelper h) {
+        Aberrant[] made=new Aberrant[1];
+        var p=behindOneWall(h,made);
+        Aberrant a=made[0];
+        BlockPos wall=BlockPos.containing(h.absolutePos(BlockPos.ZERO).getX()+18,-24,h.absolutePos(BlockPos.ZERO).getZ()+15);
+        h.startSequence()
+            .thenExecuteAfter(5,()->{
+                h.assertTrue(a.reachable(p),"one block between: reachable");
+                h.assertValueEqual(a.reachTo(p).way(),com.chunkworks.aberrantmobs.domain.Reach.Way.WALL,"through a wall");
+                h.assertTrue(!a.grab(p),"not taken at once");
+                h.assertTrue(a.bursting(),"the burst begins");
+                h.assertTrue(h.getLevel().getBlockState(wall).isAir(),"the wall's block is broken");
+                h.assertTrue(!a.grab(p),"a second grab waits on the burst");
+            })
+            .thenExecuteAfter(Aberrant.BURST_TICKS-2,()->h.assertTrue(!a.holding(),"nothing closes before the burst's end"))
+            .thenExecuteAfter(4,()->{
+                h.assertTrue(!a.bursting(),"the burst is over");
+                h.assertTrue(a.holding() && p.getVehicle()==a,"the player who stayed is taken");
+                a.release();a.discard();p.discard();
+            })
+            .thenSucceed();
+    }
+
+    /** D-0025: a player who gets out of reach during the burst is not taken. */
+    @GameTest(template="pounce", timeoutTicks=80, batch="habitat_burst")
+    public void aPlayerWhoGetsAwayDuringTheBurstIsNotTaken(GameTestHelper h) {
+        Aberrant[] made=new Aberrant[1];
+        var p=behindOneWall(h,made);
+        Aberrant a=made[0];
+        h.startSequence()
+            .thenExecuteAfter(5,()->{
+                h.assertTrue(!a.grab(p) && a.bursting(),"the burst begins");
+            })
+            .thenExecuteAfter(10,()->p.moveTo(p.getX()+8,p.getY(),p.getZ(),90,0))   // half way through the burst: gone, sprinting
+            .thenExecuteAfter(Aberrant.BURST_TICKS,()->{
+                h.assertTrue(!a.bursting(),"the burst is over");
+                h.assertTrue(!a.holding() && p.getVehicle()==null,"the pincers close on nothing");
+                a.discard();p.discard();
+            })
+            .thenSucceed();
+    }
+
     @GameTest(template="pounce", timeoutTicks=400, batch="habitat_shade")
     public void roofAndTorchesProtectFromSunlight(GameTestHelper h) {
         h.getLevel().setDayTime(6000);h.getLevel().setWeatherParameters(6000,0,false,false);
@@ -292,13 +374,13 @@ public final class HabitatGameTests {
 
     @GameTest(template="pounce", timeoutTicks=100, batch="habitat_attack")
     public void cannotGrabAcrossTheUpperBoundaryOrBiteAfterVictimEscapes(GameTestHelper h) {
-        floor(h,-14);
-        Aberrant a=creature(h,-13);
+        floor(h,-22);
+        Aberrant a=creature(h,-21);
         var player=h.makeMockServerPlayerInLevel();player.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
-        player.moveTo(a.getX()+1,-6,a.getZ(),0,0);
+        player.moveTo(a.getX()+1,-14,a.getZ(),0,0);
         h.assertTrue(!a.grab(player),"no grab beyond habitat even within pincer reach");
         h.runAtTickTime(65,()->{
-            player.moveTo(a.getX()+1,-12,a.getZ(),0,0);
+            player.moveTo(a.getX()+1,-20,a.getZ(),0,0);
             h.assertTrue(a.grab(player),"same player can be grabbed inside habitat");
             a.bite();
             player.moveTo(a.getX(),0,a.getZ(),0,0);

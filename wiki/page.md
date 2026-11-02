@@ -7,8 +7,9 @@ until its next victim. Kill it and its chitin makes armour that lets you **walk 
 
 ## Where it lives
 
-- In the **deepslate mining band, Y −32 to −8**, but never in the Deep Dark. Shallow caves and
-  ordinary iron mining near the surface are outside its territory.
+- In the **deepslate band, Y −32 to −16**, but never in the Deep Dark. Shallow caves,
+  ordinary iron mining near the surface and the top of the deepslate, above −16, are outside its
+  territory.
 - It spawns in the rock beside a cave and bores a pocket into the wall, so **the first sign of it
   is digging**.
 - It never leaves its band. It doesn't chase you up out of it, and it can't grab you outside it.
@@ -24,11 +25,14 @@ until its next victim. Kill it and its chitin makes armour that lets you **walk 
   hisses once.
 - **Don't meet its eyes.** A stare (not a glance) starts the **hunt**: a screech, then it comes
   fast, loudly, and pounces from close range, coiling first with a click and a hiss.
-- **It's catchable on foot.** At 4.8 blocks a second, a sprinting player can open a gap on clear
+- **It's catchable on foot.** At 4.4 blocks a second, a sprinting player can open a gap on clear
   ground. Walking, obstacles and pounces at close range are where it gets you.
 - **The lurk:** go up out of its band and it doesn't follow. It digs into the wall beside the
   shaft or stairs you left by and **waits**, a block of rock between it and the way down. Come
-  back down within reach and it grabs you from the wall.
+  back down within reach and it bursts out of the wall at you.
+- **It can't grab you through solid ground.** With one block of rock between you, it smashes
+  through with a screech and grabs a second later: **if you hear that, run**, and you can get
+  out of reach in time. Through two blocks or more, it has to dig closer first.
 - It remembers a target for about two minutes, and the sounds you make keep that memory fresh.
 
 ![Coiling to pounce](img/coil.webp)

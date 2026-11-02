@@ -529,3 +529,12 @@ This session passed 136 JUnit and 57 real-server tests and built the 1.4.0 jar.
 See [the verification record](../devtools/verification/manual-spawning-and-hearing.md)
 for reproductions, a repaired fixture-lifetime defect and coverage limits. Unreleased;
 Rusty's engineering instruction did not authorize publication or deployment.
+
+## Band top -16, chase 0.22 — local 1.5.0 candidate (2026-11-01)
+
+[D-0024](decisions/D-0024.md): a Face-Stealer kept killing WAXER_01 in his mine and bed at
+-15/-9. Rusty asked for the band -32..-16 and a hair slower; the chase is 0.22. Saved creatures
+in the old top (-15..-8) are removed on load. [D-0025](decisions/D-0025.md): it grabbed him
+through the ground too; the pincers now reach through at most one block of rock, bursting it
+loudly a second before they close (`domain/Reach`, the sense `target.reachable`). 153 JUnit and
+62 GameTests pass, the booth not run (nothing drawn changed). Unreleased until Rusty's go.

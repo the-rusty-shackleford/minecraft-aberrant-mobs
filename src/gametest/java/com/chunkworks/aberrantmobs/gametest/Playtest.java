@@ -176,7 +176,7 @@ public final class Playtest {
     /**
      * effects: returns a cell of a dark cave (three of air over rock, no sky
      * light) within {@code radius} of {@code centre} and at least
-     * {@code minDist} from it, below y = -8; when {@code rules} is given,
+     * {@code minDist} from it, below y = -16; when {@code rules} is given,
      * one the game's own spawn rules take for the creature (dark for its
      * habitat, a wall thick enough beside it, room for it); null when none
      */
@@ -190,7 +190,7 @@ public final class Playtest {
                     }
                     int x = centre.getX() + dx, z = centre.getZ() + dz;
                     level.getChunk(x >> 4, z >> 4);
-                    for (int y = -12; y >= -28; y--) {
+                    for (int y = -20; y >= -28; y--) {
                         BlockPos p = new BlockPos(x, y, z);
                         if (!level.getBlockState(p).isAir() || !level.getBlockState(p.above()).isAir() || !level.getBlockState(p.above(2)).isAir()) {
                             continue;

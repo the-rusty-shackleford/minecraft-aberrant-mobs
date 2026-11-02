@@ -61,7 +61,7 @@ player, but only a survival or adventure player is prey.
   "model": "aberrantmobs:face_stealer",      // assets/<ns>/aberrantmobs/model/<name>.bbmodel, saved as it is
   "scale": 0.09375,                           // model units to blocks (optional, a sixteenth; the Face-Stealer's is one and a half)
   "body": {"width": 3.75, "height": 3.75, "eye_height": 2.4},   // the box the world collides with, blocks
-  "stats": {"health": 84, "speed": 0.24, "blows": 5}   // no blow takes more than a fifth of it: five to kill, however hard the weapon
+  "stats": {"health": 84, "speed": 0.22, "blows": 5}   // no blow takes more than a fifth of it: five to kill, however hard the weapon
 }
 ```
 
@@ -110,7 +110,7 @@ mode; the new mode decides once more the same tick), `timer` (set), `wait` (pati
 start it, hold while it runs, fire once and clear), `cooldown` (fire, then hold while it
 runs). Conditions are `&&`, `||`, `!`, parentheses, flags (`hurt`), comparisons
 (`target.distance < 4`), and timers (`timer.no_bite == 0`; never set reads as zero). The
-senses (`domain/mind/Senses`): `target.seen/known/in_sight/eye_contact/underground/in_band`,
+senses (`domain/mind/Senses`): `target.seen/known/in_sight/eye_contact/underground/in_band/reachable`,
 `target.distance/pos/last_pos/last_in_band/look`, `ambush.post`, `hurt`, `hurt_hard`, `health`, `y`, `light`,
 `on_wall`, `airborne`, `underground`, `blocked`, `heard.any/bearing/error/age/distance/
 loud`, `grab.held/survived`, `random`, `home`. A condition naming anything else, a mode
@@ -134,12 +134,20 @@ its bore's reach into the nearest wall thick enough for a pocket beside
 `target.last_in_band`, the last spot the prey stood inside the band (the shaft or stair they
 went down by), so a wall one block thick stays between its head and the shaft and there is
 nothing to see. There it holds. Prey back inside the band within six blocks is grabbed from
-the wall; farther, stalked again; staring, hunted. Once the prey is no longer known it leaves
+the wall, the wall burst first (below); farther, stalked again; staring, hunted. Once the prey is no longer known it leaves
 for roam when its five-minute ambush clock, set on taking the post, has run out.
 
 ## The grab, the bite, the face
 
-Within reach (4.5 blocks of the head's axis), the pincers close (`Aberrant.grab`): the target rides the creature, held
+Within reach (4.5 blocks of the head's axis) the pincers reach through at most one block of
+rock (D-0025, `domain/Reach`: the best straight line from the head's axis to the target's feet,
+middle or eyes). With nothing between they close at once. Through one block of dry, diggable
+rock they **burst** it first: the block breaks loudly, the creature screeches and holds still,
+and `BURST_TICKS` (20, one second) later they close only if the target is still within reach
+with nothing between, so a player who hears it and sprints gets away. Through more than one
+block, or obsidian or wet rock, there is no grab: the sense `target.reachable` is false and the
+tree's grab rules wait on it, so the creature digs closer instead. When they close
+(`Aberrant.grab`), the target rides the creature, held
 in the jaws of the original head -- against the mask's front at the maw's height, half their own
 width before the face, so from their own eyes they see the mask and the pincers, not the
 inside of the head (or at the head's own axis when the jaws have just surfaced inside
@@ -160,7 +168,7 @@ click and hiss) and leaps as the coil ends.
 
 ## Where it lives, what it leaves, how it sounds
 
-A profile with a `habitat` spawns on its own (`{"y_min": -32, "y_max": -8, "max_light":
+A profile with a `habitat` spawns on its own (`{"y_min": -32, "y_max": -16, "max_light":
 0, "weight": 2, "exclusion": 128, "cap": 6, "sunlight_sensitive": true}`): the biome modifier offers the entity type
 to every overworld biome, and `SpawnRules` takes a site only when it is deep and dark
 enough for some habitat, not in the deep dark, with a wall beside the cave thick enough
@@ -169,16 +177,17 @@ pocket of rock five across), no other creature within the exclusion and fewer th
 cap in the level. The creature then takes the profile whose habitat fits (by weight),
 bores its pocket, five across, seven blocks into that wall and starts there, so the
 first sign of it is digging.
-The Face-Stealer lives in the deepslate mining band, **Y -32 through -8**, outside the
-Deep Dark. Shallow caves and ordinary surface iron mining are outside its territory.
+The Face-Stealer lives in the deepslate mining band, **Y -32 through -16**, outside the
+Deep Dark. Shallow caves, ordinary surface iron mining and the shallow deepslate down to -15 are
+outside its territory (D-0024: the band's top was -8 until 1.5.0).
 Both end block rows are included, but the full body and spawn pocket must fit; a
 head at an endpoint cannot leave half the creature across the boundary. Paths and
 digs treat forbidden territory as impassable. Crawling, falling and every tick of a
 pounce enforce the boundary too. Targets outside it cannot be grabbed or bitten,
 including a victim moved outside after a bite was queued.
 
-The full chase is **0.24 blocks/tick (4.8 blocks/second)**, down from 0.45. A sprinting
-player can open a gap on clear ground; walking, obstacles and close-range pounces
+The full chase is **0.22 blocks/tick (4.4 blocks/second)**, down from 0.45 and then
+0.24 (D-0024). A sprinting player can open a gap on clear ground; walking, obstacles and close-range pounces
 remain dangerous. Quiet approaches and wandering use the same profile speed with
 their existing multipliers. The pounce retains its brief burst and wind-up.
 

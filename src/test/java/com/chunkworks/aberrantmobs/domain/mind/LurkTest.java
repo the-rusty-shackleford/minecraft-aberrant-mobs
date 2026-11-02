@@ -83,9 +83,16 @@ final class LurkTest {
 
     @Test
     void preyBackInsideTheBandAndCloseIsGrabbedFromThePost() throws IOException {
-        Mind.Decision d = Mind.tick(shipped(), known(true, 4).build(), Memory.fresh("lurk", 1));
+        Mind.Decision d = Mind.tick(shipped(), known(true, 4).flag("target.reachable", true).build(), Memory.fresh("lurk", 1));
         assertEquals("lurk", d.memory().mode());
         assertEquals("grab", d.intent().verb());
+    }
+
+    /** D-0025: close, but behind more than a block of rock: no grab; it stalks closer instead. */
+    @Test
+    void preyBackInsideTheBandAndCloseButBehindThickRockIsNotGrabbed() throws IOException {
+        Mind.Decision d = Mind.tick(shipped(), known(true, 4).flag("target.reachable", false).build(), Memory.fresh("lurk", 1));
+        assertEquals("stalk", d.memory().mode());
     }
 
     @Test

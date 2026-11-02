@@ -38,8 +38,9 @@ final class HabitatTest {
     void deepAndDarkIsDepthAndNoLight() {
         Habitat.Rules r = Habitat.FACE_STEALER;
         assertTrue(Habitat.deepAndDark(r, -30, 0, 0));
-        assertTrue(Habitat.deepAndDark(r, -8, 0, 0) && Habitat.deepAndDark(r, -32, 0, 0), "the ends included");
-        assertFalse(Habitat.deepAndDark(r, -7, 0, 0), "too high");
+        assertTrue(Habitat.deepAndDark(r, -16, 0, 0) && Habitat.deepAndDark(r, -32, 0, 0), "the ends included");
+        assertFalse(Habitat.deepAndDark(r, -15, 0, 0), "too high");
+        assertFalse(Habitat.deepAndDark(r, -8, 0, 0), "the old top (1.4.0), now outside");
         assertFalse(Habitat.deepAndDark(r, -33, 0, 0), "too deep");
         assertFalse(Habitat.deepAndDark(r, -30, 1, 0), "a glimmer of sky");
         assertFalse(Habitat.deepAndDark(r, -30, 0, 1), "a torch");
@@ -105,11 +106,11 @@ final class HabitatTest {
     @Test
     void entireBodyMustFitBothBoundaryFaces() {
         Habitat.Rules r=Habitat.FACE_STEALER;
-        assertTrue(Habitat.containsHeight(r,-32,-7));
+        assertTrue(Habitat.containsHeight(r,-32,-15));
         assertTrue(Habitat.containsHeight(r,-28,-24));
         assertTrue(Habitat.containsHeight(r,-20,-20));
         assertFalse(Habitat.containsHeight(r,-32.001,-28));
-        assertFalse(Habitat.containsHeight(r,-12,-6.999));
+        assertFalse(Habitat.containsHeight(r,-20,-14.999));
         assertFalse(Habitat.containsHeight(r,0,4));
         assertFalse(Habitat.containsHeight(r,-40,-36));
         assertThrows(IllegalArgumentException.class,()->Habitat.containsHeight(r,1,0));

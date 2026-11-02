@@ -31,3 +31,5 @@ type: index
 | D-0021 | Profile-named summon commands and explicit manual-spawn refusals |
 | D-0022 | Progressive 512-block hearing, exact within 64 blocks |
 | D-0023 | Prey that leaves the band is lurked for just past the corridor's reach into the wall beside where it left, behind a wall one thick, and grabbed on its return |
+| D-0024 | The band's top -16 (was -8) and the chase 0.22 (was 0.24), so the shallow deepslate is safe to mine and live in |
+| D-0025 | The pincers reach through at most one block of rock, bursting it a second before they close; never through more |

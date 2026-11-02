@@ -40,7 +40,7 @@ public final class Senses {
     /** The flags a tree may test. */
     public static final Set<String> FLAGS = Set.of(
             "target.seen", "target.known", "target.in_sight", "target.eye_contact", "target.underground", "target.blessed",
-            "target.in_band",
+            "target.in_band", "target.reachable",
             "hurt", "hurt_hard", "on_wall", "underground", "grab.held", "grab.survived", "heard.any", "heard.loud", "blocked", "airborne");
     /** The points a verb may be sent to. */
     public static final Set<String> POINTS = Set.of(
